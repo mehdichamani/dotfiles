@@ -1,0 +1,5 @@
+# ~/.profile - sourced by login shells (SSH, tty login)
+# Ensure .bashrc is loaded so fish auto-start works on SSH sessions
+if [ -f ~/.bashrc ]; then
+    . ~/.bashrc
+fi

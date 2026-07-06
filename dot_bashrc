@@ -1,0 +1,66 @@
+# load fish only if interactive and let manual switching to bash
+if [[ $- == *i* ]] && command -v fish >/dev/null 2>&1; then
+    _ppid_name=$(cat /proc/$PPID/comm 2>/dev/null)
+    if [[ "$_ppid_name" != "fish" ]]; then
+        exec fish
+    fi
+fi
+
+# Environment Variables
+export EDITOR="nvim"
+export VISUAL="nvim"
+export FIGLET_FONTDIR="$HOME/.local/share/figlet"
+export PATH="$HOME/.venv/bin:$PATH"
+
+# Load aliases
+if [ -f ~/.bash_aliases ]; then
+    . ~/.bash_aliases
+fi
+
+# Starship prompt (bash-specific config)
+if command -v starship &>/dev/null; then
+    export STARSHIP_CONFIG=~/.config/starship-bash.toml
+    eval "$(starship init bash)"
+fi
+
+# Zoxide
+if command -v zoxide &>/dev/null; then
+    eval "$(zoxide init bash)"
+fi
+
+# Fastfetch on interactive shell
+if [[ $- == *i* ]]; then
+    #if command -v fastfetch &>/dev/null; then
+    #    fastfetch
+    #fi
+
+    # Proxy status
+    if [ -n "$http_proxy" ] || [ -n "$HTTP_PROXY" ]; then
+        echo -e "\033[32m● Proxy ON ($http_proxy)\033[0m"
+    else
+        echo -e "\033[33m○ Proxy OFF\033[0m"
+    fi
+
+    # Termux SSH Automation
+    if [ -n "$TERMUX_VERSION" ]; then
+        if ! pgrep -f sshd >/dev/null; then
+            echo "🚀 Starting SSH server..."
+            sshd
+        fi
+    fi
+fi
+
+# Load starship name config
+name_path="$HOME/.config/name"
+if [ -f "$name_path" ]; then
+    content=$(cat "$name_path")
+    if [ -z "$content" ]; then
+        [[ $- == *i* ]] && echo -e "\033[33m⚠️  WARNING: Starship name file is empty!\033[0m"
+        export STARSHIP_ENV="notDefined"
+    else
+        export STARSHIP_ENV="$content"
+    fi
+else
+    [[ $- == *i* ]] && echo -e "\033[31m⚠️  WARNING: Starship name file not found at $name_path\033[0m"
+    export STARSHIP_ENV="notDefined"
+fi

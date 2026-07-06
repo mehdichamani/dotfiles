@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Antigravity IDE
+Exec=env http_proxy=http://localhost:2080 https_proxy=http://localhost:2080 HTTP_PROXY=http://localhost:2080 HTTPS_PROXY=http://localhost:2080 no_proxy="localhost,127.0.0.1,::1" /home/unreal/.local/share/antigravity/antigravity-ide
+Terminal=false
+Type=Application
+Icon=/home/unreal/.local/share/antigravity/icon.png
+Categories=Development;IDE;
+StartupNotify=true

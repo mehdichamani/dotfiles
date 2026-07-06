@@ -1,0 +1,75 @@
+"$schema" = 'https://starship.rs/config-schema.json'
+
+format = """
+[](#9A348E)\
+$os\
+$env_var\
+[](bg:#DA627D fg:#9A348E)\
+$directory\
+[](fg:#DA627D bg:#FCA17D)\
+$git_branch\
+$git_status\
+[](fg:#FCA17D bg:#86BBD8)\
+$cmd_duration\
+[](fg:#86BBD8 bg:#06969A)\
+$docker_context\
+[](fg:#06969A bg:#007ACC)\
+$python\
+[](fg:#007ACC bg:#33658A)\
+$time\
+[ ](fg:#33658A)\
+$line_break\
+$character"""
+
+# Use the native env_var module instead of [custom]
+[env_var.STARSHIP_ENV]
+symbol = ""
+style = "bg:#9A348E fg:#EEEEEE"
+format = "[$env_value ]($style)"
+variable = "STARSHIP_ENV"
+disabled = false
+
+[os]
+disabled = true
+style = "bg:#9A348E fg:#EEEEEE"
+
+[directory]
+style = "bg:#DA627D fg:#EEEEEE"
+format = "[ $path ]($style)"
+truncation_length = 3
+
+[git_branch]
+symbol = ""
+style = "bg:#FCA17D fg:#111111"
+format = "[[ $symbol $branch ]($style)]($style)"
+
+[git_status]
+style = "bg:#FCA17D fg:#111111"
+format = "[[($all_status$ahead_behind )]($style)]($style)"
+
+[cmd_duration]
+min_time = 500
+style = "bg:#86BBD8 fg:#111111"
+format = "[  $duration ]($style)"
+
+[docker_context]
+style = "bg:#06969A fg:#EEEEEE"
+format = "[  $context ]($style)"
+
+[python]
+style = "bg:#007ACC fg:#EEEEEE"
+format = "[  $virtualenv ]($style)"
+pyenv_version_name = true 
+
+[time]
+disabled = false
+time_format = "%R"
+style = "bg:#33658A fg:#EEEEEE"
+format = "[[ 󱑒 $time ]($style)]($style)"
+
+[line_break]
+disabled = false
+
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"

@@ -1,0 +1,81 @@
+# ==========================
+# Bash Aliases (from fish)
+# ==========================
+
+# Eza (Enhanced ls)
+if command -v eza &>/dev/null; then
+    alias ls='eza --icons=auto --group-directories-first --sort=name --hyperlink'
+    alias ll='eza --icons=auto --group-directories-first --sort=name --hyperlink --long --git --time-style=relative'
+    alias la='eza --icons=auto --group-directories-first --sort=name --hyperlink --long --git --all'
+    alias ld='eza --long --icons=auto --git --sort=modified --reverse --time-style=relative --all'
+    alias lt='eza --tree --level=2 --icons=auto'
+    alias lt3='eza --tree --level=3 --icons=auto'
+    alias ltu='eza --tree --icons=auto'
+fi
+
+# Shortcuts
+alias c='clear'
+alias q='exit'
+
+# LVM status
+alias lvm-check='sudo lvs -o lv_name,vg_name,attr,size,snap_percent,origin'
+
+# Figlet with custom fonts
+alias figlet='figlet -d ~/.local/share/figlet/fonts'
+
+# SSH wake/ping work PC
+alias wake-workpc='ssh 2011 "/tool wol mac=5C:62:8B:C4:DE:9B interface=ether2"'
+alias ping-workpc='ssh 2011 "/ping 172.20.2.200"'
+
+# Custom scripts
+alias mkv='python3 ~/.config/scripts/mkvOrganizer.py'
+alias ffm='python3 ~/.config/scripts/ffm.py'
+
+# Proxy
+alias proxy='export http_proxy=http://localhost:2080; export https_proxy=http://localhost:2080; export HTTP_PROXY=http://localhost:2080; export HTTPS_PROXY=http://localhost:2080; echo "Proxy ON"'
+alias noproxy='unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY no_proxy; echo "Proxy OFF"'
+
+# Refresh bash config
+alias refresh='chezmoi apply && source ~/.bashrc'
+
+# Bat (if batcat is installed on Ubuntu/Debian)
+if command -v batcat &>/dev/null; then
+    alias bat='batcat'
+fi
+
+# Nvim
+alias v='nvim'
+alias nv='nvim .'
+alias sv='sudo -E nvim'
+
+# Git
+alias gs='git status'
+alias ga='git add'
+alias gaa='git add .'
+alias gc='git commit -m'
+alias gp='git push'
+alias gl='git log --oneline --graph --decorate --all'
+alias gco='git checkout'
+alias gb='git branch'
+alias gd='git diff'
+alias gpl='git pull'
+alias gst='git stash'
+
+# Update (cross-platform)
+if command -v pacman &>/dev/null; then
+    alias update='sudo pacman -Syu'
+elif [ -n "$TERMUX_VERSION" ]; then
+    alias update='pkg update && pkg upgrade -y'
+elif command -v apt &>/dev/null; then
+    alias update='sudo apt update && sudo apt upgrade -y'
+fi
+
+# Yazi function - cd into last visited directory
+y() {
+    local tmp="$(mktemp -t "yazi-cwd.XXXXXX")" cwd
+    yazi "$@" --cwd-file="$tmp"
+    if cwd="$(command cat -- "$tmp")" && [ -n "$cwd" ] && [ "$cwd" != "$PWD" ]; then
+        builtin cd -- "$cwd"
+    fi
+    rm -f -- "$tmp"
+}
