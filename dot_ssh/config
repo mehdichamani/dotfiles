@@ -1,0 +1,53 @@
+Host s24work
+	HostName 192.168.1.50
+	User u0_a355
+	Port 8022
+
+Host s24home
+	HostName 192.168.0.101
+	User u0_a355
+	Port 8022
+
+Host github.com
+  HostName github.com
+  User git
+
+Host it2
+  HostName 192.168.0.100
+  User mehdi
+  Port 22456
+
+Host homepc
+  Hostname 192.168.0.100
+  User unreal
+  Port 22456
+
+Host 2011
+  HostName 5.202.33.161
+  User admin
+  PubkeyAcceptedAlgorithms +ssh-rsa
+  Port 22789
+
+Host home
+  Hostname 5.201.141.186
+  User unreal
+  Port 22456
+  LocalForward 3389 localhost:3389
+  LocalForward 3390 localhost:3390
+  LocalForward 20128 localhost:20128
+  LocalForward 30001 localhost:30001
+
+Host work
+  HostName 5.202.33.161
+  User mehdi
+  Port 22456
+  LocalForward 3389 localhost:3389
+  LocalForward 3390 localhost:3390
+
+Host fwork
+  Hostname 217.219.149.57
+  User mehdi
+  Port 22456
+  LocalForward 3389 localhost:3389
+  LocalForward 3390 localhost:3390
+  
