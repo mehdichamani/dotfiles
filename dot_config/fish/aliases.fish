@@ -50,17 +50,32 @@ alias nv='nvim .'
 alias sv='sudo -E nvim' # Preserves your nvim config even as root
 
 # Git 
-alias gs="git status"
-alias ga="git add"
-alias gaa="git add ."
-alias gc="git commit -m"
-alias gp="git push"
-alias gl="git log --oneline --graph --decorate --all"
-alias gco="git checkout"
-alias gb="git branch"
-alias gd="git diff"
-alias gpl="git pull"
-alias gst="git stash"
+abbr -a gs 'git status'
+abbr -a ga 'git add'
+abbr -a gaa 'git add .'
+abbr -a gc 'git commit -m'
+abbr -a gp 'git push'
+abbr -a gl 'git log --oneline --graph --decorate --all'
+abbr -a gco 'git checkout'
+abbr -a gb 'git branch'
+abbr -a gd 'git diff'
+abbr -a gpl 'git pull'
+abbr -a gst 'git stash'
+
+# Docker
+abbr -a dps 'docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"'
+abbr -a dup 'docker compose up'
+abbr -a dupd 'docker compose up -d'
+abbr -a dbu 'docker compose up -d --build'
+abbr -a dupbd 'docker compose up -d --build'
+abbr -a ddown 'docker compose down'
+abbr -a ddownv 'docker compose down -v --remove-orphans'
+abbr -a dlogs 'docker compose logs -f'
+abbr -a dres 'docker compose restart'
+abbr -a dimg 'docker images'
+
+# scrcpy
+abbr -a dex 'scrcpy --new-display=1920x1080/284 --turn-screen-off --stay-awake'
 
 # Cross-platform Update alias (Arch, Ubuntu/Debian, and Termux)
 if type -q pacman
@@ -71,6 +86,3 @@ else if test -n "$TERMUX_VERSION"
 else if type -q apt
     alias update='sudo apt update && sudo apt upgrade -y'
 end
-
-
-alias dex="scrcpy --new-display=1920x1080/284 --turn-screen-off --stay-awake"
