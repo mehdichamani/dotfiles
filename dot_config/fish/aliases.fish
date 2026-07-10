@@ -71,3 +71,6 @@ else if test -n "$TERMUX_VERSION"
 else if type -q apt
     alias update='sudo apt update && sudo apt upgrade -y'
 end
+
+
+alias dex="scrcpy --new-display=1920x1080/284 --turn-screen-off --stay-awake"
