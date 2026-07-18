@@ -7,6 +7,9 @@ fish_add_path --prepend $HOME/.venv/bin
 # Disable the greeting
 set -g fish_greeting
 
+set -g no_proxy localhost,127.0.0.1
+set -g NO_PROXY localhost,127.0.0.1
+
 # user shell tools
 if status is-interactive
     # starship (fish-specific config)
