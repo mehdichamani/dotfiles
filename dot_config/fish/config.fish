@@ -7,6 +7,9 @@ fish_add_path --prepend $HOME/.venv/bin
 # Disable the greeting
 set -g fish_greeting
 
+set -gx no_proxy localhost,127.0.0.1
+set -gx NO_PROXY localhost,127.0.0.1
+
 # user shell tools
 if status is-interactive
     # starship (fish-specific config)
@@ -48,11 +51,6 @@ if status is-interactive
     end
 end
 
-# Load aliases
-if test -f ~/.config/fish/aliases.fish
-    source ~/.config/fish/aliases.fish
-end
-
 set name_path "$HOME/.config/name"
 
 if test -f $name_path
@@ -76,4 +74,18 @@ else
     set -gx STARSHIP_ENV "notDefined"
 end
 
-source ~/.venv/bin/activate.fish
+
+# Load aliases
+if test -f ~/.config/fish/aliases.fish
+    source ~/.config/fish/aliases.fish
+end
+
+# Load venv
+if test -f ~/.venv/bin/activate.fish
+    source ~/.venv/bin/activate.fish
+end
+
+# Load secrets
+if test -f ~/.config/fish/secrets.fish
+    source ~/.config/fish/secrets.fish
+end
