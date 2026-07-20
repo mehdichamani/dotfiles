@@ -400,3 +400,7 @@ function Get-TCPLeak {
             Sort-Object Count -Descending
     }
 }
+
+function mimo {
+    wt -w 0 -p "MiMoCode" -d "$PWD"
+}
