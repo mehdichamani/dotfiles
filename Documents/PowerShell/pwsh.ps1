@@ -305,7 +305,7 @@ function Remove-GitBranchesExceptDefault {
 }
 
 # Optional alias for faster access
-Set-Alias -Name git-clean-branches -Value Remove-GitBranchesExceptDefault
+Set-Alias -Name gclean -Value Remove-GitBranchesExceptDefault
 
 # -----------------------------------------------------------------------------
 # Script launchers
