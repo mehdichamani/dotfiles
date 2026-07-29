@@ -232,27 +232,26 @@ function gpl { git pull @args }
 function gst { git stash @args }
 
 function Remove-GitBranchesExceptDefault {
-    # Check if inside a git repository
+    # Ensure we are inside a Git repository
     if (-not (git rev-parse --git-dir 2>$null)) {
-        Write-Error "Not a git repository."
+        Write-Error "Error: Not a git repository."
         return
     }
 
-    # Fetch latest remote refs and prune stale branches
+    # Fetch latest remote refs and prune deleted remotes
     git fetch --prune
 
-    # Detect default branch (origin/HEAD or fallback to main/master)
+    # Detect default branch (e.g., main or master)
     $defaultBranch = (git symbolic-ref refs/remotes/origin/HEAD 2>$null) -replace 'refs/remotes/origin/', ''
     if ([string]::IsNullOrWhiteSpace($defaultBranch)) {
         if (git show-ref --verify --quiet refs/heads/main) { $defaultBranch = "main" }
         elseif (git show-ref --verify --quiet refs/heads/master) { $defaultBranch = "master" }
     }
 
-    # Get current branch
     $currentBranch = (git branch --show-current).Trim()
 
-    # Find branches to delete
-    $allLocal = git branch --format='%(refname:short)'
+    # Collect local branches to delete (excluding default and current)
+    $allLocal = git for-each-ref --format='%(refname:lstrip=2)' refs/heads/
     $localToDelete = @()
     $remoteToDelete = @()
 
@@ -260,7 +259,7 @@ function Remove-GitBranchesExceptDefault {
         $b = $b.Trim()
         if ($b -and $b -ne $defaultBranch -and $b -ne $currentBranch) {
             $localToDelete += $b
-            git rev-parse --verify "origin/$b" 2>$null | Out-Null
+            git rev-parse --verify "refs/remotes/origin/$b" 2>$null | Out-Null
             if ($LASTEXITCODE -eq 0) {
                 $remoteToDelete += $b
             }
@@ -268,18 +267,18 @@ function Remove-GitBranchesExceptDefault {
     }
 
     if ($localToDelete.Count -eq 0) {
-        Write-Host "No extra branches to delete. Keeping: '$defaultBranch' and '$currentBranch'." -ForegroundColor Green
+        Write-Host "No extra branches to delete. (Keeping: '$defaultBranch' and '$currentBranch')" -ForegroundColor Green
         return
     }
 
-    # Preview summary
+    # Display preview
     Write-Host "Default branch : " -NoNewline; Write-Host $defaultBranch -ForegroundColor Cyan
     Write-Host "Current branch : " -NoNewline; Write-Host $currentBranch -ForegroundColor Cyan
     Write-Host "`nLocal branches to be DELETED:" -ForegroundColor Yellow
     $localToDelete | ForEach-Object { Write-Host "  - $_" }
 
     if ($remoteToDelete.Count -gt 0) {
-        Write-Host "`nRemote branches (origin) to be DELETED:" -ForegroundColor Red
+        Write-Host "`nRemote branches to be DELETED from origin:" -ForegroundColor Red
         $remoteToDelete | ForEach-Object { Write-Host "  - origin/$_" }
     }
 
@@ -296,16 +295,15 @@ function Remove-GitBranchesExceptDefault {
             Write-Host "`nDeleting remote branches..." -ForegroundColor Red
             foreach ($b in $remoteToDelete) {
                 git push origin --delete $b
-            end
+            }
         }
         Write-Host "`nCleaned up successfully!" -ForegroundColor Green
     } else {
         Write-Host "Operation cancelled." -ForegroundColor Gray
     }
 }
-
-# Optional alias for faster access
-Set-Alias -Name gclean -Value Remove-GitBranchesExceptDefault
+# Optional alias
+Set-Alias -Name git-clean-branches -Value Remove-GitBranchesExceptDefault
 
 # -----------------------------------------------------------------------------
 # Script launchers
