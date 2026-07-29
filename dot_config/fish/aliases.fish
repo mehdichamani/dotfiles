@@ -75,7 +75,10 @@ abbr -a dres 'docker compose restart'
 abbr -a dimg 'docker images'
 
 # scrcpy
-abbr -a dex 'scrcpy --new-display=1920x1080/284 --turn-screen-off --stay-awake'
+abbr -a s24dex 'scrcpy --new-display=1920x1080/284 --turn-screen-off'
+abbr -a s24apps 'scrcpy --list-apps'
+abbr -a s24blu 'scrcpy --new-display --start-app=com.samanpr.blu --window-title="Blu"'
+abbr -a s24parmis 'scrcpy --new-display --start-app=com.parmisit.parmismobile --window-title="Parmis"'
 
 # Cross-platform Update alias (Arch, Ubuntu/Debian, and Termux)
 if type -q pacman
