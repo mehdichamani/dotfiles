@@ -74,6 +74,10 @@ abbr -a dlogs 'docker compose logs -f'
 abbr -a dres 'docker compose restart'
 abbr -a dimg 'docker images'
 
+# pi telegram agent 
+abbr -a pi-telegram 'screen -r pi_telegram'
+abbr -a pi-telegram-restart 'sudo systemctl restart pi-bridge.service'
+
 # scrcpy
 abbr -a s24dex 'scrcpy --new-display=1920x1080/284 --turn-screen-off'
 abbr -a s24apps 'scrcpy --list-apps'
