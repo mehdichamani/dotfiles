@@ -14,6 +14,8 @@ if (-not $IsScpSession) {
     
     # Load custom functions and aliases
     if (Test-Path "$PSScriptRoot\pwsh.ps1") {
+        # Refresh environment PATH variables in non-standard terminals (like Antigravity)
+        $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "User")
         . "$PSScriptRoot\pwsh.ps1"
     }
 } else {
