@@ -38,8 +38,8 @@ alias proxy='set -Ux http_proxy http://localhost:2080; set -Ux https_proxy http:
 alias noproxy='set -e http_proxy https_proxy HTTP_PROXY HTTPS_PROXY no_proxy; echo "Proxy OFF"'
 
 # Fish-only utilities
-alias refresh='chezmoi apply; and update-desktop-database ~/.local/share/applications; and source ~/.config/fish/config.fish'
-alias refreshapps='update-desktop-database ~/.local/share/applications'
+alias refresh='chezmoi apply; and gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor 2>/dev/null; and update-desktop-database ~/.local/share/applications 2>/dev/null; and source ~/.config/fish/config.fish'
+alias refreshapps='gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor 2>/dev/null; and update-desktop-database ~/.local/share/applications 2>/dev/null'
 
 if command -v batcat > /dev/null
     alias bat='batcat'

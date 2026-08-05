@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 CONTAINER_NAME="WinApps"
-COMPOSE_FILE="/home/unreal/docker/winapps/compose.yml"
+COMPOSE_FILE="$HOME/docker/winapps/compose.yml"
 IDLE_WAIT_SECONDS=1800
 IDLE_MINUTES=$(( IDLE_WAIT_SECONDS / 60 ))
 LOCK_FILE="/tmp/winapps_launcher.pid"
@@ -26,7 +26,9 @@ notify() {
     fi
 
     if command -v notify-send >/dev/null 2>&1; then
-        notify-send -a "WinVM" -u "$urgency" -i "computer" "WinVM" "$message"
+        local icon="$HOME/.local/share/icons/hicolor/scalable/apps/winvm.svg"
+        [ -f "$icon" ] || icon="winvm"
+        notify-send -a "WinVM" -u "$urgency" -i "$icon" "WinVM" "$message"
     fi
 }
 
@@ -84,9 +86,7 @@ notify "RDP session closed. VM will stop in ${IDLE_MINUTES}m if unused." "normal
     sleep "$IDLE_WAIT_SECONDS"
     docker compose -f "$COMPOSE_FILE" stop > /dev/null 2>&1
     rm -f "$LOCK_FILE"
-    if command -v notify-send >/dev/null 2>&1; then
-        notify-send -a "WinVM" -u "normal" -i "computer" "WinVM" "Idle timeout reached. Windows VM stopped."
-    fi
+    notify "Idle timeout reached. Windows VM stopped." "normal"
 ) > /dev/null 2>&1 &
 
 echo $! > "$LOCK_FILE"
