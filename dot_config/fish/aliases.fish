@@ -38,7 +38,7 @@ alias proxy='set -Ux http_proxy http://localhost:2080; set -Ux https_proxy http:
 alias noproxy='set -e http_proxy https_proxy HTTP_PROXY HTTPS_PROXY no_proxy; echo "Proxy OFF"'
 
 # Fish-only utilities
-alias refresh='chezmoi apply; and source ~/.config/fish/config.fish'
+alias refresh='chezmoi apply; and update-desktop-database ~/.local/share/applications; and source ~/.config/fish/config.fish'
 alias refreshapps='update-desktop-database ~/.local/share/applications'
 
 if command -v batcat > /dev/null

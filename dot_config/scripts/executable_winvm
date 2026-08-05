@@ -12,42 +12,59 @@ RDP_PORT="33389"
 RDP_USER="MyWindowsUser"
 RDP_PASS="MyWindowsPassword"
 
+# Send desktop notification and optionally print styled terminal log
+notify() {
+    local message="$1"
+    local urgency="${2:-normal}" # normal, low, critical
+
+    if [ -t 1 ]; then
+        case "$urgency" in
+            critical) echo -e "\e[1;31m[!] $message\e[0m" ;;
+            low)      echo -e "\e[1;34m[*] $message\e[0m" ;;
+            *)        echo -e "\e[1;32m[+] $message\e[0m" ;;
+        esac
+    fi
+
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send -a "WinVM" -u "$urgency" -i "computer" "WinVM" "$message"
+    fi
+}
+
 # 1. Cancel previous shutdown timer if running
 if [ -f "$LOCK_FILE" ]; then
-    PREV_PID=$(cat "$LOCK_FILE")
-    kill "$PREV_PID" 2>/dev/null
+    PREV_PID=$(cat "$LOCK_FILE" 2>/dev/null)
+    if [ -n "$PREV_PID" ]; then
+        kill "$PREV_PID" 2>/dev/null
+    fi
     rm -f "$LOCK_FILE"
-    echo "[+] Cancelled previous shutdown timer."
 fi
 
 # 2. Ensure container is up and running via Compose
 if [ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null)" != "true" ]; then
-    echo "[+] Container is down or stopped. Starting via Docker Compose..."
+    notify "Starting Windows VM container..." "normal"
     docker compose -f "$COMPOSE_FILE" up -d > /dev/null 2>&1
-    
+
     if [ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null)" != "true" ]; then
         docker start "$CONTAINER_NAME" > /dev/null 2>&1
     fi
 fi
 
 # 3. Wait until the RDP port is actively accepting connections
-echo "[+] Waiting for Windows RDP service on port $RDP_PORT..."
 MAX_ATTEMPTS=30
 ATTEMPT=0
 
 while ! timeout 1 bash -c "</dev/tcp/$RDP_HOST/$RDP_PORT" 2>/dev/null; do
     ATTEMPT=$((ATTEMPT + 1))
     if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
-        echo "[!] Timeout waiting for RDP service to become ready."
+        notify "Timeout waiting for Windows RDP service." "critical"
         exit 1
     fi
-    sleep 2
+    sleep 1
 done
 
-sleep 2
+sleep 1
 
 # 4. Direct RDP Connection
-echo "[+] Opening RDP session..."
 export FREERDP_PASSWORD="$RDP_PASS"
 
 xfreerdp /v:"$RDP_HOST":"$RDP_PORT" \
@@ -58,16 +75,18 @@ xfreerdp /v:"$RDP_HOST":"$RDP_PORT" \
          /gfx \
          /sound \
          /clipboard \
-         +home-drive
+         +home-drive > /dev/null 2>&1
 
 # 5. Window closed -> Dynamic countdown messaging
-echo "[+] RDP window closed. Starting ${IDLE_MINUTES}-minute idle timer..."
+notify "RDP session closed. VM will stop in ${IDLE_MINUTES}m if unused." "normal"
 
 (
     sleep "$IDLE_WAIT_SECONDS"
-    echo "[+] ${IDLE_MINUTES} minutes elapsed. Stopping Docker Compose stack..."
     docker compose -f "$COMPOSE_FILE" stop > /dev/null 2>&1
     rm -f "$LOCK_FILE"
-) &
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send -a "WinVM" -u "normal" -i "computer" "WinVM" "Idle timeout reached. Windows VM stopped."
+    fi
+) > /dev/null 2>&1 &
 
 echo $! > "$LOCK_FILE"
