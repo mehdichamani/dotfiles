@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=WindowsVM (docker)
+Comment=Start WinApps Docker container and launch Windows session
+Exec=/home/unreal/.config/scripts/winvm.sh
+Terminal=false
+Type=Application
+Icon=computer
+Categories=System;Utility;

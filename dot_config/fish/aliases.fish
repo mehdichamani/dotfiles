@@ -39,6 +39,7 @@ alias noproxy='set -e http_proxy https_proxy HTTP_PROXY HTTPS_PROXY no_proxy; ec
 
 # Fish-only utilities
 alias refresh='chezmoi apply; and source ~/.config/fish/config.fish'
+alias refreshapps='update-desktop-database ~/.local/share/applications'
 
 if command -v batcat > /dev/null
     alias bat='batcat'
