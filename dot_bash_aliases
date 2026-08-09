@@ -32,7 +32,7 @@ alias mkv='python3 ~/.config/scripts/mkvOrganizer.py'
 alias ffm='python3 ~/.config/scripts/ffm.py'
 
 # Proxy
-alias proxy='export http_proxy=http://localhost:2080; export https_proxy=http://localhost:2080; export HTTP_PROXY=http://localhost:2080; export HTTPS_PROXY=http://localhost:2080; echo "Proxy ON"'
+alias proxy='export http_proxy=http://localhost:3067; export https_proxy=http://localhost:3067; export HTTP_PROXY=http://localhost:3067; export HTTPS_PROXY=http://localhost:3067; echo "Proxy ON"'
 alias noproxy='unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY no_proxy; echo "Proxy OFF"'
 
 # Refresh bash config

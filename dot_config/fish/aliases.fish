@@ -34,7 +34,7 @@ alias mkv='python3 ~/.config/scripts/mkvOrganizer.py'
 alias ffm='python3 ~/.config/scripts/ffm.py'
 
 # Proxy
-alias proxy='set -Ux http_proxy http://localhost:2080; set -Ux https_proxy http://localhost:2080; set -Ux HTTP_PROXY http://localhost:2080; set -Ux HTTPS_PROXY http://localhost:2080; echo "Proxy ON"'
+alias proxy='set -Ux http_proxy http://localhost:3067; set -Ux https_proxy http://localhost:3067; set -Ux HTTP_PROXY http://localhost:3067; set -Ux HTTPS_PROXY http://localhost:3067; echo "Proxy ON"'
 alias noproxy='set -e http_proxy https_proxy HTTP_PROXY HTTPS_PROXY no_proxy; echo "Proxy OFF"'
 
 # Fish-only utilities
