@@ -33,32 +33,15 @@ Host home
   User unreal
   Port 22456
   LocalForward 3389 localhost:3389
-  LocalForward 3390 localhost:3390
-  LocalForward 20128 localhost:20128
-  LocalForward 30001 localhost:30001
 
 Host work
   HostName 5.202.33.161
   User mehdi
   Port 22456
+  LocalForward 3389 localhost:3389
 
 Host fwork
   Hostname 217.219.149.57
   User mehdi
   Port 22456
-  
-Host fworku
-  Hostname 217.219.149.57
-  User unreal
-  Port 22456
-
-Host worku
-  HostName 5.202.33.161
-  User unreal
-  Port 22456  
-
-Host alwaysdata
-    HostName ssh-unrealsmartmind.alwaysdata.net
-    User unrealsmartmind
-    Port 22
-    IdentityFile ~/.ssh/id_ed25519_vps
+  LocalForward 3389 localhost:3389
