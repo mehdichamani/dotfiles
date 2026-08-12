@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 CONTAINER_NAME="WinApps"
-COMPOSE_FILE="$HOME/docker/winapps/compose.yml"
+COMPOSE_FILE="$HOME/projects/winapps/compose.yml"
 IDLE_WAIT_SECONDS=1800
 IDLE_MINUTES=$(( IDLE_WAIT_SECONDS / 60 ))
 LOCK_FILE="/tmp/winapps_launcher.pid"

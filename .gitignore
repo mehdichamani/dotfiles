@@ -1,5 +1,5 @@
 dot_config/fish/secrets.fish
 
 # Docker
-docker/winapps/dot_env
+projects/winapps/dot_env
 *.iso
