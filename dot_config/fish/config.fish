@@ -7,8 +7,6 @@ fish_add_path --prepend $HOME/.venv/bin
 # Disable the greeting
 set -g fish_greeting
 
-set -gx no_proxy localhost,127.0.0.1
-set -gx NO_PROXY localhost,127.0.0.1
 
 # user shell tools
 if status is-interactive
