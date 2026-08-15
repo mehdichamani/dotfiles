@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Antigravity IDE
+Comment=Antigravity IDE
+
+Exec=/home/unreal/.config/scripts/with-proxy.sh /usr/share/antigravity-ide/antigravity-ide %F
+
+Icon=/usr/share/antigravity-ide/antigravity-ide.png
+Terminal=false
+Type=Application
+Categories=Development;IDE;TextEditor;
+StartupWMClass=antigravity-ide
