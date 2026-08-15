@@ -32,7 +32,7 @@ services:
       # - 3389:3389/tcp
       # - 3389:3389/udp
     cap_add:
-      - NET_ADMIN  # Add network permission
+      - NET_ADMIN # Add network permission
     stop_grace_period: 120s # Wait 120 seconds before sending SIGTERM when attempting to shut down the Windows VM.
     restart: no # Restart the Windows VM if the exit code indicates an error.
     volumes:
@@ -40,7 +40,7 @@ services:
       - ${HOME}:/shared # Mount Linux user home directory @ '\\host.lan\Data'.
       #- /path/to/second/hard/disk:/storage2 # Uncomment to create a virtual second hard disk and mount it within the Windows VM. Ensure 'DISK2_SIZE' is specified above.
       #- ./oem:/oem # Enables automatic post-install execution of 'oem/install.bat', applying Windows registry modifications contained within 'oem/RDPApps.reg'.
-      #- ./tiny11_25H2_Oct25.iso:/custom.iso # Uncomment to use a custom Windows ISO. If specified, 'VERSION' (e.g. 'tiny11') will be ignored.
+      - /run/media/unreal/TUF_NTFS/OS/tiny11_25H2_Oct25.iso:/custom.iso # Uncomment to use a custom Windows ISO. If specified, 'VERSION' (e.g. 'tiny11') will be ignored.
     devices:
       - /dev/kvm # Enable KVM.
       - /dev/net/tun # Enable tuntap
@@ -50,5 +50,5 @@ services:
       # All following disks (disk2, ...) WILL NOT BE FORMATTED.
       # - /dev/disk/by-id/<id>:/disk1
       # - /dev/disk/by-id/<id>:/disk2
-    # group_add:      # uncomment this line and the next one for using rootless podman containers
-    #   - keep-groups # to make /dev/kvm work with podman. needs "crun" installed, "runc" will not work! Add your user to the 'kvm' group or another that can access /dev/kvm.
+      # group_add:      # uncomment this line and the next one for using rootless podman containers
+      #   - keep-groups # to make /dev/kvm work with podman. needs "crun" installed, "runc" will not work! Add your user to the 'kvm' group or another that can access /dev/kvm.

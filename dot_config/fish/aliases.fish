@@ -38,10 +38,10 @@ alias ffm='python3 ~/.config/scripts/ffm.py'
 function refresh
     chezmoi apply
     if type -q gtk-update-icon-cache
-        gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor 2>/dev/null
+        gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor
     end
     if type -q update-desktop-database
-        update-desktop-database ~/.local/share/applications 2>/dev/null
+        update-desktop-database ~/.local/share/applications
     end
     if test -f ~/.config/fish/config.fish
         source ~/.config/fish/config.fish
