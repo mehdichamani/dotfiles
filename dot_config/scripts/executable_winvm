@@ -6,11 +6,21 @@ IDLE_WAIT_SECONDS=1800
 IDLE_MINUTES=$(( IDLE_WAIT_SECONDS / 60 ))
 LOCK_FILE="/tmp/winapps_launcher.pid"
 
-# Windows VM Credentials / Connection Details
-RDP_HOST="127.0.0.1"
-RDP_PORT="33389"
-RDP_USER="MyWindowsUser"
-RDP_PASS="MyWindowsPassword"
+ENV_FILE="$HOME/projects/winapps/.env"
+
+# Load environment variables if .env file exists
+if [ -f "$ENV_FILE" ]; then
+    # shellcheck disable=SC1090
+    set -a
+    . "$ENV_FILE"
+    set +a
+fi
+
+# Windows VM Credentials / Connection Details (with fallbacks)
+RDP_HOST="${RDP_HOST:-127.0.0.1}"
+RDP_PORT="${RDP_PORT:-33389}"
+RDP_USER="${RDP_USER:-${USERNAME:-user}}"
+RDP_PASS="${RDP_PASS:-${PASSWORD:-pass}}"
 
 # Send desktop notification and optionally print styled terminal log
 notify() {

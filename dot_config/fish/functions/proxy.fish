@@ -355,12 +355,22 @@ except:
 
     set_color cyan; echo "Select Target Mode:"; set_color normal
     echo "  [1] Shell Environment Only (Default)"
-    echo "  [2] System-Wide (Shell + APT + Docker)"
+    echo "  [2] APT & Docker Only (System Services)"
+    echo "  [3] All / System-Wide (Shell + APT + Docker)"
     read -P "Mode [default: 1]: " -l mode_choice
-    if test "$mode_choice" = "2"
-        set is_system_mode 1
-    else
-        set is_system_mode 0
+    set -l target_shell 0
+    set -l target_system 0
+
+    switch "$mode_choice"
+        case "2"
+            set target_shell 0
+            set target_system 1
+        case "3"
+            set target_shell 1
+            set target_system 1
+        case "*"
+            set target_shell 1
+            set target_system 0
     end
 
     echo ""
@@ -381,8 +391,10 @@ except:
     set -l selected_target ""
     switch "$choice"
         case 0 "off"
-            _proxy_env_off
-            if test $is_system_mode -eq 1
+            if test $target_shell -eq 1
+                _proxy_env_off
+            end
+            if test $target_system -eq 1
                 _proxy_apt_off
                 _proxy_docker_client_off
                 _proxy_docker_daemon_off
@@ -405,9 +417,14 @@ except:
     end
 
     if test -n "$selected_target"
-        if test $is_system_mode -eq 1
-            set_color cyan; echo "● Setting System-Wide Proxy -> $selected_target"; set_color normal
+        if test $target_shell -eq 1 -a $target_system -eq 1
+            set_color cyan; echo "● Setting System-Wide Proxy (Shell + APT + Docker) -> $selected_target"; set_color normal
             _proxy_env_set "$selected_target"
+            _proxy_apt_set "$selected_target"
+            _proxy_docker_client_set "$selected_target"
+            _proxy_docker_daemon_set "$selected_target"
+        else if test $target_system -eq 1
+            set_color cyan; echo "● Setting System Proxy (APT + Docker) -> $selected_target"; set_color normal
             _proxy_apt_set "$selected_target"
             _proxy_docker_client_set "$selected_target"
             _proxy_docker_daemon_set "$selected_target"
