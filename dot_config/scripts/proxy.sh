@@ -25,18 +25,18 @@ _proxy_c_reset="\033[0m"
 
 _proxy_help() {
     printf "${_proxy_c_cyan}Usage:${_proxy_c_reset}\n"
-    printf "  proxy [URL|PORT]            Set proxy for shell environment (Default mode)\n"
-    printf "  proxy --all [URL|PORT]      Set proxy for shell + APT + Docker (System mode)\n"
-    printf "  proxy off                   Clear proxy from shell environment\n"
-    printf "  proxy off --all             Clear proxy from shell, APT, and Docker\n"
+    printf "  proxy [URL|PORT]            Set proxy for shell environment & NPM (Default mode)\n"
+    printf "  proxy --all [URL|PORT]      Set proxy for shell + NPM + APT + Docker (System mode)\n"
+    printf "  proxy off                   Clear proxy from shell environment & NPM\n"
+    printf "  proxy off --all             Clear proxy from shell, NPM, APT, and Docker\n"
     printf "  proxy status                Show current proxy status across all targets\n"
     printf "  proxy --help, -h            Show this help message\n"
     printf "  proxy                       Interactive menu\n\n"
     printf "${_proxy_c_cyan}Flags:${_proxy_c_reset}\n"
-    printf "  -a, --all, --system         Apply changes system-wide (Shell + APT + Docker)\n\n"
+    printf "  -a, --all, --system         Apply changes system-wide (Shell + NPM + APT + Docker)\n\n"
     printf "${_proxy_c_cyan}Examples:${_proxy_c_reset}\n"
-    printf "  proxy 3067                  -> Shell env: http://localhost:3067\n"
-    printf "  proxy --all 3067            -> Shell + APT + Docker: http://localhost:3067\n"
+    printf "  proxy 3067                  -> Shell & NPM: http://localhost:3067\n"
+    printf "  proxy --all 3067            -> Shell + NPM + APT + Docker: http://localhost:3067\n"
     printf "  proxy socks5://127.0.0.1:1080\n"
     printf "  proxy off\n"
     printf "  proxy off --all\n"
@@ -76,6 +76,24 @@ _proxy_normalize() {
     return 0
 }
 
+_proxy_npm_set() {
+    local target="$1"
+    if command -v npm >/dev/null 2>&1; then
+        npm config set proxy "$target" >/dev/null 2>&1
+        npm config set https-proxy "$target" >/dev/null 2>&1
+        printf "  ${_proxy_c_green}✓ NPM Proxy set -> %s${_proxy_c_reset}\n" "$target"
+    fi
+}
+
+_proxy_npm_off() {
+    if command -v npm >/dev/null 2>&1; then
+        npm config delete proxy >/dev/null 2>&1
+        npm config delete https-proxy >/dev/null 2>&1
+        npm config delete http-proxy >/dev/null 2>&1
+        printf "  ${_proxy_c_yellow}✓ NPM Proxy cleared${_proxy_c_reset}\n"
+    fi
+}
+
 _proxy_env_set() {
     local target="$1"
     export http_proxy="$target"
@@ -88,12 +106,14 @@ _proxy_env_set() {
     export NO_PROXY="$_proxy_default_no_proxy"
     echo "$target" > "$_proxy_state_file"
     printf "  ${_proxy_c_green}✓ Shell Environment set -> %s${_proxy_c_reset}\n" "$target"
+    _proxy_npm_set "$target"
 }
 
 _proxy_env_off() {
     unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY no_proxy NO_PROXY
     rm -f "$_proxy_state_file"
     printf "  ${_proxy_c_yellow}✓ Shell Environment cleared${_proxy_c_reset}\n"
+    _proxy_npm_off
 }
 
 _proxy_apt_set() {
@@ -232,7 +252,24 @@ _proxy_status() {
         printf "    State File  : %s\n" "$(cat "$_proxy_state_file" 2>/dev/null)"
     fi
 
-    # 2. APT
+    # 2. NPM
+    printf "\n${_proxy_c_blue}[NPM Package Manager]${_proxy_c_reset}\n"
+    if command -v npm >/dev/null 2>&1; then
+        local npm_p
+        npm_p="$(npm config get proxy 2>/dev/null)"
+        if [ "$npm_p" = "null" ] || [ "$npm_p" = "undefined" ]; then
+            npm_p=""
+        fi
+        if [ -n "$npm_p" ]; then
+            printf "  ${_proxy_c_green}● Status      : ON (%s)${_proxy_c_reset}\n" "$npm_p"
+        else
+            printf "  ${_proxy_c_yellow}○ Status      : OFF${_proxy_c_reset}\n"
+        fi
+    else
+        printf "  ${_proxy_c_yellow}○ Status      : NPM not installed${_proxy_c_reset}\n"
+    fi
+
+    # 3. APT
     printf "\n${_proxy_c_blue}[APT Package Manager]${_proxy_c_reset}\n"
     if [ -f "$_proxy_apt_file" ]; then
         printf "  ${_proxy_c_green}● Status      : Configured (%s)${_proxy_c_reset}\n" "$_proxy_apt_file"
@@ -241,7 +278,7 @@ _proxy_status() {
         printf "  ${_proxy_c_yellow}○ Status      : Not Configured${_proxy_c_reset}\n"
     fi
 
-    # 3. Docker CLI
+    # 4. Docker CLI
     printf "\n${_proxy_c_blue}[Docker Client (~/.docker/config.json)]${_proxy_c_reset}\n"
     if [ -f "$_proxy_docker_config_file" ]; then
         local docker_p
@@ -265,7 +302,7 @@ except Exception:
         printf "  ${_proxy_c_yellow}○ Status      : OFF${_proxy_c_reset}\n"
     fi
 
-    # 4. Docker Daemon
+    # 5. Docker Daemon
     printf "\n${_proxy_c_blue}[Docker Daemon (Systemd)]${_proxy_c_reset}\n"
     if [ -f "$_proxy_docker_systemd_file" ]; then
         printf "  ${_proxy_c_green}● Status      : Configured (%s)${_proxy_c_reset}\n" "$_proxy_docker_systemd_file"
@@ -328,13 +365,13 @@ proxy() {
         fi
 
         if [ "$is_system_mode" -eq 1 ]; then
-            printf "${_proxy_c_cyan}● Setting System-Wide Proxy (Shell + APT + Docker) -> %s${_proxy_c_reset}\n" "$normalized"
+            printf "${_proxy_c_cyan}● Setting System-Wide Proxy (Shell + NPM + APT + Docker) -> %s${_proxy_c_reset}\n" "$normalized"
             _proxy_env_set "$normalized"
             _proxy_apt_set "$normalized"
             _proxy_docker_client_set "$normalized"
             _proxy_docker_daemon_set "$normalized"
         else
-            printf "${_proxy_c_cyan}● Setting Shell Proxy -> %s${_proxy_c_reset}\n" "$normalized"
+            printf "${_proxy_c_cyan}● Setting Shell & NPM Proxy -> %s${_proxy_c_reset}\n" "$normalized"
             _proxy_env_set "$normalized"
             printf "  (Tip: use 'proxy --all <url>' to also configure APT & Docker)\n"
         fi
@@ -353,9 +390,9 @@ proxy() {
     _proxy_status
 
     printf "${_proxy_c_cyan}Select Target Mode:${_proxy_c_reset}\n"
-    printf "  [1] Shell Environment Only (Default)\n"
+    printf "  [1] Shell Environment & NPM (Default)\n"
     printf "  [2] APT & Docker Only (System Services)\n"
-    printf "  [3] All / System-Wide (Shell + APT + Docker)\n"
+    printf "  [3] All / System-Wide (Shell + NPM + APT + Docker)\n"
     
     local mode_choice
     read -r -p "Mode [default: 1]: " mode_choice
@@ -430,7 +467,7 @@ proxy() {
 
     if [ -n "$selected_target" ]; then
         if [ "$target_shell" -eq 1 ] && [ "$target_system" -eq 1 ]; then
-            printf "${_proxy_c_cyan}● Setting System-Wide Proxy (Shell + APT + Docker) -> %s${_proxy_c_reset}\n" "$selected_target"
+            printf "${_proxy_c_cyan}● Setting System-Wide Proxy (Shell + NPM + APT + Docker) -> %s${_proxy_c_reset}\n" "$selected_target"
             _proxy_env_set "$selected_target"
             _proxy_apt_set "$selected_target"
             _proxy_docker_client_set "$selected_target"
@@ -441,7 +478,7 @@ proxy() {
             _proxy_docker_client_set "$selected_target"
             _proxy_docker_daemon_set "$selected_target"
         else
-            printf "${_proxy_c_cyan}● Setting Shell Proxy -> %s${_proxy_c_reset}\n" "$selected_target"
+            printf "${_proxy_c_cyan}● Setting Shell & NPM Proxy -> %s${_proxy_c_reset}\n" "$selected_target"
             _proxy_env_set "$selected_target"
         fi
     fi
