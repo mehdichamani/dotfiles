@@ -315,6 +315,17 @@ function ffm { py "$HOME/.config/scripts/ffm.py" @args }
 # MKV organizer script
 function mkv { py "$HOME/.config/scripts/mkvOrganizer.py" @args }
 
+# Portable App Installer
+function pinstall {
+    $script = "$HOME\.config\scripts\PortableInstaller.ps1"
+    if (-not (Test-Path -LiteralPath $script)) {
+        $script = "$HOME\.local\share\chezmoi\dot_config\scripts\PortableInstaller.ps1"
+    }
+    & $script @args
+}
+Set-Alias -Name portable -Value pinstall
+Set-Alias -Name Install-PortableApp -Value pinstall
+
 # -----------------------------------------------------------------------------
 # Network utilities
 # -----------------------------------------------------------------------------
