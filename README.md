@@ -11,6 +11,8 @@
 
 This repository is a personal `chezmoi` dotfiles collection. It stores shell configuration, editor settings, and application configuration files for a Linux environment.
 
+![Screenshot](./Screenshot.png)
+
 ## Contents
 
 - `dot_bash_aliases` — Bash aliases.
@@ -40,6 +42,8 @@ This repository is a personal `chezmoi` dotfiles collection. It stores shell con
 ## درباره
 
 این مخزن مجموعه‌ی شخصی فایل‌های پیکربندی `chezmoi` است. شامل تنظیمات پوسته، ویرایشگر و برنامه‌ها در محیط لینوکس می‌شود.
+
+![Screenshot](./Screenshot.png)
 
 ## محتوا
 
