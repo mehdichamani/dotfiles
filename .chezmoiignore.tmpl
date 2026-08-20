@@ -5,3 +5,12 @@
 Documents
 Documents/**
 {{ end }}
+{{ if eq .chezmoi.os "windows" }}
+.bashrc
+.bash_aliases
+.bash_profile
+.bash_login
+.profile
+.config/fish
+.config/fish/**
+{{ end }}
