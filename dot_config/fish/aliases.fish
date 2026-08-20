@@ -92,6 +92,9 @@ abbr -a s24apps 'scrcpy --list-apps'
 abbr -a s24blu 'scrcpy --new-display --start-app=com.samanpr.blu --window-title="Blu"'
 abbr -a s24parmis 'scrcpy --new-display --start-app=com.parmisit.parmismobile --window-title="Parmis"'
 
+# yt-dlp
+abbr -a yt-dlp 'yt-dlp --cookies-from-browser vivaldi --js-runtimes node'
+
 # Cross-platform Update alias (Arch, Ubuntu/Debian, and Termux)
 if type -q pacman
     alias update='sudo pacman -Syu'
