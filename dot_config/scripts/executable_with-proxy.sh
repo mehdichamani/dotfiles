@@ -3,11 +3,7 @@
 # Helper to execute any command with current proxy settings (if active)
 # ==============================================================================
 
-if [ -n "$XDG_RUNTIME_DIR" ] && [ -d "$XDG_RUNTIME_DIR" ]; then
-    _proxy_state_file="$XDG_RUNTIME_DIR/current_proxy"
-else
-    _proxy_state_file="/tmp/current_proxy"
-fi
+_proxy_state_file="$HOME/.config/proxy_state"
 
 _default_no_proxy="localhost,127.0.0.1,::1,localaddress,.local,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12"
 

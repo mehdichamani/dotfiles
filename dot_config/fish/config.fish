@@ -33,6 +33,19 @@ if status is-interactive
         command rm -f -- "$tmp"
     end
 
+    # Load persistent proxy state
+    set -l proxy_state_file "$HOME/.config/proxy_state"
+    if test -s "$proxy_state_file"
+        set -l _p_val (cat "$proxy_state_file" 2>/dev/null)
+        if test -n "$_p_val"
+            set -gx http_proxy "$_p_val"; set -gx HTTP_PROXY "$_p_val"
+            set -gx https_proxy "$_p_val"; set -gx HTTPS_PROXY "$_p_val"
+            set -gx all_proxy "$_p_val"; set -gx ALL_PROXY "$_p_val"
+            set -gx no_proxy "localhost,127.0.0.1,::1,localaddress,.local,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12"
+            set -gx NO_PROXY "$no_proxy"
+        end
+    end
+
     # Proxy status
     if set -q http_proxy; or set -q HTTP_PROXY
         set_color green; echo "● Proxy ON ($http_proxy)"; set_color normal

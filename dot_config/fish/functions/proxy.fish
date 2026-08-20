@@ -1,5 +1,5 @@
 function proxy --description "Manage shell and system proxy configurations"
-    set -l proxy_file (test -n "$XDG_RUNTIME_DIR" -a -d "$XDG_RUNTIME_DIR"; and echo "$XDG_RUNTIME_DIR/current_proxy"; or echo "/tmp/current_proxy")
+    set -l proxy_file "$HOME/.config/proxy_state"
 
     # Run the core bash proxy script
     bash -c ". ~/.config/scripts/proxy.sh && proxy \"\$@\"" -- $argv
