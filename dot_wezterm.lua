@@ -1,8 +1,18 @@
 local wezterm = require 'wezterm'
 local config = wezterm.config_builder()
 
--- ۱. شل پیش‌فرض
-config.default_prog = { 'pwsh.exe', '-NoLogo' }
+local is_windows = wezterm.target_triple:find('windows') ~= nil
+
+-- ۱. تنظیمات اختصاصی سیستم‌عامل
+if is_windows then
+  config.default_prog = { 'pwsh.exe', '-NoLogo' }
+  -- ادغام دکمه‌ها در تب‌بار (ویندوز ۱۱)
+  config.window_decorations = 'INTEGRATED_BUTTONS|RESIZE'
+else
+  -- فعال‌سازی XWayland و نوار عنوان استاندارد اوبونتو برای امکان جابجایی
+  config.enable_wayland = false
+  config.window_decorations = 'TITLE | RESIZE'
+end
 
 -- ۲. زبان فارسی و فونت
 config.bidi_enabled = true
@@ -21,8 +31,6 @@ config.color_scheme = 'Catppuccin Mocha'
 config.win32_system_backdrop = 'Mica' -- یا 'Acrylic'
 
 -- ۵. بهینه‌سازی کادر و تب‌بار
--- دکوراسیون کامل همراه با دکمه‌های بالایی و قابلیت جابجایی
-config.window_decorations = 'INTEGRATED_BUTTONS|RESIZE'
 config.use_fancy_tab_bar = true
 config.tab_bar_at_bottom = false
 config.hide_tab_bar_if_only_one_tab = false
