@@ -1,0 +1,22 @@
+{
+    "git.autofetch": true,
+    "terminal.integrated.profiles.windows": {
+        "PowerShell (NoProfile)": {
+            "path": "pwsh.exe",
+            "args": [
+                "-NoProfile"
+            ]
+        },
+        "PowerShell (Mini)": {
+            "path": "pwsh.exe",
+            "icon": "terminal-powershell",
+            "args": [
+                "-NoProfile",
+                "-NoExit",
+                "-Command",
+                ". '${env:USERPROFILE}\\Documents\\PowerShell\\mini_profile.ps1'"
+            ]
+        }
+    },
+    "terminal.integrated.defaultProfile.windows": "PowerShell (Mini)"
+}

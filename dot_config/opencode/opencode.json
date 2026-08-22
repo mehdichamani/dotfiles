@@ -20,8 +20,41 @@
     },
     "obsidian": {
       "type": "local",
-      "command": ["npx", "obsidian-mcp-server"],
+      "command": [
+        "npx",
+        "obsidian-mcp-server"
+      ],
       "enabled": true
-    }    
+    }
+  },
+  "provider": {
+    "9router": {
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "https://9router-production-036e.up.railway.app/v1",
+      },
+      "models": {
+        "smart": {
+          "name": "smart",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "model": "9router/smart",
+  "agent": {
+    "explorer": {
+      "description": "Fast explorer subagent for codebase exploration",
+      "mode": "subagent",
+      "model": "9router/smart"
+    }
   }
 }
