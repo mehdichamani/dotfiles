@@ -1,0 +1,4 @@
+dot_ssh/config filter=git-crypt diff=git-crypt
+dot_ssh/devices.toml filter=git-crypt diff=git-crypt
+*.secret filter=git-crypt diff=git-crypt
+private_secrets/** filter=git-crypt diff=git-crypt

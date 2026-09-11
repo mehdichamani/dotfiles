@@ -1,0 +1,214 @@
+#!/usr/bin/env python3
+"""
+ipl - Fast GeoIP & Public IP Checker (Proxy & Direct / No-Proxy)
+Optimized for high responsiveness, concurrent querying, and compatibility in restricted networks.
+"""
+
+import sys
+import os
+import json
+import time
+import urllib.request
+from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
+
+# ANSI Color Codes
+RESET = "\033[0m"
+BOLD = "\033[1m"
+GREEN = "\033[32m"
+YELLOW = "\033[33m"
+CYAN = "\033[36m"
+BLUE = "\033[34m"
+RED = "\033[31m"
+GRAY = "\033[90m"
+
+SERVICES = [
+    {
+        "url": "https://ipwho.is",
+        "parse": lambda d: {
+            "ip": d.get("ip", ""),
+            "city": d.get("city", ""),
+            "country": d.get("country", ""),
+            "country_code": d.get("country_code", ""),
+            "isp": d.get("connection", {}).get("isp", "") if isinstance(d.get("connection"), dict) else "",
+            "asn": d.get("connection", {}).get("asn", "") if isinstance(d.get("connection"), dict) else "",
+        }
+    },
+    {
+        "url": "https://api.ip.sb/geoip",
+        "parse": lambda d: {
+            "ip": d.get("ip", ""),
+            "city": d.get("city", ""),
+            "country": d.get("country", ""),
+            "country_code": d.get("country_code", ""),
+            "isp": d.get("isp", ""),
+            "asn": d.get("asn", ""),
+        }
+    },
+    {
+        "url": "https://ipinfo.io/json",
+        "parse": lambda d: {
+            "ip": d.get("ip", ""),
+            "city": d.get("city", ""),
+            "country": d.get("country", ""),
+            "country_code": d.get("country", ""),
+            "isp": d.get("org", ""),
+            "asn": "",
+        }
+    }
+]
+
+def get_proxy_address():
+    for var in ("http_proxy", "HTTP_PROXY", "all_proxy", "ALL_PROXY"):
+        val = os.environ.get(var)
+        if val:
+            return val
+    state_file = Path.home() / ".config" / "proxy_state"
+    if state_file.is_file():
+        try:
+            val = state_file.read_text().strip()
+            if val:
+                return val
+        except Exception:
+            pass
+    return "http://localhost:10808"
+
+def fetch_single(use_proxy, timeout=3.5):
+    t0 = time.time()
+    proxy_url = get_proxy_address() if use_proxy else None
+
+    if proxy_url:
+        handler = urllib.request.ProxyHandler({"http": proxy_url, "https": proxy_url})
+    else:
+        handler = urllib.request.ProxyHandler({})
+
+    opener = urllib.request.build_opener(handler)
+
+    last_err = ""
+    for srv in SERVICES:
+        try:
+            req = urllib.request.Request(srv["url"], headers={"User-Agent": "curl/8.0"})
+            with opener.open(req, timeout=timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                parsed = srv["parse"](data)
+                if parsed.get("ip"):
+                    duration = (time.time() - t0) * 1000
+                    return True, parsed, duration, ""
+        except Exception as e:
+            last_err = str(e)
+            continue
+
+    duration = (time.time() - t0) * 1000
+    return False, None, duration, last_err or "Connection timed out"
+
+def display_section(title, success, data, duration, err):
+    print(f"{BOLD}{CYAN}=== {title} ==={RESET} {GRAY}({duration:.0f} ms){RESET}")
+    if not success:
+        print(f"  {RED}✖ Connection failed:{RESET} {err}\n")
+        return
+
+    ip = data.get("ip", "N/A")
+    country = data.get("country", "")
+    cc = data.get("country_code", "")
+    city = data.get("city", "")
+    isp = data.get("isp", "")
+    asn = data.get("asn", "")
+
+    loc_parts = [p for p in (city, country) if p]
+    loc = ", ".join(loc_parts)
+    if cc and cc not in loc:
+        loc += f" ({cc})"
+
+    print(f"  {BOLD}IP:{RESET}       {GREEN}{ip}{RESET}")
+    if loc:
+        print(f"  {BOLD}Location:{RESET} {YELLOW}{loc}{RESET}")
+    if isp or asn:
+        if isp and asn:
+            isp_str = f"{isp} [AS{asn}]"
+        else:
+            isp_str = f"{isp}{asn}"
+        print(f"  {BOLD}ISP/ASN:{RESET}  {BLUE}{isp_str}{RESET}")
+    print()
+
+def print_help():
+    print(f"{BOLD}{CYAN}ipl{RESET} - Fast GeoIP & Public IP Checker (Proxy & Direct)")
+    print(f"\n{BOLD}Usage:{RESET}")
+    print("  ipl                Check both Proxy and Direct connections concurrently")
+    print("  ipl -p, --proxy    Check IP via Proxy only")
+    print("  ipl -d, --direct   Check IP via Direct (No Proxy) only")
+    print("  ipl -r, --raw      Output plain IP address only (Proxy)")
+    print("  ipl -h, --help     Show this help message\n")
+
+def main():
+    mode = "both"
+    raw_mode = False
+    if len(sys.argv) > 1:
+        arg = sys.argv[1].lower()
+        if arg in ("-h", "--help", "help"):
+            print_help()
+            return
+        elif arg in ("-p", "--proxy", "proxy"):
+            mode = "proxy"
+        elif arg in ("-d", "-l", "--direct", "--noproxy", "direct"):
+            mode = "direct"
+        elif arg in ("-r", "--raw", "raw"):
+            mode = "proxy"
+            raw_mode = True
+
+    if raw_mode:
+        ok, res, dur, err = fetch_single(True)
+        if ok and res.get("ip"):
+            print(res["ip"])
+        else:
+            print("Failed to resolve IP", file=sys.stderr)
+            sys.exit(1)
+        return
+
+    is_tty = sys.stdout.isatty()
+    stop_spinner = False
+
+    def spinner_task():
+        spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+        idx = 0
+        while not stop_spinner:
+            char = spinner_chars[idx % len(spinner_chars)]
+            sys.stdout.write(f"\r\033[K{CYAN}{char}{RESET} Fetching IP details...")
+            sys.stdout.flush()
+            idx += 1
+            time.sleep(0.08)
+        sys.stdout.write("\r\033[K")
+        sys.stdout.flush()
+
+    spinner_thread = None
+    if is_tty:
+        import threading
+        spinner_thread = threading.Thread(target=spinner_task, daemon=True)
+        spinner_thread.start()
+
+    try:
+        if mode == "proxy":
+            ok, res, dur, err = fetch_single(True)
+            results = [("🌐 Proxy (Tunnel / VPN)", ok, res, dur, err)]
+        elif mode == "direct":
+            ok, res, dur, err = fetch_single(False)
+            results = [("🏠 Direct (Local / No Proxy)", ok, res, dur, err)]
+        else:
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                fut_proxy = executor.submit(fetch_single, True)
+                fut_direct = executor.submit(fetch_single, False)
+                ok_p, res_p, dur_p, err_p = fut_proxy.result()
+                ok_d, res_d, dur_d, err_d = fut_direct.result()
+            results = [
+                ("🌐 Proxy (Tunnel / VPN)", ok_p, res_p, dur_p, err_p),
+                ("🏠 Direct (Local / No Proxy)", ok_d, res_d, dur_d, err_d),
+            ]
+    finally:
+        if is_tty and spinner_thread:
+            stop_spinner = True
+            spinner_thread.join()
+
+    for title, ok, res, dur, err in results:
+        display_section(title, ok, res, dur, err)
+
+if __name__ == "__main__":
+    main()

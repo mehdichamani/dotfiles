@@ -1,0 +1,9 @@
+{{- if hasKey . "deviceName" -}}
+{{ .deviceName }}
+{{- else if eq .chezmoi.os "windows" -}}
+work
+{{- else if eq .chezmoi.os "android" -}}
+s24
+{{- else -}}
+home
+{{- end }}

@@ -1,0 +1,27 @@
+{{- $defaultDevice := "home" -}}
+{{- if eq .chezmoi.os "windows" -}}
+{{-   $defaultDevice = "work" -}}
+{{- else if eq .chezmoi.os "android" -}}
+{{-   $defaultDevice = "s24" -}}
+{{- end -}}
+
+{{- $deviceName := promptStringOnce . "deviceName" "Enter device identifier (home, work, s24, laptop, ...)" $defaultDevice -}}
+
+[data]
+    deviceName = {{ $deviceName | quote }}
+
+[edit]
+    command = "nvim"
+
+[merge]
+    command = "nvim"
+    args = ["-d"]
+
+[status]
+    exclude = ["scripts"]
+
+{{- if eq .chezmoi.os "windows" }}
+[interpreters.ps1]
+    command = "pwsh"
+    args = ["-NoLogo"]
+{{- end }}

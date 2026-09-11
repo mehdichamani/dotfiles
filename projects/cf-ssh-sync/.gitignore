@@ -1,0 +1,17 @@
+# Wrangler and Cloudflare local runtime state
+.wrangler/
+.dev.vars*
+
+# Node / NPM artifacts (if ever used)
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Temporary / OS files
+.DS_Store
+Thumbs.db

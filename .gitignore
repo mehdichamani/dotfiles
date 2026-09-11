@@ -1,0 +1,42 @@
+# Secrets & sensitive fish configs
+dot_config/fish/secrets.fish
+
+# Keys, certificates and chezmoi age/gpg keys
+*.pem
+*.key
+tls_*.pem
+chezmoi.key
+
+# Docker & Virtualization
+projects/winapps/dot_env
+*.iso
+
+# Vaults & external notes
+obsidian-vault
+
+# Plans and drafts
+plans/*
+!plans/README.md
+
+# Secrets, tokens and local environment files
+*.env
+**/.env
+.env
+jellyfin.env
+dot_config/secrets/*
+!dot_config/secrets/*.example
+!dot_config/secrets/README.md
+projects/*/.env
+projects/*/dot_env
+
+# Cloudflare Wrangler cache & state
+projects/cf-ssh-sync/.wrangler/
+**/.wrangler/
+
+# System session states & runtime files
+dot_config/proxy_state
+proxy_state
+
+# Python cache & build artifacts
+__pycache__/
+*.py[cod]

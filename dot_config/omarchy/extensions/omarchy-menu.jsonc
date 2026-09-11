@@ -1,0 +1,9 @@
+{
+  // Extend Quickshell Omarchy menu with Antigravity (agy) coding agent
+  "setup.default.agent.agy": {
+    "icon": "󱚝",
+    "label": "Antigravity",
+    "checked": "[[ \"$(omarchy-default-agent)\" == \"agy\" ]]",
+    "action": "omarchy-default-agent agy"
+  }
+}

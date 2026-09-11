@@ -1,0 +1,5 @@
+# Global uv configuration
+# Docs: https://docs.astral.sh/uv/reference/settings/
+
+# Enable native system certificates
+system-certs = true

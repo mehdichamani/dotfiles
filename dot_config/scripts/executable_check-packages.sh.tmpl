@@ -1,0 +1,349 @@
+#!/usr/bin/env bash
+# Dotfiles Package Dependencies Verification & Installer (Linux / Termux / macOS)
+{{- if eq .chezmoi.os "windows" }}
+# Skip on Windows
+exit 0
+{{- else }}
+
+echo ""
+echo "============================================================"
+echo "  📦 Dotfiles Package Dependencies Verification"
+echo "============================================================"
+
+# 1. Detect OS and Package Manager
+OS_TYPE="unknown"
+OS_NAME="Unknown"
+PKG_MGR=""
+
+if [ -n "$PREFIX" ] && [ -d "$PREFIX" ] && command -v pkg >/dev/null 2>&1; then
+    OS_TYPE="termux"
+    OS_NAME="Android (Termux)"
+    PKG_MGR="pkg"
+elif [ "{{ .chezmoi.os }}" = "darwin" ]; then
+    OS_TYPE="macos"
+    OS_NAME="macOS"
+    PKG_MGR="brew"
+elif [ "{{ .chezmoi.os }}" = "linux" ]; then
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        OS_NAME="${NAME:-Linux} (${ID:-linux}${ID_LIKE:+ / $ID_LIKE})"
+        if [ "$ID" = "arch" ] || [ "$ID_LIKE" = "arch" ] || [ "$ID" = "omarchy" ]; then
+            OS_TYPE="arch"
+            PKG_MGR="pacman"
+        elif [ "$ID" = "debian" ] || [ "$ID_LIKE" = "debian" ] || [ "$ID" = "ubuntu" ] || [ "$ID_LIKE" = "ubuntu" ]; then
+            OS_TYPE="debian"
+            PKG_MGR="apt"
+        elif [ "$ID" = "fedora" ] || [ "$ID_LIKE" = "fedora" ]; then
+            OS_TYPE="fedora"
+            PKG_MGR="dnf"
+        else
+            OS_TYPE="generic_linux"
+        fi
+    else
+        OS_TYPE="generic_linux"
+        OS_NAME="Linux (Generic)"
+    fi
+fi
+
+echo "🔍 Detected Platform: $OS_NAME"
+echo "🛠️ Detected Package Manager: ${PKG_MGR:-None / Manual}"
+
+# 2. Define Dependency Checks per Platform
+MISSING_CMDS=()
+MISSING_PKGS=()
+NEED_FONT_INSTALL=0
+
+check_tool() {
+    local cmd="$1"
+    local pkg="$2"
+    local alt_cmd="$3"
+
+    if command -v "$cmd" >/dev/null 2>&1 || { [ -n "$alt_cmd" ] && command -v "$alt_cmd" >/dev/null 2>&1; }; then
+        return 0
+    else
+        MISSING_CMDS+=("$cmd")
+        if [ -n "$pkg" ]; then
+            MISSING_PKGS+=("$pkg")
+        fi
+        return 1
+    fi
+}
+
+check_font() {
+    local font_name="$1"
+    local pattern="$2"
+    local file_check="$3"
+    local pkg="$4"
+
+    if [ "$OS_TYPE" = "termux" ]; then
+        if [ "$font_name" = "JetBrainsMono-Nerd-Font" ] && [ -f "$HOME/.termux/font.ttf" ]; then
+            return 0
+        elif [ -f "$HOME/.local/share/fonts/$file_check" ] || [ -f "$HOME/.fonts/$file_check" ]; then
+            return 0
+        fi
+    elif command -v fc-list >/dev/null 2>&1; then
+        if fc-list : family | grep -qi "$pattern"; then
+            return 0
+        fi
+    elif [ -f "$HOME/.local/share/fonts/$file_check" ] || \
+         [ -f "$HOME/.fonts/$file_check" ]; then
+        return 0
+    fi
+
+    MISSING_CMDS+=("$font_name")
+    if [ -n "$pkg" ]; then
+        MISSING_PKGS+=("$pkg")
+    fi
+    NEED_FONT_INSTALL=1
+    return 1
+}
+
+case "$OS_TYPE" in
+    arch)
+        check_tool "starship" "starship"
+        check_tool "eza" "eza"
+        check_tool "zoxide" "zoxide"
+        check_tool "fastfetch" "fastfetch"
+        check_tool "bat" "bat"
+        check_tool "rg" "ripgrep"
+        check_tool "fd" "fd"
+        check_tool "nvim" "neovim"
+        check_tool "git" "git"
+        check_tool "git-crypt" "git-crypt"
+        check_tool "direnv" "direnv"
+        check_tool "python3" "python"
+        check_tool "uv" "uv"
+        check_tool "ffmpeg" "ffmpeg"
+        check_tool "mkvmerge" "mkvtoolnix-cli"
+        check_tool "yt-dlp" "yt-dlp"
+        check_tool "aria2c" "aria2"
+        check_tool "scrcpy" "scrcpy"
+        check_tool "adb" "android-tools"
+        check_tool "docker" "docker docker-compose"
+        check_tool "socat" "socat"
+        check_tool "fzf" "fzf"
+        check_font "JetBrainsMono-Nerd-Font" "JetBrainsMono.*Nerd" "JetBrainsMonoNerdFont-Regular.ttf" ""
+        check_font "Vazirmatn" "Vazirmatn" "Vazirmatn-Regular.ttf" ""
+        ;;
+    debian)
+        check_tool "zoxide" "zoxide"
+        check_tool "fastfetch" "fastfetch"
+        check_tool "bat" "bat" "batcat"
+        check_tool "rg" "ripgrep"
+        check_tool "fd" "fd-find" "fdfind"
+        check_tool "nvim" "neovim"
+        check_tool "git" "git"
+        check_tool "git-crypt" "git-crypt"
+        check_tool "direnv" "direnv"
+        check_tool "python3" "python3 python3-pip"
+        check_tool "uv" ""
+        check_tool "ffmpeg" "ffmpeg"
+        check_tool "mkvmerge" "mkvtoolnix"
+        check_tool "yt-dlp" "yt-dlp"
+        check_tool "aria2c" "aria2"
+        check_tool "scrcpy" "scrcpy"
+        check_tool "adb" "adb"
+        check_tool "docker" "docker.io docker-compose-v2"
+        check_tool "socat" "socat"
+        check_tool "fzf" "fzf"
+        check_tool "starship" ""
+        check_tool "eza" ""
+        check_font "JetBrainsMono-Nerd-Font" "JetBrainsMono.*Nerd" "JetBrainsMonoNerdFont-Regular.ttf" ""
+        check_font "Vazirmatn" "Vazirmatn" "Vazirmatn-Regular.ttf" ""
+        ;;
+    termux)
+        check_tool "starship" "starship"
+        check_tool "eza" "eza"
+        check_tool "fish" "fish"
+        check_tool "zoxide" "zoxide"
+        check_tool "fastfetch" "fastfetch"
+        check_tool "bat" "bat"
+        check_tool "rg" "ripgrep"
+        check_tool "fd" "fd"
+        check_tool "nvim" "neovim"
+        check_tool "git" "git"
+        check_tool "git-crypt" "git-crypt"
+        check_tool "tar" "tar"
+        check_tool "xz" "xz-utils"
+        check_tool "python3" "python"
+        check_tool "uv" "uv"
+        check_tool "ffmpeg" "ffmpeg"
+        check_tool "yt-dlp" "yt-dlp"
+        check_tool "aria2c" "aria2"
+        check_tool "ssh" "openssh"
+        check_tool "socat" "socat"
+        check_tool "fzf" "fzf"
+        check_font "JetBrainsMono-Nerd-Font" "JetBrainsMono.*Nerd" "JetBrainsMonoNerdFont-Regular.ttf" ""
+        check_font "Vazirmatn" "Vazirmatn" "Vazirmatn-Regular.ttf" ""
+        ;;
+    macos)
+        check_tool "starship" "starship"
+        check_tool "eza" "eza"
+        check_tool "zoxide" "zoxide"
+        check_tool "fastfetch" "fastfetch"
+        check_tool "bat" "bat"
+        check_tool "rg" "ripgrep"
+        check_tool "fd" "fd"
+        check_tool "nvim" "neovim"
+        check_tool "git" "git"
+        check_tool "git-crypt" "git-crypt"
+        check_tool "direnv" "direnv"
+        check_tool "python3" "python3"
+        check_tool "uv" "uv"
+        check_tool "ffmpeg" "ffmpeg"
+        check_tool "mkvmerge" "mkvtoolnix"
+        check_tool "yt-dlp" "yt-dlp"
+        check_tool "aria2c" "aria2"
+        check_tool "scrcpy" "scrcpy"
+        check_tool "fzf" "fzf"
+        check_font "JetBrainsMono-Nerd-Font" "JetBrainsMono.*Nerd" "JetBrainsMonoNerdFont-Regular.ttf" ""
+        check_font "Vazirmatn" "Vazirmatn" "Vazirmatn-Regular.ttf" ""
+        ;;
+    *)
+        check_tool "starship" ""
+        check_tool "eza" ""
+        check_tool "zoxide" ""
+        check_tool "fastfetch" ""
+        check_tool "bat" ""
+        check_tool "rg" ""
+        check_tool "fd" ""
+        check_tool "nvim" ""
+        check_tool "git" ""
+        check_tool "git-crypt" ""
+        check_tool "uv" ""
+        check_tool "fzf" ""
+        check_font "JetBrainsMono-Nerd-Font" "JetBrainsMono.*Nerd" "JetBrainsMonoNerdFont-Regular.ttf" ""
+        check_font "Vazirmatn" "Vazirmatn" "Vazirmatn-Regular.ttf" ""
+        ;;
+esac
+
+# 3. Check status
+if [ ${#MISSING_CMDS[@]} -eq 0 ]; then
+    echo "✅ All core dotfiles tools and dependencies are already satisfied!"
+    echo "============================================================"
+    exit 0
+fi
+
+echo ""
+echo "⚠️  Missing components detected: ${MISSING_CMDS[*]}"
+if [ ${#MISSING_PKGS[@]} -gt 0 ]; then
+    echo "📦 Corresponding packages: ${MISSING_PKGS[*]}"
+fi
+echo ""
+
+if [ -z "$PKG_MGR" ] && [ "$NEED_FONT_INSTALL" -eq 0 ]; then
+    echo "ℹ️  Automatic installation is not configured for this platform."
+    echo "👉 Please install the missing dependencies manually using your package manager."
+    echo "============================================================"
+    exit 0
+fi
+
+# 4. Interactive prompt with timeout (non-blocking)
+USER_CHOICE="n"
+if [ -t 0 ]; then
+    read -t 10 -p "❓ Would you like to install missing components? [y/N] (timeout in 10s): " USER_CHOICE || true
+    echo ""
+elif [ ! -t 0 ]; then
+    # Input piped through stdin (e.g. echo y | check-packages.sh)
+    read USER_CHOICE || true
+elif [ -r /dev/tty ] && [ -w /dev/tty ] 2>/dev/null; then
+    read -t 10 -p "❓ Would you like to install missing components? [y/N] (timeout in 10s): " USER_CHOICE < /dev/tty 2>/dev/null || true
+    echo ""
+else
+    echo "ℹ️  Non-interactive shell detected. Skipping automatic package installation."
+    USER_CHOICE="n"
+fi
+
+case "$USER_CHOICE" in
+    [yY]|[yY][eE][sS])
+        echo "🚀 Installing missing components..."
+        # 1. Install CLI packages via package manager
+        if [ ${#MISSING_PKGS[@]} -gt 0 ]; then
+            case "$PKG_MGR" in
+                pacman)
+                    sudo pacman -S --needed ${MISSING_PKGS[*]}
+                    ;;
+                apt)
+                    sudo apt update && sudo apt install -y ${MISSING_PKGS[*]}
+                    ;;
+                pkg)
+                    pkg update && pkg install -y ${MISSING_PKGS[*]}
+                    ;;
+                brew)
+                    brew install ${MISSING_PKGS[*]}
+                    ;;
+            esac
+        fi
+
+        # 2. Install Fonts (JetBrainsMono & Vazirmatn from local repo, no pacman/brew)
+        if [ "$NEED_FONT_INSTALL" -eq 1 ]; then
+            echo "📥 Installing fonts from repository..."
+            
+            REPO_FONTS_DIR="$HOME/.local/share/chezmoi/private_dot_local/private_share/fonts"
+            REPO_JB_FONT=""
+            FONT_CANDIDATES=(
+                "$REPO_FONTS_DIR/JetBrainsMonoNerdFont-Regular.ttf"
+                "$HOME/.local/share/fonts/JetBrainsMonoNerdFont-Regular.ttf"
+            )
+            for cand in "${FONT_CANDIDATES[@]}"; do
+                if [ -f "$cand" ]; then
+                    REPO_JB_FONT="$cand"
+                    break
+                fi
+            done
+
+            if [ "$OS_TYPE" = "termux" ]; then
+                mkdir -p "$HOME/.termux"
+                if [ -n "$REPO_JB_FONT" ]; then
+                    ln -sf "$REPO_JB_FONT" "$HOME/.termux/font.ttf" 2>/dev/null || cp -f "$REPO_JB_FONT" "$HOME/.termux/font.ttf"
+                    echo "✓ JetBrainsMono font linked to ~/.termux/font.ttf from repository!"
+                elif [ ! -f "$HOME/.termux/font.ttf" ]; then
+                    echo "⚠️ Local font file not found, falling back to download..."
+                    curl -#fLo "$HOME/.termux/font.ttf" "https://github.com/ryanoasis/nerd-fonts/raw/master/patched-fonts/JetBrainsMono/Ligatures/Regular/JetBrainsMonoNerdFont-Regular.ttf" || true
+                fi
+
+                # Also copy all TTF fonts (including Vazirmatn) to ~/.local/share/fonts
+                mkdir -p "$HOME/.local/share/fonts"
+                if [ -d "$REPO_FONTS_DIR" ]; then
+                    cp -f "$REPO_FONTS_DIR"/*.ttf "$HOME/.local/share/fonts/" 2>/dev/null || true
+                    echo "✓ All repository fonts (JetBrainsMono & Vazirmatn) copied to ~/.local/share/fonts!"
+                fi
+
+                if command -v termux-reload-settings >/dev/null 2>&1; then
+                    termux-reload-settings 2>/dev/null || true
+                fi
+            elif [ "$OS_TYPE" = "macos" ]; then
+                DEST_DIR="$HOME/Library/Fonts"
+                mkdir -p "$DEST_DIR"
+                if [ -d "$REPO_FONTS_DIR" ]; then
+                    cp -f "$REPO_FONTS_DIR"/*.ttf "$DEST_DIR/" 2>/dev/null || true
+                    echo "✓ Fonts (JetBrainsMono & Vazirmatn) installed in $DEST_DIR from repository!"
+                else
+                    echo "⚠️ Local font directory not found, downloading JetBrainsMono Nerd Font..."
+                    curl -#fLo "$DEST_DIR/JetBrainsMonoNerdFont-Regular.ttf" "https://github.com/ryanoasis/nerd-fonts/raw/master/patched-fonts/JetBrainsMono/Ligatures/Regular/JetBrainsMonoNerdFont-Regular.ttf" || true
+                fi
+            else
+                DEST_DIR="$HOME/.local/share/fonts"
+                mkdir -p "$DEST_DIR"
+                if [ -d "$REPO_FONTS_DIR" ]; then
+                    cp -f "$REPO_FONTS_DIR"/*.ttf "$DEST_DIR/" 2>/dev/null || true
+                    echo "✓ Fonts (JetBrainsMono & Vazirmatn) installed in $DEST_DIR from repository!"
+                else
+                    echo "⚠️ Local font directory not found, downloading JetBrainsMono Nerd Font..."
+                    curl -#fLo "$DEST_DIR/JetBrainsMonoNerdFont-Regular.ttf" "https://github.com/ryanoasis/nerd-fonts/raw/master/patched-fonts/JetBrainsMono/Ligatures/Regular/JetBrainsMonoNerdFont-Regular.ttf" || true
+                fi
+                if command -v fc-cache >/dev/null 2>&1; then
+                    fc-cache -f "$DEST_DIR" 2>/dev/null || true
+                fi
+            fi
+        fi
+
+        echo "✓ Installation process finished!"
+        ;;
+    *)
+        echo "⏭️  Skipping package installation. You can install missing packages at any time."
+        ;;
+esac
+
+echo "============================================================"
+{{- end }}

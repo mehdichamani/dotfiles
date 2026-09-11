@@ -1,0 +1,175 @@
+# Dotfiles Package Dependencies Verification & Installer (Windows / PowerShell)
+{{- if ne .chezmoi.os "windows" }}
+# Skip on non-Windows
+exit 0
+{{- else }}
+Write-Host ""
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "  📦 Dotfiles Package Dependencies Verification" -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Cyan
+
+$OSName = "Windows ($([System.Environment]::OSVersion.VersionString))"
+Write-Host "🔍 Detected Platform: $OSName" -ForegroundColor Yellow
+Write-Host "🛠️ Detected Package Manager: winget" -ForegroundColor Yellow
+
+# Tools and their winget IDs
+$Tools = @(
+    @{ Cmd = "starship";  Pkg = "Starship.Starship";          Name = "starship" },
+    @{ Cmd = "eza";       Pkg = "eza-community.eza";          Name = "eza" },
+    @{ Cmd = "zoxide";    Pkg = "ajeetdsouza.zoxide";         Name = "zoxide" },
+    @{ Cmd = "fastfetch"; Pkg = "Fastfetch-cli.Fastfetch";    Name = "fastfetch" },
+    @{ Cmd = "bat";       Pkg = "sharkdp.bat";                Name = "bat" },
+    @{ Cmd = "rg";        Pkg = "BurntSushi.ripgrep.MSVC";    Name = "ripgrep" },
+    @{ Cmd = "fd";        Pkg = "sharkdp.fd";                 Name = "fd" },
+    @{ Cmd = "nvim";      Pkg = "Neovim.Neovim";              Name = "neovim" },
+    @{ Cmd = "git";       Pkg = "Git.Git";                    Name = "git" },
+    @{ Cmd = "ffmpeg";    Pkg = "Gyan.FFmpeg";                Name = "ffmpeg" },
+    @{ Cmd = "yt-dlp";    Pkg = "yt-dlp.yt-dlp";              Name = "yt-dlp" },
+    @{ Cmd = "aria2c";    Pkg = "aria2.aria2";                Name = "aria2" },
+    @{ Cmd = "scrcpy";    Pkg = "Genymobile.scrcpy";          Name = "scrcpy" },
+    @{ Cmd = "uv";        Pkg = "astral-sh.uv";               Name = "uv" },
+    @{ Cmd = "git-crypt"; Pkg = "AGWA.git-crypt";             Name = "git-crypt" },
+    @{ Cmd = "fzf";       Pkg = "junegunn.fzf";               Name = "fzf" }
+)
+
+$MissingPkgs = @()
+$MissingNames = @()
+
+foreach ($tool in $Tools) {
+    if (-not (Get-Command $tool.Cmd -ErrorAction SilentlyContinue)) {
+        $MissingPkgs += $tool.Pkg
+        $MissingNames += $tool.Name
+    }
+}
+
+# Check JetBrainsMono Nerd Font and Vazirmatn via registry or font files
+$FontRegs = @(
+    'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts',
+    'HKCU:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts'
+)
+$AllFontProps = @()
+foreach ($reg in $FontRegs) {
+    if (Test-Path $reg) {
+        $AllFontProps += (Get-ItemProperty -Path $reg -ErrorAction SilentlyContinue).PSObject.Properties
+    }
+}
+$userFontsPath = Join-Path $env:LOCALAPPDATA "Microsoft\Windows\Fonts"
+
+$JbInstalled = ($AllFontProps | Where-Object { $_.Name -like "*JetBrainsMono*Nerd*" -or $_.Name -like "*JetBrains Mono Nerd*" -or $_.Name -like "*JetBrainsMonoNF*" }) -or (Test-Path (Join-Path $userFontsPath "JetBrainsMonoNerdFont-Regular.ttf"))
+$VazirInstalled = ($AllFontProps | Where-Object { $_.Name -like "*Vazirmatn*" -or $_.Name -like "*Vazir*" }) -or (Test-Path (Join-Path $userFontsPath "Vazirmatn-Regular.ttf"))
+
+if (-not $JbInstalled) {
+    $MissingNames += "JetBrainsMono Nerd Font"
+}
+if (-not $VazirInstalled) {
+    $MissingNames += "Vazirmatn Font"
+}
+$NeedFontInstall = (-not $JbInstalled) -or (-not $VazirInstalled)
+
+if ($MissingPkgs.Count -eq 0 -and -not $NeedFontInstall) {
+    Write-Host "✅ All core dependencies and tools are already installed!" -ForegroundColor Green
+    Write-Host "============================================================" -ForegroundColor Cyan
+    exit 0
+}
+
+Write-Host ""
+Write-Host "⚠️  Missing components detected: $($MissingNames -join ', ')" -ForegroundColor Yellow
+if ($MissingPkgs.Count -gt 0) {
+    Write-Host "📦 Winget packages: $($MissingPkgs -join ', ')" -ForegroundColor Yellow
+}
+Write-Host ""
+
+$response = Read-Host "❓ Would you like to install the missing components? [y/N]"
+
+if ($response -match '^(y|yes)$') {
+    # 1. Install Winget CLI packages
+    if ($MissingPkgs.Count -gt 0) {
+        Write-Host "🚀 Installing missing packages via winget..." -ForegroundColor Green
+        foreach ($pkg in $MissingPkgs) {
+            Write-Host ">>> Installing $pkg..." -ForegroundColor Cyan
+            winget install --accept-source-agreements --accept-package-agreements --id $pkg
+        }
+    }
+
+    # 2. Install Fonts (JetBrainsMono Nerd Font & Vazirmatn offline from repo)
+    if ($NeedFontInstall) {
+        Write-Host "📥 Installing fonts for Windows from repository..." -ForegroundColor Green
+        $userFontsDir = Join-Path $env:LOCALAPPDATA "Microsoft\Windows\Fonts"
+        if (-not (Test-Path $userFontsDir)) {
+            New-Item -ItemType Directory -Path $userFontsDir -Force | Out-Null
+        }
+
+        # Win32 GDI & broadcast API
+        try {
+            Add-Type -Namespace Win32Font -Name NativeMethods -MemberDefinition @'
+[System.Runtime.InteropServices.DllImport("gdi32.dll")]
+public static extern int AddFontResource(string lpFileName);
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+public static extern int SendMessage(System.IntPtr hWnd, uint Msg, System.IntPtr wParam, System.IntPtr lParam);
+'@ -ErrorAction SilentlyContinue
+        } catch {}
+
+        $fontRegPath = 'HKCU:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts'
+        if (-not (Test-Path $fontRegPath)) {
+            New-Item -Path $fontRegPath -Force | Out-Null
+        }
+
+        # Locate font directory in local chezmoi repository
+        $localFontsDirCandidates = @(
+            (Join-Path $env:USERPROFILE ".local\share\chezmoi\private_dot_local\private_share\fonts"),
+            (Join-Path $env:USERPROFILE ".local\share\fonts")
+        )
+        $localFontsDir = $null
+        foreach ($cand in $localFontsDirCandidates) {
+            if (Test-Path $cand) {
+                $localFontsDir = $cand
+                break
+            }
+        }
+
+        $installedCount = 0
+        if ($localFontsDir) {
+            $ttfFiles = Get-ChildItem -Path $localFontsDir -Filter "*.ttf" -ErrorAction SilentlyContinue
+            foreach ($file in $ttfFiles) {
+                $dest = Join-Path $userFontsDir $file.Name
+                Copy-Item -Path $file.FullName -Destination $dest -Force
+                
+                # Determine registry key name
+                $regName = ""
+                if ($file.Name -like "*JetBrainsMono*") {
+                    $regName = "JetBrainsMono Nerd Font Regular (TrueType)"
+                } elseif ($file.Name -match '^Vazirmatn-(.+)\.ttf$') {
+                    $weight = $Matches[1]
+                    $regName = "Vazirmatn $weight (TrueType)"
+                } else {
+                    $regName = "$($file.BaseName) (TrueType)"
+                }
+
+                Set-ItemProperty -Path $fontRegPath -Name $regName -Value $dest -Force
+                try { [Win32Font.NativeMethods]::AddFontResource($dest) | Out-Null } catch {}
+                $installedCount++
+            }
+            Write-Host "✓ Installed and registered $installedCount fonts from local repository." -ForegroundColor Green
+        } else {
+            # Fallback download if repo folder is missing
+            Write-Host "⚠️ Local font repo not found, downloading fallback fonts..." -ForegroundColor DarkYellow
+            $destJb = Join-Path $userFontsDir "JetBrainsMonoNerdFont-Regular.ttf"
+            $jbUrl = "https://github.com/ryanoasis/nerd-fonts/raw/master/patched-fonts/JetBrainsMono/Ligatures/Regular/JetBrainsMonoNerdFont-Regular.ttf"
+            Invoke-RestMethod -Uri $jbUrl -OutFile $destJb
+            Set-ItemProperty -Path $fontRegPath -Name "JetBrainsMono Nerd Font Regular (TrueType)" -Value $destJb -Force
+            try { [Win32Font.NativeMethods]::AddFontResource($destJb) | Out-Null } catch {}
+        }
+
+        # Broadcast WM_FONTCHANGE to running Windows applications
+        try {
+            [Win32Font.NativeMethods]::SendMessage([System.IntPtr]0xffff, 0x001D, [System.IntPtr]::Zero, [System.IntPtr]::Zero) | Out-Null
+        } catch {}
+    }
+
+    Write-Host "✓ Component installation process finished!" -ForegroundColor Green
+} else {
+    Write-Host "⏭️  Skipping installation." -ForegroundColor DarkGray
+}
+
+Write-Host "============================================================" -ForegroundColor Cyan
+{{- end }}

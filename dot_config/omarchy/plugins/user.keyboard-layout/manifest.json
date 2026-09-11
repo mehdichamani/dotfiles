@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "user.keyboard-layout",
+  "name": "Custom Keyboard Layout",
+  "version": "1.0.0",
+  "author": "User",
+  "description": "Keyboard layout indicator and switcher with customizable font size",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "KeyboardLayout.qml"
+  },
+  "barWidget": {
+    "displayName": "Custom Keyboard Layout",
+    "description": "Keyboard layout indicator and switcher",
+    "category": "System",
+    "allowMultiple": false
+  }
+}

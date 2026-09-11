@@ -1,0 +1,29 @@
+Screenshot.png
+.gitignore
+.chezmoiignore
+obsidian-vault
+.local/share/applications/winvm.desktop
+plans
+plans/**
+
+{{ if ne .chezmoi.os "windows" }}
+Documents
+Documents/**
+.chezmoitemplates/**
+*.ps1
+*.ps1.tmpl
+{{ end }}
+
+{{ if eq .chezmoi.os "windows" }}
+.local/bin
+.local/bin/**
+.bashrc
+.bash_aliases
+.bash_profile
+.bash_login
+.profile
+.config/fish
+.config/fish/**
+*.sh
+*.sh.tmpl
+{{ end }}

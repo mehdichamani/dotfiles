@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# Setup symlink from Chezmoi source repo to Obsidian Vault (Linux / Termux / macOS)
+{{- if eq .chezmoi.os "windows" }}
+# Skip on Windows
+exit 0
+{{- else }}
+set -e
+
+echo ""
+echo "============================================================"
+echo "  🔗 Obsidian Vault Symlink Setup"
+echo "============================================================"
+
+# Detect OS
+OS_NAME="Unknown"
+if [ -n "$PREFIX" ] && [ -d "$PREFIX" ] && command -v pkg >/dev/null 2>&1; then
+    OS_NAME="Android (Termux)"
+elif [ "{{ .chezmoi.os }}" = "darwin" ]; then
+    OS_NAME="macOS"
+elif [ "{{ .chezmoi.os }}" = "linux" ]; then
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        OS_NAME="${NAME:-Linux} (${ID:-linux}${ID_LIKE:+ / $ID_LIKE})"
+    else
+        OS_NAME="Linux (Generic)"
+    fi
+fi
+
+echo "🔍 Detected Platform: $OS_NAME"
+
+CHEZMOI_DIR="{{ .chezmoi.sourceDir }}"
+NOTES_DIR="{{ .chezmoi.homeDir }}/Notes"
+
+# Clean up stale circular link in Notes if present
+if [ -L "$NOTES_DIR/chezmoi-source" ]; then
+    rm -f "$NOTES_DIR/chezmoi-source"
+fi
+
+if [ ! -d "$NOTES_DIR" ]; then
+    echo "ℹ️  Notes directory ($NOTES_DIR) does not exist. Skipping symlink creation."
+    echo "============================================================"
+    exit 0
+fi
+
+if [ -e "$CHEZMOI_DIR/obsidian-vault" ] || [ -L "$CHEZMOI_DIR/obsidian-vault" ]; then
+    echo "✅ Obsidian symlink already exists: $CHEZMOI_DIR/obsidian-vault -> $NOTES_DIR"
+    echo "============================================================"
+    exit 0
+fi
+
+echo ""
+echo "📁 Found Obsidian Notes directory at: $NOTES_DIR"
+
+USER_CHOICE="n"
+if [ -t 0 ] || [ -c /dev/tty ]; then
+    read -t 10 -p "❓ Would you like to create symlink '$CHEZMOI_DIR/obsidian-vault -> $NOTES_DIR'? [y/N] (timeout in 10s): " USER_CHOICE < /dev/tty || true
+    echo ""
+else
+    echo "ℹ️  Non-interactive shell detected. Defaulting to No."
+    USER_CHOICE="n"
+fi
+
+case "$USER_CHOICE" in
+    [yY]|[yY][eE][sS])
+        ln -s "$NOTES_DIR" "$CHEZMOI_DIR/obsidian-vault"
+        echo "✓ Created symlink: $CHEZMOI_DIR/obsidian-vault -> $NOTES_DIR"
+        ;;
+    *)
+        echo "⏭️  Skipping Obsidian symlink setup."
+        ;;
+esac
+
+echo "============================================================"
+{{- end }}

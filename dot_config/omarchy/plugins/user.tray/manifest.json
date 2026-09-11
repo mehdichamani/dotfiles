@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "user.tray",
+  "name": "Custom System Tray",
+  "version": "1.0.0",
+  "author": "User",
+  "description": "System tray widget with larger, more legible icons",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Tray.qml"
+  },
+  "barWidget": {
+    "displayName": "Custom System Tray",
+    "description": "System tray widget with larger icons",
+    "category": "System",
+    "allowMultiple": false
+  }
+}

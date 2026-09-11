@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "user.btrfs-backup",
+  "name": "Btrfs Backup",
+  "version": "1.0.0",
+  "author": "User",
+  "description": "Btrfs Live Backup monitor, 15-day cycle manager and instant snapshot controls",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Btrfs Backup",
+    "description": "Live Btrfs Backup monitor and drive controls",
+    "category": "System",
+    "allowMultiple": false
+  }
+}

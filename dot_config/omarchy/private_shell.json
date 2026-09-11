@@ -1,0 +1,71 @@
+{
+  "bar": {
+    "centerAnchor": "",
+    "layout": {
+      "center": [
+        {
+          "id": "omarchy.system-update"
+        }
+      ],
+      "left": [
+        {
+          "id": "user.menu"
+        },
+        {
+          "id": "user.workspaces"
+        }
+      ],
+      "right": [
+        {
+          "id": "user.keyboard-layout"
+        },
+        {
+          "id": "user.docker"
+        },
+        {
+          "id": "user.btrfs-backup"
+        },
+        {
+          "id": "omarchy.indicators"
+        },
+        {
+          "id": "user.tray"
+        },
+        {
+          "id": "omarchy.agents"
+        },
+        {
+          "id": "omarchy.bluetooth"
+        },
+        {
+          "id": "omarchy.network"
+        },
+        {
+          "id": "omarchy.audio"
+        },
+        {
+          "id": "omarchy.monitor"
+        },
+        {
+          "id": "omarchy.power"
+        },
+        {
+          "id": "user.shamsi-clock"
+        }
+      ]
+    },
+    "position": "top",
+    "transparent": false
+  },
+  "idle": {
+    "lock": 300,
+    "screensaver": 150
+  },
+  "plugins": [],
+  "plugins": [
+    {
+      "id": "io.github.codesmith28.omalt-tab"
+    }
+  ],
+  "version": 1
+}

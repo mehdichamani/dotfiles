@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "user.shamsi-clock",
+  "name": "Shamsi & English Dual Clock",
+  "version": "1.0.0",
+  "author": "User",
+  "description": "Dual-row center clock displaying English datetime with keyboard layout and Persian Shamsi date",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "ShamsiClock.qml"
+  },
+  "barWidget": {
+    "displayName": "Shamsi Dual Clock",
+    "description": "Dual-row center clock displaying English datetime with keyboard layout and Persian Shamsi date",
+    "category": "System",
+    "allowMultiple": false
+  }
+}

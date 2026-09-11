@@ -1,0 +1,53 @@
+# See https://git-scm.com/docs/git-config
+{{- $gitEnvPath := joinPath .chezmoi.homeDir ".config" "secrets" "git.env" -}}
+{{- $name := "Your Name" -}}
+{{- $email := "your.email@example.com" -}}
+{{- if stat $gitEnvPath -}}
+{{-   $content := include $gitEnvPath -}}
+{{-   range splitList "\n" $content -}}
+{{-     $line := trim . -}}
+{{-     if hasPrefix "GIT_NAME=" $line -}}
+{{-       $name = trim (trimPrefix "GIT_NAME=" $line) | trimAll "\"" | trimAll "'" -}}
+{{-     else if hasPrefix "GIT_EMAIL=" $line -}}
+{{-       $email = trim (trimPrefix "GIT_EMAIL=" $line) | trimAll "\"" | trimAll "'" -}}
+{{-     end -}}
+{{-   end -}}
+{{- end }}
+
+[alias]
+	co = checkout
+	br = branch
+	ci = commit
+	st = status
+	pl = pull
+	ps = push
+	aa = add .
+	am = commit --amend --no-edit
+	work-force = git push --force-with-lease work main
+	home-force = git push --force-with-lease home main
+	s24-force = git push --force-with-lease s24 main
+
+[init]
+	defaultBranch = main
+[pull]
+	rebase = true 			 # Rebase (instead of merge) on pull
+[push]
+	autoSetupRemote = true   # Automatically set upstream branch on push
+[diff]
+	algorithm = histogram    # Clearer diffs on moved/edited lines
+	colorMoved = plain       # Highlight moved blocks in diffs
+	mnemonicPrefix = true    # More intuitive refs in diff output
+[commit]
+	verbose = true           # Include diff comment in commit message template
+[column]
+	ui = auto 			     # Output in columns when possible
+[branch]
+	sort = -committerdate    # Sort branches by most recent commit first
+[tag]
+	sort = -version:refname  # Sort version numbers as you would expect
+[rerere]
+	enabled = true           # Record and reuse conflict resolutions
+	autoupdate = true        # Apply stored conflict resolutions automatically
+[user]
+	name = {{ $name }}
+	email = {{ $email }}

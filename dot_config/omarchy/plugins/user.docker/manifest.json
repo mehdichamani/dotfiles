@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "user.docker",
+  "name": "Docker Containers",
+  "version": "1.0.0",
+  "author": "User",
+  "description": "Interactive Docker containers manager and status indicator",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Docker Containers",
+    "description": "Interactive Docker containers manager and status indicator",
+    "category": "System",
+    "allowMultiple": false
+  }
+}

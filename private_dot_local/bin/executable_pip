@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Global shim to route pip invocations transparently to uv pip
+
+if command -v uv &>/dev/null; then
+    if [[ "$1" == "-V" || "$1" == "--version" ]]; then
+        _uv_ver=$(uv --version 2>/dev/null | awk '{print $2}')
+        echo "pip 24.0 (uv ${_uv_ver:-unknown})"
+        exit 0
+    fi
+    exec uv pip "$@"
+fi
+
+# Fallback if uv is not installed: find real pip
+for p in /usr/bin/pip /usr/bin/pip3 /usr/local/bin/pip; do
+    if [[ -x "$p" && "$p" != "$0" ]]; then
+        exec "$p" "$@"
+    fi
+done
+
+echo "pip: command not found (neither uv nor pip installed)" >&2
+exit 127

@@ -1,0 +1,11 @@
+# Omarchy Shell User Overrides
+# This file is loaded by Quickshell (Color.qml / Style.qml) on top of the active theme.
+
+[bar]
+size-horizontal = 48
+scale-with-font = true
+background-alpha = 0.80
+icon-font = 22
+icon-slot = 34
+icon-canvas = 28
+

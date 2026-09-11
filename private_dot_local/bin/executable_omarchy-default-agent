@@ -1,0 +1,59 @@
+#!/bin/bash
+# Omarchy Default Agent Wrapper - adds 'agy' (Antigravity) support transparently
+
+installing=false
+if [[ ${1:-} == "--install" ]]; then
+  installing=true
+  shift
+fi
+
+agent_arg="${1:-}"
+agent_file="$HOME/.config/omarchy/defaults/agent"
+
+# 1. If no arguments are passed, check if agy is currently set
+if (($# == 0)); then
+  if [[ -f $agent_file ]]; then
+    read -r current_agent <"$agent_file"
+    if [[ "$current_agent" == "agy" || "$current_agent" == "antigravity" ]]; then
+      echo "agy"
+      exit 0
+    fi
+  fi
+  exec /usr/share/omarchy/bin/omarchy-default-agent
+fi
+
+# 2. If agy is requested
+if [[ "$agent_arg" == "agy" || "$agent_arg" == "antigravity" ]]; then
+  name="Antigravity"
+  agent_package="agy"
+
+  if [[ $installing == "false" ]] && ! mise where "$agent_package" &>/dev/null; then
+    exec omarchy-launch-floating-terminal-with-presentation omarchy-default-agent --install "agy"
+  fi
+
+  if ! mise use -g "$agent_package"; then
+    if [[ $installing == "true" ]]; then
+      echo "Could not install $name with mise" >&2
+    else
+      echo "Could not set $name as the default coding agent" >&2
+    fi
+    exit 1
+  fi
+
+  mkdir -p "$(dirname "$agent_file")"
+  printf '%s\n' "agy" >"$agent_file"
+
+  if [[ $installing == "true" ]]; then
+    printf '\033[2J\033[3J\033[H'
+    exec omarchy-agent --inline
+  else
+    exec omarchy-agent
+  fi
+fi
+
+# 3. For any other agent, pass transparently to system script
+if [[ $installing == "true" ]]; then
+  exec /usr/share/omarchy/bin/omarchy-default-agent --install "$@"
+else
+  exec /usr/share/omarchy/bin/omarchy-default-agent "$@"
+fi

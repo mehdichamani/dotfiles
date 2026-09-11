@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "user.menu",
+  "name": "Custom Menu",
+  "version": "1.0.0",
+  "author": "User",
+  "description": "Custom enlarged Omarchy menu button",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Menu.qml"
+  },
+  "barWidget": {
+    "displayName": "Custom Menu",
+    "description": "Custom enlarged Omarchy menu button",
+    "category": "System",
+    "allowMultiple": false
+  }
+}

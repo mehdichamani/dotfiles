@@ -1,0 +1,89 @@
+"$schema" = 'https://starship.rs/config-schema.json'
+
+# Catppuccin Mocha Pill/Capsule Style
+# Colors:
+# Sapphire / Blue: #89b4fa
+# Mauve / Lavender: #cba6f7
+# Peach / Orange: #fab387
+# Green / Mint: #a6e3a1
+# Yellow: #f9e2af
+# Pink / Flamingo: #f5c2e7
+# Teal: #94e2d5
+# Surface: #313244
+
+format = """
+[](#89b4fa)${env_var.STARSHIP_ENV}$shell$sudo[](#89b4fa) \
+$git_branch$git_status\
+${env_var.http_proxy}\
+$jobs\
+$cmd_duration\
+$line_break\
+$directory\
+$line_break\
+$character"""
+
+# 1. Host & Shell (Sapphire)
+[env_var.STARSHIP_ENV]
+symbol = ""
+style = "bg:#89b4fa fg:#1e1e2e bold"
+format = "[$env_value ]($style)"
+variable = "STARSHIP_ENV"
+disabled = false
+
+[shell]
+disabled = false
+style = "bg:#89b4fa fg:#1e1e2e bold"
+fish_indicator = "󰈺 "
+bash_indicator = " "
+powershell_indicator = "󰨊 "
+unknown_indicator = "sh "
+format = "[$indicator]($style)"
+
+[sudo]
+style = "bg:#89b4fa fg:#f38ba8"
+symbol = "󰌋 "
+format = "[$symbol]($style)"
+disabled = false
+
+# 2. Git Information (Peach/Mauve)
+[git_branch]
+symbol = ""
+style = "bg:#fab387 fg:#1e1e2e bold"
+format = "[](#fab387)[$symbol $branch]($style)"
+
+[git_status]
+style = "bg:#fab387 fg:#1e1e2e bold"
+format = "[$all_status$ahead_behind]($style)[](#fab387) "
+
+# 3. Proxy (Pink)
+[env_var.http_proxy]
+style = "bg:#f5c2e7 fg:#1e1e2e bold"
+format = "[](#f5c2e7)[󰒄 $env_value]($style)[](#f5c2e7) "
+variable = "http_proxy"
+disabled = false
+
+# 4. Background Jobs (Teal)
+[jobs]
+style = "bg:#94e2d5 fg:#1e1e2e bold"
+symbol = "✦"
+format = "[](#94e2d5)[$symbol $number]($style)[](#94e2d5) "
+
+# 5. Command Execution Time (Mauve)
+[cmd_duration]
+min_time = 500
+style = "bg:#b4befe fg:#1e1e2e bold"
+format = "[](#b4befe)[ $duration]($style)[](#b4befe) "
+
+# Line 2 & 3: Directory & Character
+[directory]
+style = "#89dceb bold"
+format = "[ $path]($style) "
+truncation_length = 0
+truncate_to_repo = false
+
+[line_break]
+disabled = false
+
+[character]
+success_symbol = "[❯](#a6e3a1 bold)"
+error_symbol = "[❯](#f38ba8 bold)"

@@ -1,0 +1,32 @@
+services:
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    restart: unless-stopped
+    ports:
+      - "8096:8096"             # Jellyfin Web UI and HTTP streaming port
+      - "7359:7359/udp"         # Jellyfin client auto-discovery
+      - "1900:1900/udp"         # DLNA service discovery
+    environment:
+      - PUID=1000               # User ID for file permissions
+      - PGID=1000               # Group ID for file permissions
+      - TZ=Asia/Tehran          # Timezone configuration
+      - DRI_PRIME=0             # Default GPU selection for DRI
+      - LD_LIBRARY_PATH=/opt/rocm/lib:/usr/lib/x86_64-linux-gnu  # Library search path for VAAPI/hardware acceleration
+      - HTTP_PROXY=http://host.docker.internal:10808             # HTTP proxy configuration
+      - HTTPS_PROXY=http://host.docker.internal:10808            # HTTPS proxy configuration
+      - http_proxy=http://host.docker.internal:10808            # Lowercase HTTP proxy alias
+      - https_proxy=http://host.docker.internal:10808           # Lowercase HTTPS proxy alias
+      - NO_PROXY=localhost,127.0.0.1,172.16.0.0/12,192.168.0.0/16 # Bypass proxy for local networks
+      - no_proxy=localhost,127.0.0.1,172.16.0.0/12,192.168.0.0/16 # Lowercase bypass proxy alias
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # Resolves host IP to route traffic through the host proxy
+    devices:
+      - /dev/dri:/dev/dri       # Map Direct Rendering Infrastructure (DRI) for hardware transcoding (VA-API/QSV)
+    group_add:
+      - "${RENDER_GID:-987}"    # Host 'render' group GID for GPU hardware access permissions
+      - "${VIDEO_GID:-983}"     # Host 'video' group GID for GPU video device access permissions
+    volumes:
+      - /mnt/ssd/jellyfin_data/config:/config # Persistent application configuration and database
+      - /mnt/ssd/jellyfin_data/cache:/cache   # Transcoding and metadata cache
+      - /mnt/ssd/media:/media                 # Media library storage (Movies, Shows, Music)

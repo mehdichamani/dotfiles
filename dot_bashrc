@@ -1,0 +1,101 @@
+# ~/.bashrc - Minimal United Fallback Shell Config
+
+# Omarchy environment (OMARCHY_PATH + PATH), needed for non-interactive SSH commands
+[[ -r /usr/share/omarchy/default/bash/env-bootstrap ]] && source /usr/share/omarchy/default/bash/env-bootstrap
+
+# Auto-launch fish for interactive sessions if available
+if [[ $- == *i* ]] && command -v fish >/dev/null 2>&1; then
+    _ppid_name=$(cat /proc/$PPID/comm 2>/dev/null)
+    if [[ "$_ppid_name" != "fish" ]]; then
+        exec fish
+    fi
+fi
+
+# Environment Variables
+export EDITOR="nvim"
+export VISUAL="nvim"
+
+# Interactive settings & Aliases
+if [[ $- == *i* ]]; then
+    # Lightweight colored prompt
+    PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
+
+    # Load persistent proxy state
+    proxy_state_file="$HOME/.config/proxy_state"
+    if [ -s "$proxy_state_file" ]; then
+        _p_val=$(cat "$proxy_state_file" 2>/dev/null)
+        if [ -n "$_p_val" ]; then
+            export http_proxy="$_p_val"; export HTTP_PROXY="$_p_val"
+            export https_proxy="$_p_val"; export HTTPS_PROXY="$_p_val"
+            export all_proxy="$_p_val"; export ALL_PROXY="$_p_val"
+            export no_proxy="localhost,127.0.0.1,::1,localaddress,.local,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12"
+            export NO_PROXY="$no_proxy"
+        fi
+    fi
+
+    # Termux SSH Automation (start on local shell open, stop on exit)
+    if [ -n "$TERMUX_VERSION" ]; then
+        if ! pgrep -f sshd >/dev/null; then
+            sshd
+        fi
+
+        if [ -z "$SSH_CONNECTION" ]; then
+            _termux_cleanup_sshd() {
+                local local_count=0
+                for p in $(pgrep -f "bash|fish"); do
+                    if ! pstree -s "$p" 2>/dev/null | grep -q sshd; then
+                        ((local_count++))
+                    fi
+                done
+                if [ "$local_count" -le 1 ]; then
+                    pkill -f sshd >/dev/null 2>&1
+                fi
+            }
+            trap '_termux_cleanup_sshd' EXIT
+        fi
+    fi
+
+    # --- Essential Aliases ---
+    # Navigation & Listings
+    if command -v eza &>/dev/null; then
+        alias ls='eza --icons=auto --group-directories-first --sort=name'
+        alias ll='eza --icons=auto --group-directories-first --sort=name --long --git --time-style=relative'
+        alias la='eza --icons=auto --group-directories-first --sort=name --long --git --all'
+    else
+        alias ll='ls -alF'
+        alias la='ls -A'
+        alias l='ls -CF'
+    fi
+
+    # Quick shortcuts
+    alias c='clear'
+    alias q='exit'
+    alias v='nvim'
+    alias nv='nvim .'
+    alias sv='sudo -E nvim'
+
+    # Git
+    alias gs='git status'
+    alias ga='git add'
+    alias gaa='git add .'
+    alias gc='git commit -m'
+    alias gp='git push'
+    alias gpl='git pull'
+    alias gl='git log --oneline --graph --decorate'
+    alias gd='git diff'
+
+    # Python & uv
+    if command -v uv &>/dev/null; then
+        alias pip='uv pip'
+        alias pip3='uv pip'
+    fi
+
+    # System Updates (cross-platform fallback)
+    if command -v pacman &>/dev/null; then
+        alias update='sudo pacman -Syu'
+    elif [ -n "$TERMUX_VERSION" ]; then
+        alias update='pkg update && pkg upgrade -y'
+    elif command -v apt &>/dev/null; then
+        alias update='sudo apt update && sudo apt upgrade -y'
+    fi
+fi

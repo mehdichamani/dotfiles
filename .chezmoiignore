@@ -1,0 +1,5 @@
+# Ignore local environment files and secrets
+.config/scripts/*.env
+.config/scripts/jellyfin.env
+.config/scripts/.env
+**/.env

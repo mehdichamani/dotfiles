@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# withproxy - Execute a command with proxy environment variables
+# Uses current active proxy, or proxy_state file, or falls back to first preset
+# ==============================================================================
+
+_proxy_default_presets=(
+    "http://localhost:3067"
+    "http://localhost:10808"
+    "socks5h://127.0.0.1:1080"
+    "socks5h://127.0.0.1:2080"
+)
+_proxy_default_no_proxy="localhost,127.0.0.1,::1,localaddress,.local,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12"
+_proxy_state_file="$HOME/.config/proxy_state"
+
+if [ $# -eq 0 ]; then
+    echo "Usage: withproxy <command> [args...]" >&2
+    exit 1
+fi
+
+_target_proxy=""
+
+if [ -n "$http_proxy" ]; then
+    _target_proxy="$http_proxy"
+elif [ -n "$HTTP_PROXY" ]; then
+    _target_proxy="$HTTP_PROXY"
+elif [ -n "$all_proxy" ]; then
+    _target_proxy="$all_proxy"
+elif [ -n "$ALL_PROXY" ]; then
+    _target_proxy="$ALL_PROXY"
+elif [ -s "$_proxy_state_file" ]; then
+    _target_proxy="$(cat "$_proxy_state_file" 2>/dev/null)"
+fi
+
+# Fallback to first default preset if no proxy is configured
+if [ -z "$_target_proxy" ]; then
+    _target_proxy="${_proxy_default_presets[0]}"
+fi
+
+export http_proxy="$_target_proxy"
+export https_proxy="$_target_proxy"
+export HTTP_PROXY="$_target_proxy"
+export HTTPS_PROXY="$_target_proxy"
+export all_proxy="$_target_proxy"
+export ALL_PROXY="$_target_proxy"
+export no_proxy="${no_proxy:-$_proxy_default_no_proxy}"
+export NO_PROXY="${NO_PROXY:-$_proxy_default_no_proxy}"
+
+exec "$@"

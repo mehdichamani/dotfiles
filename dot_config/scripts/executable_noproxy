@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# noproxy - Execute a command with all proxy environment variables stripped
+# ==============================================================================
+
+if [ $# -eq 0 ]; then
+    echo "Usage: noproxy <command> [args...]" >&2
+    exit 1
+fi
+
+exec env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
+    -u all_proxy -u ALL_PROXY -u ftp_proxy -u FTP_PROXY \
+    -u rsync_proxy -u RSYNC_PROXY -u no_proxy -u NO_PROXY "$@"

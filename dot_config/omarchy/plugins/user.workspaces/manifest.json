@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "user.workspaces",
+  "name": "Custom Workspaces",
+  "version": "1.0.0",
+  "author": "User",
+  "description": "Workspace indicators with monitor separator",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Workspaces.qml"
+  },
+  "barWidget": {
+    "displayName": "Custom Workspaces",
+    "description": "Workspace indicators with monitor separator",
+    "category": "Compositor",
+    "allowMultiple": false
+  }
+}

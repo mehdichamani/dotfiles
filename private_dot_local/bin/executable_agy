@@ -1,0 +1,4 @@
+#!/bin/bash
+export MISE_MINIMUM_RELEASE_AGE=0
+mise use -g --quiet "agy" || exit 1
+exec mise x "agy" -- "agy" "$@"

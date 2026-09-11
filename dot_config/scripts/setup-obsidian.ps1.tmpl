@@ -1,0 +1,52 @@
+# Setup symlink from Chezmoi source repo to Obsidian Vault (Windows / PowerShell)
+{{- if ne .chezmoi.os "windows" }}
+# Skip on non-Windows
+exit 0
+{{- else }}
+Write-Host ""
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "  🔗 Obsidian Vault Symlink Setup" -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Cyan
+
+$OSName = "Windows ($([System.Environment]::OSVersion.VersionString))"
+Write-Host "🔍 Detected Platform: $OSName" -ForegroundColor Yellow
+
+$ChezmoiDir = "{{ .chezmoi.sourceDir }}"
+$NotesDir = Join-Path "{{ .chezmoi.homeDir }}" "Notes"
+$ChezmoiVaultLink = Join-Path $ChezmoiDir "obsidian-vault"
+$NotesChezmoiLink = Join-Path $NotesDir "chezmoi-source"
+
+# Clean up stale circular link if present
+if (Test-Path -Path $NotesChezmoiLink) {
+    Remove-Item -Path $NotesChezmoiLink -Force -ErrorAction SilentlyContinue
+}
+
+if (-not (Test-Path -Path $NotesDir)) {
+    Write-Host "ℹ️  Notes directory ($NotesDir) does not exist. Skipping symlink creation." -ForegroundColor DarkGray
+    Write-Host "============================================================" -ForegroundColor Cyan
+    exit 0
+}
+
+if (Test-Path -Path $ChezmoiVaultLink) {
+    Write-Host "✅ Obsidian symlink already exists: $ChezmoiVaultLink -> $NotesDir" -ForegroundColor Green
+    Write-Host "============================================================" -ForegroundColor Cyan
+    exit 0
+}
+
+Write-Host ""
+Write-Host "📁 Found Obsidian Notes directory at: $NotesDir" -ForegroundColor Yellow
+$response = Read-Host "❓ Would you like to create symlink '$ChezmoiVaultLink -> $NotesDir'? [y/N]"
+
+if ($response -match '^(y|yes)$') {
+    try {
+        New-Item -ItemType SymbolicLink -Path $ChezmoiVaultLink -Target $NotesDir -ErrorAction Stop | Out-Null
+        Write-Host "✓ Created symlink: $ChezmoiVaultLink -> $NotesDir" -ForegroundColor Green
+    } catch {
+        Write-Warning "[chezmoi] Failed to create symlink $ChezmoiVaultLink (Developer Mode or Admin required on Windows): $_"
+    }
+} else {
+    Write-Host "⏭️  Skipping Obsidian symlink setup." -ForegroundColor DarkGray
+}
+
+Write-Host "============================================================" -ForegroundColor Cyan
+{{- end }}

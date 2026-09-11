@@ -1,0 +1,67 @@
+#!/bin/bash
+# Omarchy Agent Wrapper - adds 'agy' (Antigravity) support transparently
+
+# First check if default agent is agy/antigravity
+agent_file="$HOME/.config/omarchy/defaults/agent"
+agent=""
+if [[ -f $agent_file ]]; then
+  read -r agent <"$agent_file"
+fi
+
+if [[ "$agent" != "agy" && "$agent" != "antigravity" ]]; then
+  # If default agent is not agy, pass transparently to system omarchy-agent
+  exec /usr/share/omarchy/bin/omarchy-agent "$@"
+fi
+
+# Agent IS agy: handle it natively
+inline=false
+pick=false
+prompt=""
+
+while (($#)); do
+  case "$1" in
+    --inline)
+      inline=true
+      shift
+      ;;
+    --pick)
+      pick=true
+      shift
+      ;;
+    --prompt)
+      prompt=${2:?--prompt needs a value}
+      shift 2
+      ;;
+    *)
+      echo "Unexpected argument: $1" >&2
+      echo "To pass a prompt: omarchy agent prompt \"$*\"" >&2
+      exit 1
+      ;;
+  esac
+done
+
+# Agents refuse to remember trust for $HOME, so launches from keybinding/menu start in Work if present
+[[ $PWD == "$HOME" && -d $HOME/Work ]] && cd "$HOME/Work"
+
+if omarchy-cmd-missing "agy"; then
+  echo "agy is not installed. Choose an installed agent with: omarchy default agent <name>" >&2
+  exit 1
+fi
+
+command=(agy --dangerously-skip-permissions)
+if [[ -n ${prompt:-} ]]; then
+  command+=(--prompt-interactive "$prompt")
+fi
+
+# Check proxy wrapper if proxy state is active
+proxy_state_file="$HOME/.config/proxy_state"
+proxy_wrapper="$HOME/.config/scripts/withproxy"
+if [[ -s "$proxy_state_file" && -x "$proxy_wrapper" ]]; then
+  command=("$proxy_wrapper" "${command[@]}")
+fi
+
+if [[ $inline == "true" ]]; then
+  exec "${command[@]}"
+else
+  exec omarchy-launch-tui --app-id=org.omarchy.agent "${command[@]}"
+fi
