@@ -26,7 +26,10 @@ function dotsync {
         [string]$Target,
         [Parameter(Mandatory=$false)]
         [Alias("n")]
-        [switch]$DryRun
+        [switch]$DryRun,
+        [Parameter(Mandatory=$false)]
+        [Alias("f")]
+        [switch]$Force
     )
 
     $repoDir = Join-Path $HOME ".local\share\chezmoi"
@@ -305,6 +308,22 @@ function dotsync {
             continue
         }
 
+        # Configure peer git repo to accept push to checked-out branch (receive.denyCurrentBranch=updateInstead)
+        & ssh -o ConnectTimeout=2 -o BatchMode=yes "$reachableHost" "git -C '$peerRepo' config receive.denyCurrentBranch updateInstead" 2>$null
+
+        if ($Force.IsPresent) {
+            Write-Host "  🚀 Force-pushing local branch '$currentBranch' to $peer..." -ForegroundColor Yellow
+            & git -C $repoDir push --force $remoteName $currentBranch
+            if ($LASTEXITCODE -eq 0) {
+                & ssh -o ConnectTimeout=2 -o BatchMode=yes "$reachableHost" "git -C '$peerRepo' reset --hard HEAD" 2>$null
+                Write-Host "  ✓ Successfully force-pushed to $peer (mirrored)." -ForegroundColor Green
+                $syncedCount++
+            } else {
+                Write-Host "  ✕ Failed to force-push to $peer." -ForegroundColor Red
+            }
+            continue
+        }
+
         # 2-Way Sync
         Write-Host "  📥 Fetching latest commits from $peer..."
         & git -C $repoDir fetch $remoteName "+refs/heads/${currentBranch}:refs/remotes/${remoteName}/${currentBranch}"
@@ -338,6 +357,8 @@ function dotsync {
             } else {
                 Write-Host "  ✕ Failed to push to $peer." -ForegroundColor Red
             }
+        } else {
+            Write-Host "  ✓ In sync with $peer (no push needed)." -ForegroundColor Green
         }
 
         $syncedCount++

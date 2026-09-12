@@ -233,6 +233,20 @@ print(data.get('ssh', {}).get('$peer', {}).get('repo', '~/.local/share/chezmoi')
             set peer_repo "~/.local/share/chezmoi"
         end
 
+        set -l peer_shell (python3 -c "
+import sys
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
+with open('$devices_toml', 'rb') as f:
+    data = tomllib.load(f)
+print(data.get('ssh', {}).get('$peer', {}).get('shell', 'bash'))
+" 2>/dev/null)
+        if test -z "$peer_shell"
+            set peer_shell "bash"
+        end
+
         set -l peer_routes (python3 -c "
 import sys
 try:
@@ -325,10 +339,23 @@ for r in routes:
         end
 
         # Live Sync / Push Engine
+        # Configure peer git repo to accept push to checked-out branch (receive.denyCurrentBranch=updateInstead)
+        if test "$peer_shell" = "pwsh"
+            ssh -o ConnectTimeout=2 -o BatchMode=yes "$reachable_host" "pwsh -NoProfile -Command \"git -C '$peer_repo' config receive.denyCurrentBranch updateInstead\"" >/dev/null 2>&1
+        else
+            ssh -o ConnectTimeout=2 -o BatchMode=yes "$reachable_host" "r='$peer_repo'; r=\"\${r/#\\~/\$HOME}\"; git -C \"\$r\" config receive.denyCurrentBranch updateInstead" >/dev/null 2>&1
+        end
+
         if test $is_force -eq 1
             echo -e "  🚀 \033[1;33mForce-pushing local branch '$current_branch' to $peer...\033[0m"
             if git -C "$repo_dir" push --force "$remote_name" "$current_branch"
-                echo -e "  \033[1;32m✓ Successfully force-pushed to $peer.\033[0m"
+                # Reset remote working tree to match HEAD in case updateInstead was blocked by dirty state
+                if test "$peer_shell" = "pwsh"
+                    ssh -o ConnectTimeout=2 -o BatchMode=yes "$reachable_host" "pwsh -NoProfile -Command \"git -C '$peer_repo' reset --hard HEAD\"" >/dev/null 2>&1
+                else
+                    ssh -o ConnectTimeout=2 -o BatchMode=yes "$reachable_host" "r='$peer_repo'; r=\"\${r/#\\~/\$HOME}\"; git -C \"\$r\" reset --hard HEAD" >/dev/null 2>&1
+                end
+                echo -e "  \033[1;32m✓ Successfully force-pushed to $peer (mirrored).\033[0m"
                 set synced_count (math $synced_count + 1)
             else
                 echo -e "  \033[1;31m✕ Failed to force-push to $peer.\033[0m"
