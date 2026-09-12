@@ -46,7 +46,7 @@ function s {
         [Alias("L")]
         [string]$Port,
         [Parameter(Mandatory=$false)]
-        [Alias("l", "Commands")]
+        [Alias("Commands")]
         [switch]$ListCommands,
         [Parameter(ValueFromRemainingArguments=$true)]
         [string[]]$ExtraArgs
@@ -324,9 +324,18 @@ function s {
 
     $asyncSockets = [System.Collections.Generic.List[PSCustomObject]]::new()
     foreach ($h in $candidates) {
+        $ip = $h
+        $port = 22
+        $sshG = & ssh -G $h 2>$null
+        if ($sshG) {
+            foreach ($gLine in $sshG) {
+                if ($gLine -match '^hostname\s+(.+)$') { $ip = $Matches[1].Trim() }
+                if ($gLine -match '^port\s+(\d+)$') { $port = [int]$Matches[1] }
+            }
+        }
         try {
             $tcp = [System.Net.Sockets.TcpClient]::new()
-            $ar = $tcp.BeginConnect($h, 22, $null, $null)
+            $ar = $tcp.BeginConnect($ip, $port, $null, $null)
             $asyncSockets.Add([PSCustomObject]@{
                 HostName    = $h
                 TcpClient   = $tcp
@@ -338,11 +347,14 @@ function s {
     $bestHost = $null
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     while ($sw.ElapsedMilliseconds -lt 1200) {
-        if ($asyncSockets.Count -gt 0 -and $asyncSockets[0].AsyncResult.IsCompleted -and $asyncSockets[0].TcpClient.Connected) {
-            $bestHost = $asyncSockets[0].HostName
-            break
+        foreach ($item in $asyncSockets) {
+            if ($item.AsyncResult.IsCompleted -and $item.TcpClient.Connected) {
+                $bestHost = $item.HostName
+                break
+            }
         }
-        $completedCount = ($asyncSockets | Where-Object { $_.AsyncResult.IsCompleted }).Count
+        if ($bestHost) { break }
+        $completedCount = @($asyncSockets | Where-Object { $_.AsyncResult.IsCompleted }).Count
         if ($completedCount -eq $asyncSockets.Count) { break }
         Start-Sleep -Milliseconds 25
     }

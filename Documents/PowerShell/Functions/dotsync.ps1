@@ -197,7 +197,7 @@ function dotsync {
     # 1. Local Status Check (Do not touch uncommitted changes)
     $dirty = & git -C $repoDir status --porcelain 2>$null
     if ($dirty) {
-        Write-Host "`n⚠️ Uncommitted local changes detected in $repoDir:" -ForegroundColor Yellow
+        Write-Host "`n⚠️ Uncommitted local changes detected in ${repoDir}:" -ForegroundColor Yellow
         & git -C $repoDir status --short
         Write-Host "  (Note: Uncommitted changes will be left untouched. Only committed history is synced.)" -ForegroundColor DarkGray
     } else {
@@ -226,9 +226,18 @@ function dotsync {
         # Parallel TCP Probe for fastest route
         $asyncSockets = [System.Collections.Generic.List[PSCustomObject]]::new()
         foreach ($h in $candidates) {
+            $ip = $h
+            $port = 22
+            $sshG = & ssh -G $h 2>$null
+            if ($sshG) {
+                foreach ($gLine in $sshG) {
+                    if ($gLine -match '^hostname\s+(.+)$') { $ip = $Matches[1].Trim() }
+                    if ($gLine -match '^port\s+(\d+)$') { $port = [int]$Matches[1] }
+                }
+            }
             try {
                 $tcp = [System.Net.Sockets.TcpClient]::new()
-                $ar = $tcp.BeginConnect($h, 22, $null, $null)
+                $ar = $tcp.BeginConnect($ip, $port, $null, $null)
                 $asyncSockets.Add([PSCustomObject]@{
                     HostName    = $h
                     TcpClient   = $tcp
@@ -244,7 +253,7 @@ function dotsync {
                 $reachableHost = $asyncSockets[0].HostName
                 break
             }
-            $completedCount = ($asyncSockets | Where-Object { $_.AsyncResult.IsCompleted }).Count
+            $completedCount = @($asyncSockets | Where-Object { $_.AsyncResult.IsCompleted }).Count
             if ($completedCount -eq $asyncSockets.Count) { break }
             Start-Sleep -Milliseconds 25
         }
