@@ -1147,7 +1147,7 @@ Endpoints:
       <!-- Arch Linux -->
       <div id="cm-arch" class="tab-content active">
         <div class="code-box">
-          <div class="code-text" id="cmd-cm-arch">sudo pacman -S --needed --noconfirm chezmoi git openssh &amp;&amp; chezmoi init --apply git@github.com:mehdichamani/dotfiles.git</div>
+          <div class="code-text" id="cmd-cm-arch">sudo pacman -S --needed --noconfirm chezmoi git openssh &amp;&amp; chezmoi init --apply mehdichamani</div>
           <button class="copy-btn" onclick="copyCode('cmd-cm-arch', this)">کپی دستور</button>
         </div>
       </div>
@@ -1155,7 +1155,7 @@ Endpoints:
       <!-- Ubuntu / Debian -->
       <div id="cm-ubuntu" class="tab-content">
         <div class="code-box">
-          <div class="code-text" id="cmd-cm-ubuntu">sudo apt update &amp;&amp; sudo apt install -y git openssh-client &amp;&amp; sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin &amp;&amp; export PATH="$HOME/.local/bin:$PATH" &amp;&amp; chezmoi init --apply git@github.com:mehdichamani/dotfiles.git</div>
+          <div class="code-text" id="cmd-cm-ubuntu">sudo apt update &amp;&amp; sudo apt install -y git openssh-client &amp;&amp; sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin &amp;&amp; export PATH="$HOME/.local/bin:$PATH" &amp;&amp; chezmoi init --apply mehdichamani</div>
           <button class="copy-btn" onclick="copyCode('cmd-cm-ubuntu', this)">کپی دستور</button>
         </div>
       </div>
@@ -1163,7 +1163,7 @@ Endpoints:
       <!-- Termux -->
       <div id="cm-termux" class="tab-content">
         <div class="code-box">
-          <div class="code-text" id="cmd-cm-termux">pkg update -y &amp;&amp; pkg install -y chezmoi git openssh &amp;&amp; chezmoi init --apply git@github.com:mehdichamani/dotfiles.git</div>
+          <div class="code-text" id="cmd-cm-termux">pkg update -y &amp;&amp; pkg install -y chezmoi git openssh &amp;&amp; chezmoi init --apply mehdichamani</div>
           <button class="copy-btn" onclick="copyCode('cmd-cm-termux', this)">کپی دستور</button>
         </div>
       </div>
@@ -1171,7 +1171,7 @@ Endpoints:
       <!-- Windows -->
       <div id="cm-win" class="tab-content">
         <div class="code-box">
-          <div class="code-text" id="cmd-cm-win">winget install Git.Git twpayne.chezmoi -e --accept-source-agreements --accept-package-agreements ; chezmoi init --apply git@github.com:mehdichamani/dotfiles.git</div>
+          <div class="code-text" id="cmd-cm-win">winget install Git.Git twpayne.chezmoi -e --accept-source-agreements --accept-package-agreements ; chezmoi init --apply mehdichamani</div>
           <button class="copy-btn" onclick="copyCode('cmd-cm-win', this)">کپی دستور</button>
         </div>
       </div>

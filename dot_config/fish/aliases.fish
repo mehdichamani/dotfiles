@@ -95,3 +95,7 @@ else if test -n "$TERMUX_VERSION"
 else if type -q apt
     alias update='sudo apt update && sudo apt upgrade -y'
 end
+
+function cline
+    mise exec node@22 -- cline $argv
+end
