@@ -76,8 +76,10 @@ check_font() {
     local pkg="$4"
 
     if [ "$OS_TYPE" = "termux" ]; then
-        if [ "$font_name" = "JetBrainsMono-Nerd-Font" ] && [ -f "$HOME/.termux/font.ttf" ]; then
-            return 0
+        if [ "$font_name" = "JetBrainsMono-Nerd-Font" ]; then
+            if [ -f "$HOME/.termux/font.ttf" ]; then
+                return 0
+            fi
         elif [ -f "$HOME/.local/share/fonts/$file_check" ] || [ -f "$HOME/.fonts/$file_check" ]; then
             return 0
         fi
@@ -164,6 +166,7 @@ case "$OS_TYPE" in
         check_tool "git" "git"
         check_tool "git-crypt" "git-crypt"
         check_tool "tar" "tar"
+        check_tool "zstd" "zstd"
         check_tool "xz" "xz-utils"
         check_tool "python3" "python"
         check_tool "uv" "uv"

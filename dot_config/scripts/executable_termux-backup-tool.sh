@@ -9,11 +9,18 @@ mkdir -p "$BACKUP_DIR"
 
 action="${1:-backup}"
 
+# Ensure zstd is available
+if ! command -v zstd >/dev/null 2>&1; then
+    echo -e "\033[31m❌ Error: 'zstd' is required but not installed.\033[0m"
+    echo -e "\033[33m👉 Install it via: pkg install zstd\033[0m"
+    exit 1
+fi
+
 case "$action" in
     backup)
-        filename="termux-backup-$(date +%Y%m%d_%H%M%S).tar.gz"
+        filename="termux-backup-$(date +%Y%m%d_%H%M%S).tar.zst"
         dest="$BACKUP_DIR/$filename"
-        echo -e "\033[36m📦 Creating Full Termux Backup:\033[0m $filename"
+        echo -e "\033[36m📦 Creating Full Termux Backup (zstd):\033[0m $filename"
         echo -e "\033[33m⏳ Calculating total size...\033[0m"
         
         # Calculate size for pv progress bar
@@ -24,9 +31,9 @@ case "$action" in
         if command -v pv >/dev/null 2>&1; then
             tar -cpf - --preserve-permissions -C "$TARGET_DIR" ./home ./usr 2>/dev/null \
                 | pv -p -t -e -r -b -s "$total_size" \
-                | gzip > "$dest"
+                | zstd -3 -T0 > "$dest"
         else
-            tar -zcf "$dest" --preserve-permissions -C "$TARGET_DIR" ./home ./usr
+            tar -cpf - --preserve-permissions -C "$TARGET_DIR" ./home ./usr | zstd -3 -T0 > "$dest"
         fi
         
         echo -e "\n\033[32m✅ Backup successfully saved to:\033[0m $dest"
@@ -34,10 +41,10 @@ case "$action" in
 
     restore)
         # Find all backup files sorted by modification time (newest first)
-        mapfile -t backups < <(ls -t "$BACKUP_DIR"/termux-backup-*.tar.gz 2>/dev/null)
+        mapfile -t backups < <(ls -t "$BACKUP_DIR"/termux-backup-*.tar.zst 2>/dev/null)
         
         if [ ${#backups[@]} -eq 0 ]; then
-            echo -e "\033[31m❌ No backup files found in $BACKUP_DIR\033[0m"
+            echo -e "\033[31m❌ No backup files (*.tar.zst) found in $BACKUP_DIR\033[0m"
             exit 1
         fi
 
@@ -78,9 +85,11 @@ case "$action" in
         echo -e "\033[32m🚀 Extracting with progress...\033[0m"
         if command -v pv >/dev/null 2>&1; then
             pv -p -t -e -r -b -s "$file_size" "$selected_file" \
-                | tar -zxf - -C "$TARGET_DIR" --recursive-unlink --preserve-permissions
+                | zstd -dc \
+                | tar -xpf - -C "$TARGET_DIR" --recursive-unlink --preserve-permissions
         else
-            tar -zxf "$selected_file" -C "$TARGET_DIR" --recursive-unlink --preserve-permissions
+            zstd -dc "$selected_file" \
+                | tar -xpf - -C "$TARGET_DIR" --recursive-unlink --preserve-permissions
         fi
 
         echo -e "\n\033[32m✅ Restore completed successfully! Please restart Termux.\033[0m"
