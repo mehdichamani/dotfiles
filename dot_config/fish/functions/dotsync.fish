@@ -301,7 +301,7 @@ for r in routes:
 
         echo -e "  \033[1;32m✓ Connected via:\033[0m \033[1;32m$reachable_host\033[0m"
 
-        set -l remote_name "peer-$peer"
+        set -l remote_name "$peer"
         set -l remote_url "$reachable_host:$peer_repo"
 
         # Configure or update git remote dynamically
@@ -338,7 +338,7 @@ for r in routes:
 
         # Step 1: Fetch latest commits from remote peer
         echo "  📥 Fetching latest commits from $peer..."
-        if not git -C "$repo_dir" fetch "$remote_name" "$current_branch"
+        if not git -C "$repo_dir" fetch "$remote_name" "+refs/heads/$current_branch:refs/remotes/$remote_name/$current_branch"
             echo -e "  \033[1;31m✕ Failed to fetch from $peer.\033[0m"
             continue
         end

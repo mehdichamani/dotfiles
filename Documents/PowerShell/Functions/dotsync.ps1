@@ -282,7 +282,7 @@ function dotsync {
 
         Write-Host "  ✓ Connected via: $reachableHost" -ForegroundColor Green
 
-        $remoteName = "peer-$peer"
+        $remoteName = "$peer"
         $remoteUrl = "${reachableHost}:${peerRepo}"
 
         $existingUrl = & git -C $repoDir remote get-url $remoteName 2>$null
@@ -307,7 +307,7 @@ function dotsync {
 
         # 2-Way Sync
         Write-Host "  📥 Fetching latest commits from $peer..."
-        & git -C $repoDir fetch $remoteName $currentBranch
+        & git -C $repoDir fetch $remoteName "+refs/heads/${currentBranch}:refs/remotes/${remoteName}/${currentBranch}"
         if ($LASTEXITCODE -ne 0) {
             Write-Host "  ✕ Failed to fetch from $peer." -ForegroundColor Red
             continue
