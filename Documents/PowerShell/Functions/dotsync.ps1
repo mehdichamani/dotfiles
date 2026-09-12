@@ -123,13 +123,17 @@ function dotsync {
             { $_ -in @("-h", "--help", "help") } {
                 Write-Host "Usage: dotsync [dry-run | apply | install | refresh | <peer_device>]" -ForegroundColor Yellow
                 Write-Host "`nCommands:"
-                Write-Host "  (none)         Sync dotfiles repository with all reachable peer devices"
+                Write-Host "  (none)         Sync dotfiles repository with all reachable peer devices (auto push/pull)"
                 Write-Host "  <peer>         Sync dotfiles repository with a specific peer device"
-                Write-Host "  dry-run, -n    Check connections and commit differences without merging or pushing"
+                Write-Host "  dry-run, -n    Check connections and commit differences without pushing or pulling"
                 Write-Host "  apply          Apply dotfiles changes to the live system (chezmoi apply)"
                 Write-Host "  install        Run package verification and installer (~/.config/scripts/check-packages.sh)"
                 Write-Host "  refresh        Apply chezmoi, reload desktop components, hooks, and fish config"
                 Write-Host "  -h, --help     Show this help message"
+                Write-Host "`nBehavior:"
+                Write-Host "  • Ahead:     Automatically pushes to peer safely."
+                Write-Host "  • Behind:    Automatically fast-forward pulls from peer safely."
+                Write-Host "  • Diverged:  Prompts interactively for Push Force, Pull Force, or Abort."
                 Write-Host "`nAvailable Peer Devices (from ~/.ssh/devices.toml):"
                 if ($allPeers.Count -gt 0) {
                     Write-Host "  $($allPeers -join ', ')" -ForegroundColor Cyan
@@ -311,63 +315,107 @@ function dotsync {
         # Configure peer git repo to accept push to checked-out branch (receive.denyCurrentBranch=updateInstead)
         & ssh -o ConnectTimeout=2 -o BatchMode=yes "$reachableHost" "git -C '$peerRepo' config receive.denyCurrentBranch updateInstead" 2>$null
 
-        if ($Force.IsPresent) {
-            Write-Host "  🚀 Force-pushing local branch '$currentBranch' to $peer..." -ForegroundColor Yellow
-            & git -C $repoDir push --force $remoteName $currentBranch
-            if ($LASTEXITCODE -eq 0) {
-                & ssh -o ConnectTimeout=2 -o BatchMode=yes "$reachableHost" "git -C '$peerRepo' reset --hard HEAD" 2>$null
-                Write-Host "  ✓ Successfully force-pushed to $peer (mirrored)." -ForegroundColor Green
-                $syncedCount++
-            } else {
-                Write-Host "  ✕ Failed to force-push to $peer." -ForegroundColor Red
-            }
-            continue
-        }
-
-        # 2-Way Sync
-        Write-Host "  📥 Fetching latest commits from $peer..."
-        & git -C $repoDir fetch $remoteName "+refs/heads/${currentBranch}:refs/remotes/${remoteName}/${currentBranch}"
+        # 1. Fetch latest metadata from peer
+        Write-Host "  📥 Fetching latest metadata from $peer..."
+        $fetchOut = & git -C $repoDir fetch $remoteName "+refs/heads/${currentBranch}:refs/remotes/${remoteName}/${currentBranch}" 2>&1
         if ($LASTEXITCODE -ne 0) {
+            if ($fetchOut) {
+                $fetchOut | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+            }
             Write-Host "  ✕ Failed to fetch from $peer." -ForegroundColor Red
             continue
         }
 
-        $behind = [int](& git -C $repoDir rev-list --count "HEAD..$remoteName/$currentBranch" 2>$null)
-        $ahead = [int](& git -C $repoDir rev-list --count "$remoteName/$currentBranch..HEAD" 2>$null)
+        $remoteRef = "$remoteName/$currentBranch"
+        $behind = [int](& git -C $repoDir rev-list --count "HEAD..$remoteRef" 2>$null)
+        $ahead = [int](& git -C $repoDir rev-list --count "$remoteRef..HEAD" 2>$null)
 
-        if ($behind -gt 0) {
-            Write-Host "  🔀 Merging $behind incoming commit(s) from $peer..." -ForegroundColor Cyan
-            & git -C $repoDir merge "$remoteName/$currentBranch" -m "merge: sync with $peer"
-            if ($LASTEXITCODE -eq 0) {
-                $newCommitsPulled = $true
-            } else {
-                Write-Host "  ⚠️ Merge conflict with $peer! Please resolve manually." -ForegroundColor Red
-                continue
-            }
-        } else {
-            Write-Host "  ✓ Already up-to-date with $peer." -ForegroundColor Green
+        # 2. Case A: Both in sync
+        if ($ahead -eq 0 -and $behind -eq 0) {
+            Write-Host "  ✓ In sync with $peer (no changes)." -ForegroundColor Green
+            $syncedCount++
+            continue
         }
 
-        $finalAhead = [int](& git -C $repoDir rev-list --count "$remoteName/$currentBranch..HEAD" 2>$null)
-        if ($finalAhead -gt 0) {
-            Write-Host "  📤 Pushing $finalAhead commit(s) to $peer..." -ForegroundColor Cyan
+        # 3. Case B: Local is strictly ahead -> Safe Push
+        if ($ahead -gt 0 -and $behind -eq 0) {
+            Write-Host "  📤 Local is ahead by $ahead commit(s). Pushing to $peer..." -ForegroundColor Cyan
             & git -C $repoDir push $remoteName $currentBranch
             if ($LASTEXITCODE -eq 0) {
-                Write-Host "  ✓ Successfully synced to $peer." -ForegroundColor Green
+                Write-Host "  ✓ Successfully pushed to $peer." -ForegroundColor Green
+                $syncedCount++
             } else {
                 Write-Host "  ✕ Failed to push to $peer." -ForegroundColor Red
+                return
             }
-        } else {
-            Write-Host "  ✓ In sync with $peer (no push needed)." -ForegroundColor Green
+            continue
         }
 
-        $syncedCount++
+        # 4. Case C: Local is strictly behind -> Safe Pull (Fast-Forward Only)
+        if ($behind -gt 0 -and $ahead -eq 0) {
+            Write-Host "  📥 Peer $peer has $behind new commit(s). Fast-forward pulling..." -ForegroundColor Cyan
+            & git -C $repoDir pull --ff-only $remoteName $currentBranch
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "  ✓ Successfully pulled from $peer (fast-forwarded)." -ForegroundColor Green
+                $syncedCount++
+            } else {
+                Write-Host "  ✕ Failed to fast-forward pull from $peer." -ForegroundColor Red
+                return
+            }
+            continue
+        }
+
+        # 5. Case D: History has diverged (ahead > 0 and behind > 0) -> Interactive Prompt
+        if ($ahead -gt 0 -and $behind -gt 0) {
+            Write-Host "`n  ⚠️ Diverged history detected between local and $peer!" -ForegroundColor Yellow
+            Write-Host "  • Local has $ahead unique commit(s):" -ForegroundColor Cyan
+            (& git -C $repoDir log --oneline --no-merges -n 3 "$remoteRef..HEAD") | ForEach-Object { "      $_" }
+            Write-Host "  • Peer $peer has $behind unique commit(s):" -ForegroundColor Magenta
+            (& git -C $repoDir log --oneline --no-merges -n 3 "HEAD..$remoteRef") | ForEach-Object { "      $_" }
+            Write-Host ""
+            Write-Host "  How would you like to resolve this divergence?" -ForegroundColor White
+            Write-Host "    [1] Push Force   " -ForegroundColor Yellow -NoNewline
+            Write-Host "(Overwrite $peer with local state)" -ForegroundColor DarkGray
+            Write-Host "    [2] Pull Force   " -ForegroundColor Cyan -NoNewline
+            Write-Host "(Overwrite local with $peer state)" -ForegroundColor DarkGray
+            Write-Host "    [3] Cancel/Abort " -ForegroundColor Red -NoNewline
+            Write-Host "(Default - do nothing)" -ForegroundColor DarkGray
+            Write-Host ""
+
+            $choice = Read-Host "  Select action [1/2/3] (default 3)"
+
+            switch ($choice.Trim().ToLower()) {
+                { $_ -in @("1", "push", "push-force", "pf") } {
+                    Write-Host "  🚀 Force-pushing local branch '$currentBranch' to $peer..." -ForegroundColor Yellow
+                    & git -C $repoDir push --force $remoteName $currentBranch
+                    if ($LASTEXITCODE -eq 0) {
+                        & ssh -o ConnectTimeout=2 -o BatchMode=yes "$reachableHost" "git -C '$peerRepo' reset --hard HEAD" 2>$null
+                        Write-Host "  ✓ Successfully force-pushed to $peer (mirrored)." -ForegroundColor Green
+                        $syncedCount++
+                    } else {
+                        Write-Host "  ✕ Failed to force-push to $peer." -ForegroundColor Red
+                        return
+                    }
+                }
+                { $_ -in @("2", "pull", "pull-force") } {
+                    Write-Host "  📥 Force-pulling $peer state into local branch '$currentBranch'..." -ForegroundColor Cyan
+                    & git -C $repoDir reset --hard "$remoteRef"
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Host "  ✓ Local repository successfully reset to match $peer." -ForegroundColor Green
+                        $syncedCount++
+                    } else {
+                        Write-Host "  ✕ Failed to reset local repository to $remoteRef." -ForegroundColor Red
+                        return
+                    }
+                }
+                default {
+                    Write-Host "  ⏸️ Aborted by user. No changes made." -ForegroundColor Yellow
+                    return
+                }
+            }
+        }
     }
 
     Write-Host "`n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Magenta
     Write-Host "🏁 Dotsync finished: Synced with $syncedCount/$totalPeers peer(s)." -ForegroundColor Green
-
-    if ($newCommitsPulled) {
-        Write-Host "[Tip] New commits pulled! Run 'dotsync refresh' or 'dotsync apply' to update your live system." -ForegroundColor Yellow
-    }
 }

@@ -82,17 +82,21 @@ print('\n'.join(peers))
     end
 
     if test "$action" = "help"
-        echo -e "\033[1;33mUsage:\033[0m dotsync [dry-run | apply | install | refresh | <peer_device>] [--force]"
+        echo -e "\033[1;33mUsage:\033[0m dotsync [dry-run | apply | install | refresh | <peer_device>]"
         echo ""
         echo "Commands & Options:"
-        echo "  (none)         Sync dotfiles repository with all reachable peer devices"
+        echo "  (none)         Sync dotfiles repository with all reachable peer devices (auto push/pull)"
         echo "  <peer>         Sync dotfiles repository with a specific peer device (e.g. dotsync s24)"
-        echo "  --force, -f    Force push current branch to peer without merging (e.g. dotsync s24 --force)"
-        echo "  dry-run, -n    Check connections and commit differences without merging or pushing"
+        echo "  dry-run, -n    Check connections and commit differences without pushing or pulling"
         echo "  apply          Apply dotfiles changes to the live system (chezmoi apply)"
         echo "  install        Run package verification and installer (~/.config/scripts/check-packages.sh)"
         echo "  refresh        Apply chezmoi, reload desktop components, hooks, and fish config"
         echo "  -h, --help     Show this help message"
+        echo ""
+        echo "Behavior:"
+        echo "  • Ahead:  Automatically pushes to peer safely."
+        echo "  • Behind: Automatically fast-forward pulls from peer safely."
+        echo "  • Diverged: Prompts interactively for Push Force, Pull Force, or Abort."
         echo ""
         echo "Available Peer Devices (from ~/.ssh/devices.toml):"
         if test (count $all_peers) -gt 0
@@ -338,7 +342,7 @@ for r in routes:
             continue
         end
 
-        # Live Sync / Push Engine
+        # Live Push Engine (No merge, no conflict resolution: only push or push --force)
         # Configure peer git repo to accept push to checked-out branch (receive.denyCurrentBranch=updateInstead)
         if test "$peer_shell" = "pwsh"
             ssh -o ConnectTimeout=2 -o BatchMode=yes "$reachable_host" "pwsh -NoProfile -Command \"git -C '$peer_repo' config receive.denyCurrentBranch updateInstead\"" >/dev/null 2>&1
@@ -346,26 +350,15 @@ for r in routes:
             ssh -o ConnectTimeout=2 -o BatchMode=yes "$reachable_host" "r='$peer_repo'; r=\"\${r/#\\~/\$HOME}\"; git -C \"\$r\" config receive.denyCurrentBranch updateInstead" >/dev/null 2>&1
         end
 
-        if test $is_force -eq 1
-            echo -e "  🚀 \033[1;33mForce-pushing local branch '$current_branch' to $peer...\033[0m"
-            if git -C "$repo_dir" push --force "$remote_name" "$current_branch"
-                # Reset remote working tree to match HEAD in case updateInstead was blocked by dirty state
-                if test "$peer_shell" = "pwsh"
-                    ssh -o ConnectTimeout=2 -o BatchMode=yes "$reachable_host" "pwsh -NoProfile -Command \"git -C '$peer_repo' reset --hard HEAD\"" >/dev/null 2>&1
-                else
-                    ssh -o ConnectTimeout=2 -o BatchMode=yes "$reachable_host" "r='$peer_repo'; r=\"\${r/#\\~/\$HOME}\"; git -C \"\$r\" reset --hard HEAD" >/dev/null 2>&1
+        # 1. Fetch latest metadata from peer
+        echo "  📥 Fetching latest metadata from $peer..."
+        set -l fetch_out (git -C "$repo_dir" fetch "$remote_name" "+refs/heads/$current_branch:refs/remotes/$remote_name/$current_branch" 2>&1)
+        if test $status -ne 0
+            if test -n "$fetch_out"
+                for line in $fetch_out
+                    echo "    $line"
                 end
-                echo -e "  \033[1;32m✓ Successfully force-pushed to $peer (mirrored).\033[0m"
-                set synced_count (math $synced_count + 1)
-            else
-                echo -e "  \033[1;31m✕ Failed to force-push to $peer.\033[0m"
             end
-            continue
-        end
-
-        # Step 1: Fetch latest commits from remote peer
-        echo "  📥 Fetching latest commits from $peer..."
-        if not git -C "$repo_dir" fetch "$remote_name" "+refs/heads/$current_branch:refs/remotes/$remote_name/$current_branch"
             echo -e "  \033[1;31m✕ Failed to fetch from $peer.\033[0m"
             continue
         end
@@ -374,52 +367,90 @@ for r in routes:
         set -l behind (git -C "$repo_dir" rev-list --count "HEAD..$remote_ref" 2>/dev/null; or echo 0)
         set -l ahead (git -C "$repo_dir" rev-list --count "$remote_ref..HEAD" 2>/dev/null; or echo 0)
 
-        # Step 2: Conflict Check (Dry merge-tree without touching index or working tree)
-        if test "$behind" -gt 0 -a "$ahead" -gt 0
-            if not git -C "$repo_dir" merge-tree --write-tree HEAD "$remote_ref" >/dev/null 2>&1
-                echo -e "  \033[1;31m❌ Conflict detected with $peer!\033[0m Local and remote have diverged and cannot merge cleanly."
-                echo -e "  \033[1;33m💡 Aborted without making any changes to working tree.\033[0m"
-                echo -e "  \033[0;90m   (To overwrite $peer with your local version, use: dotsync $peer --force)\033[0m"
-                return 1
-            end
+        # 2. Case A: Both in sync
+        if test "$ahead" -eq 0 -a "$behind" -eq 0
+            echo -e "  \033[1;32m✓ In sync with $peer (no changes).\033[0m"
+            set synced_count (math $synced_count + 1)
+            continue
         end
 
-        # Step 3: If behind, perform clean merge
-        if test "$behind" -gt 0
-            echo -e "  🔀 Merging $behind incoming commit(s) from $peer..."
-            if not git -C "$repo_dir" merge --no-edit "$remote_ref" -m "merge: sync with $peer"
-                echo -e "  \033[1;31m❌ Merge conflict detected during merge! Aborting...\033[0m"
-                git -C "$repo_dir" merge --abort 2>/dev/null
-                return 1
-            end
-            set new_commits_pulled 1
-        else
-            echo "  ✓ Already up-to-date with commits from $peer."
-        end
-
-        # Step 4: Push to peer (if ahead or merged)
-        set -l final_ahead (git -C "$repo_dir" rev-list --count "$remote_ref..HEAD" 2>/dev/null; or echo 0)
-        if test "$final_ahead" -gt 0
-            echo -e "  📤 Pushing $final_ahead commit(s) to $peer..."
+        # 3. Case B: Local is strictly ahead -> Safe Push
+        if test "$ahead" -gt 0 -a "$behind" -eq 0
+            echo -e "  📤 Local is ahead by $ahead commit(s). Pushing to $peer..."
             if git -C "$repo_dir" push "$remote_name" "$current_branch"
-                echo -e "  \033[1;32m✓ Successfully synced to $peer.\033[0m"
+                echo -e "  \033[1;32m✓ Successfully pushed to $peer.\033[0m"
+                set synced_count (math $synced_count + 1)
             else
                 echo -e "  \033[1;31m✕ Failed to push to $peer.\033[0m"
                 return 1
             end
-        else
-            echo -e "  \033[1;32m✓ In sync with $peer (no push needed).\033[0m"
+            continue
         end
 
-        set synced_count (math $synced_count + 1)
+        # 4. Case C: Local is strictly behind -> Safe Pull (Fast-Forward Only)
+        if test "$behind" -gt 0 -a "$ahead" -eq 0
+            echo -e "  📥 Peer $peer has $behind new commit(s). Fast-forward pulling..."
+            if git -C "$repo_dir" pull --ff-only "$remote_name" "$current_branch"
+                echo -e "  \033[1;32m✓ Successfully pulled from $peer (fast-forwarded).\033[0m"
+                set synced_count (math $synced_count + 1)
+            else
+                echo -e "  \033[1;31m✕ Failed to fast-forward pull from $peer.\033[0m"
+                return 1
+            end
+            continue
+        end
+
+        # 5. Case D: History has diverged (ahead > 0 and behind > 0) -> Interactive Prompt
+        if test "$ahead" -gt 0 -a "$behind" -gt 0
+            echo -e "\n  \033[1;33m⚠️ Diverged history detected between local and $peer!\033[0m"
+            echo -e "  \033[1;36m• Local has $ahead unique commit(s):\033[0m"
+            git -C "$repo_dir" log --oneline --no-merges -n 3 "$remote_ref..HEAD" | sed 's/^/      /'
+            echo -e "  \033[1;35m• Peer $peer has $behind unique commit(s):\033[0m"
+            git -C "$repo_dir" log --oneline --no-merges -n 3 "HEAD..$remote_ref" | sed 's/^/      /'
+            echo ""
+            echo -e "  \033[1;37mHow would you like to resolve this divergence?\033[0m"
+            echo -e "    \033[1;33m[1]\033[0m Push Force   \033[0;90m(Overwrite $peer with local state)\033[0m"
+            echo -e "    \033[1;36m[2]\033[0m Pull Force   \033[0;90m(Overwrite local with $peer state)\033[0m"
+            echo -e "    \033[1;31m[3]\033[0m Cancel/Abort \033[0;90m(Default - do nothing)\033[0m"
+            echo ""
+
+            read -l -P "  Select action [1/2/3] (default 3): " user_choice
+
+            switch "$user_choice"
+                case 1 "push" "push-force" "pf"
+                    echo -e "  🚀 \033[1;33mForce-pushing local branch '$current_branch' to $peer...\033[0m"
+                    if git -C "$repo_dir" push --force "$remote_name" "$current_branch"
+                        if test "$peer_shell" = "pwsh"
+                            ssh -o ConnectTimeout=2 -o BatchMode=yes "$reachable_host" "pwsh -NoProfile -Command \"git -C '$peer_repo' reset --hard HEAD\"" >/dev/null 2>&1
+                        else
+                            ssh -o ConnectTimeout=2 -o BatchMode=yes "$reachable_host" "r='$peer_repo'; r=\"\${r/#\\~/\$HOME}\"; git -C \"\$r\" reset --hard HEAD" >/dev/null 2>&1
+                        end
+                        echo -e "  \033[1;32m✓ Successfully force-pushed to $peer (mirrored).\033[0m"
+                        set synced_count (math $synced_count + 1)
+                    else
+                        echo -e "  \033[1;31m✕ Failed to force-push to $peer.\033[0m"
+                        return 1
+                    end
+
+                case 2 "pull" "pull-force"
+                    echo -e "  📥 \033[1;36mForce-pulling $peer state into local branch '$current_branch'...\033[0m"
+                    if git -C "$repo_dir" reset --hard "$remote_ref"
+                        echo -e "  \033[1;32m✓ Local repository successfully reset to match $peer.\033[0m"
+                        set synced_count (math $synced_count + 1)
+                    else
+                        echo -e "  \033[1;31m✕ Failed to reset local repository to $remote_ref.\033[0m"
+                        return 1
+                    end
+
+                case '*'
+                    echo -e "  \033[1;33m⏸️ Aborted by user. No changes made.\033[0m"
+                    return 0
+            end
+        end
     end
 
     echo -e "\n\033[1;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
     echo -e "🏁 \033[1;32mDotsync finished:\033[0m Synced with $synced_count/$total_peers peer(s)."
-
-    if test $new_commits_pulled -eq 1
-        echo -e "\033[1;33m💡 New commits pulled!\033[0m Run '\033[1;36mdotsync refresh\033[0m' or '\033[1;32mdotsync apply\033[0m' to update your live system."
-    end
 end
 
 # Auto-completion for dotsync (dynamic from devices.toml + subcommands)
