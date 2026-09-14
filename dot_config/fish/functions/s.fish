@@ -481,27 +481,38 @@ for r in routes:
         test -z "$pt"; and set pt 22
 
         fish -c "
-            if command -q nc
-                if nc -z -w 1 '$hn' '$pt' >/dev/null 2>&1
+            if test -n '$hn'
+                # Fast TCP probe via python (nc is often missing on Termux).
+                # 4s timeout is needed for WAN routes; LAN misses fail fast anyway.
+                if python3 -c 'import socket,sys; s=socket.create_connection((sys.argv[1], int(sys.argv[2])), timeout=4); s.close()' '$hn' '$pt' >/dev/null 2>&1
                     touch '$tmp_dir/succ_$idx'
-                end
-            else
-                if command ssh -o ConnectTimeout=1 -o BatchMode=yes -o ClearAllForwardings=yes -q '$h' \"exit 0\" >/dev/null 2>&1
-                    touch '$tmp_dir/succ_$idx'
+                else
+                    # Fallback: full SSH handshake (covers hosts where TCP probe is filtered).
+                    if command ssh -o ConnectTimeout=5 -o BatchMode=yes -o ClearAllForwardings=yes -q '$h' \"exit 0\" >/dev/null 2>&1
+                        touch '$tmp_dir/succ_$idx'
+                    end
                 end
             end
         " &
         set idx (math $idx + 1)
     end
 
-    for t in (seq 1 20)
-        if test -f "$tmp_dir/succ_1"
+    # Wait up to ~8s for any probe to succeed (WAN needs >1s).
+    for t in (seq 1 80)
+        set -l found 0
+        for i in (seq 1 (count $candidate_hosts))
+            if test -f "$tmp_dir/succ_$i"
+                set found 1
+                break
+            end
+        end
+        if test $found -eq 1
             break
         end
         if test (count (jobs -p)) -eq 0
             break
         end
-        sleep 0.05
+        sleep 0.1
     end
 
     set -l selected_host ""
