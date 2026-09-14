@@ -24,6 +24,7 @@ alias q='exit'
 # System shortcuts
 alias mkv='python3 ~/.config/scripts/mkvOrganizer.py'
 alias ffm='python3 ~/.config/scripts/ffm.py'
+alias autotag='python3 ~/.config/scripts/auto_tagger.py'
 alias pinstall='~/.config/scripts/pinstall.sh'
 alias ipl='~/.config/scripts/ipl'
 alias myip='~/.config/scripts/ipl'

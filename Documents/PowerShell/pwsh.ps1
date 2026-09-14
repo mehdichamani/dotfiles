@@ -162,6 +162,9 @@ function ffm { py "$HOME/.config/scripts/ffm.py" @args }
 # MKV organizer script
 function mkv { py "$HOME/.config/scripts/mkvOrganizer.py" @args }
 
+# Audio auto-tagger script
+function autotag { py "$HOME/.config/scripts/auto_tagger.py" @args }
+
 # -----------------------------------------------------------------------------
 # Auto-load Custom Functions
 # -----------------------------------------------------------------------------
