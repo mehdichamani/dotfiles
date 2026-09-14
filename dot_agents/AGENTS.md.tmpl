@@ -3,3 +3,12 @@
 When creating, editing, or linking files inside repository documentation (e.g. `README.md`, guides, markdown docs):
 - Always use repository-relative markdown paths (e.g., `README.fa.md`, `DEPLOYMENT.md`, `./docs/guide.md`) for all internal links, anchors, and images.
 - Never use absolute local filesystem paths or `file:///` URLs in repository markdown files, ensuring all links remain fully functional on GitHub and remote repositories.
+
+{{- if eq .chezmoi.os "android" }}
+
+## Android / Termux Environment Guidelines (S24)
+
+- Working directory is Termux home: `/data/data/com.termux/files/home`. Always use absolute paths.
+- Prefer `pkg` / `apt-get` for Termux packages. Non-interactive shell only.
+- For high-level ADB actions without root, `rish` (Shizuku) is available at `$PREFIX/bin/rish`.
+{{- end }}
