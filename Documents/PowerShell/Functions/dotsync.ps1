@@ -133,7 +133,7 @@ function dotsync {
                 Write-Host "`nBehavior:"
                 Write-Host "  • Ahead:     Automatically pushes to peer safely."
                 Write-Host "  • Behind:    Automatically fast-forward pulls from peer safely."
-                Write-Host "  • Diverged:  Prompts interactively for Push Force, Pull Force, or Abort."
+                Write-Host "  • Diverged:  Prompts interactively for Rebase & Push, Push Force, Pull Force, or Abort."
                 Write-Host "`nAvailable Peer Devices (from ~/.ssh/devices.toml):"
                 if ($allPeers.Count -gt 0) {
                     Write-Host "  $($allPeers -join ', ')" -ForegroundColor Cyan
@@ -374,18 +374,54 @@ function dotsync {
             (& git -C $repoDir log --oneline --no-merges -n 3 "HEAD..$remoteRef") | ForEach-Object { "      $_" }
             Write-Host ""
             Write-Host "  How would you like to resolve this divergence?" -ForegroundColor White
-            Write-Host "    [1] Push Force   " -ForegroundColor Yellow -NoNewline
+            Write-Host "    [1] Rebase & Push " -ForegroundColor Green -NoNewline
+            Write-Host "(Rebase local on $peer and push back to $peer)" -ForegroundColor DarkGray
+            Write-Host "    [2] Push Force   " -ForegroundColor Yellow -NoNewline
             Write-Host "(Overwrite $peer with local state)" -ForegroundColor DarkGray
-            Write-Host "    [2] Pull Force   " -ForegroundColor Cyan -NoNewline
+            Write-Host "    [3] Pull Force   " -ForegroundColor Cyan -NoNewline
             Write-Host "(Overwrite local with $peer state)" -ForegroundColor DarkGray
-            Write-Host "    [3] Cancel/Abort " -ForegroundColor Red -NoNewline
+            Write-Host "    [4] Cancel/Abort " -ForegroundColor Red -NoNewline
             Write-Host "(Default - do nothing)" -ForegroundColor DarkGray
             Write-Host ""
 
-            $choice = Read-Host "  Select action [1/2/3] (default 3)"
+            $choice = Read-Host "  Select action [1/2/3/4] (default 4)"
 
             switch ($choice.Trim().ToLower()) {
-                { $_ -in @("1", "push", "push-force", "pf") } {
+                { $_ -in @("1", "rebase", "rb", "r") } {
+                    Write-Host "  🔄 Checking if rebase can apply cleanly without conflicts..." -ForegroundColor Green
+                    $mb = (& git -C $repoDir merge-base HEAD $remoteRef 2>$null)
+                    $canRebase = $false
+                    if ($mb) {
+                        & git -C $repoDir merge-tree --write-tree HEAD $remoteRef 2>$null | Out-Null
+                        if ($LASTEXITCODE -eq 0) { $canRebase = $true }
+                    }
+
+                    if (-not $canRebase) {
+                        Write-Host "  ⚠️ Rebase conflict detected! Rebase cannot be applied cleanly without manual resolution." -ForegroundColor Red
+                        Write-Host "  Resolve manually with: git -C '$repoDir' rebase $remoteRef" -ForegroundColor DarkGray
+                        return
+                    }
+
+                    Write-Host "  🔄 Rebasing local branch '$currentBranch' onto $remoteRef..." -ForegroundColor Green
+                    & git -C $repoDir rebase $remoteRef
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Host "  ✓ Local branch successfully rebased onto $peer." -ForegroundColor Green
+                        Write-Host "  📤 Pushing rebased commits to $peer..." -ForegroundColor Cyan
+                        & git -C $repoDir push $remoteName $currentBranch
+                        if ($LASTEXITCODE -eq 0) {
+                            Write-Host "  ✓ Successfully synced & pushed to $peer." -ForegroundColor Green
+                            $syncedCount++
+                        } else {
+                            Write-Host "  ✕ Failed to push rebased branch to $peer." -ForegroundColor Red
+                            return
+                        }
+                    } else {
+                        Write-Host "  ✕ Git rebase failed. Aborting rebase to preserve state..." -ForegroundColor Red
+                        & git -C $repoDir rebase --abort 2>$null
+                        return
+                    }
+                }
+                { $_ -in @("2", "push", "push-force", "pf") } {
                     Write-Host "  🚀 Force-pushing local branch '$currentBranch' to $peer..." -ForegroundColor Yellow
                     & git -C $repoDir push --force $remoteName $currentBranch
                     if ($LASTEXITCODE -eq 0) {
@@ -397,7 +433,7 @@ function dotsync {
                         return
                     }
                 }
-                { $_ -in @("2", "pull", "pull-force") } {
+                { $_ -in @("3", "pull", "pull-force") } {
                     Write-Host "  📥 Force-pulling $peer state into local branch '$currentBranch'..." -ForegroundColor Cyan
                     & git -C $repoDir reset --hard "$remoteRef"
                     if ($LASTEXITCODE -eq 0) {

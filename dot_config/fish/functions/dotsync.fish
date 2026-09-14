@@ -96,7 +96,7 @@ print('\n'.join(peers))
         echo "Behavior:"
         echo "  • Ahead:  Automatically pushes to peer safely."
         echo "  • Behind: Automatically fast-forward pulls from peer safely."
-        echo "  • Diverged: Prompts interactively for Push Force, Pull Force, or Abort."
+        echo "  • Diverged: Prompts interactively for Rebase & Push, Push Force, Pull Force, or Abort."
         echo ""
         echo "Available Peer Devices (from ~/.ssh/devices.toml):"
         if test (count $all_peers) -gt 0
@@ -420,15 +420,51 @@ for r in routes:
             git -C "$repo_dir" log --oneline --no-merges -n 3 "HEAD..$remote_ref" | sed 's/^/      /'
             echo ""
             echo -e "  \033[1;37mHow would you like to resolve this divergence?\033[0m"
-            echo -e "    \033[1;33m[1]\033[0m Push Force   \033[0;90m(Overwrite $peer with local state)\033[0m"
-            echo -e "    \033[1;36m[2]\033[0m Pull Force   \033[0;90m(Overwrite local with $peer state)\033[0m"
-            echo -e "    \033[1;31m[3]\033[0m Cancel/Abort \033[0;90m(Default - do nothing)\033[0m"
+            echo -e "    \033[1;32m[1]\033[0m Rebase & Push \033[0;90m(Rebase local on $peer and push back to $peer)\033[0m"
+            echo -e "    \033[1;33m[2]\033[0m Push Force   \033[0;90m(Overwrite $peer with local state)\033[0m"
+            echo -e "    \033[1;36m[3]\033[0m Pull Force   \033[0;90m(Overwrite local with $peer state)\033[0m"
+            echo -e "    \033[1;31m[4]\033[0m Cancel/Abort \033[0;90m(Default - do nothing)\033[0m"
             echo ""
 
-            read -l -P "  Select action [1/2/3] (default 3): " user_choice
+            read -l -P "  Select action [1/2/3/4] (default 4): " user_choice
 
             switch "$user_choice"
-                case 1 "push" "push-force" "pf"
+                case 1 "rebase" "rb" "r"
+                    echo -e "  🔄 \033[1;32mChecking if rebase can apply cleanly without conflicts...\033[0m"
+                    set -l mb (git -C "$repo_dir" merge-base HEAD "$remote_ref" 2>/dev/null)
+                    set -l can_rebase 0
+                    if test -n "$mb"
+                        # Pre-flight conflict check via merge-tree
+                        git -C "$repo_dir" merge-tree --write-tree HEAD "$remote_ref" >/dev/null 2>&1
+                        if test $status -eq 0
+                            set can_rebase 1
+                        end
+                    end
+
+                    if test $can_rebase -eq 0
+                        echo -e "  \033[1;31m⚠️ Rebase conflict detected!\033[0m Rebase cannot be applied cleanly without manual resolution."
+                        echo -e "  \033[0;90mResolve manually with: git -C '$repo_dir' rebase $remote_ref\033[0m"
+                        return 1
+                    end
+
+                    echo -e "  🔄 \033[1;32mRebasing local branch '$current_branch' onto $remote_ref...\033[0m"
+                    if git -C "$repo_dir" rebase "$remote_ref"
+                        echo -e "  \033[1;32m✓ Local branch successfully rebased onto $peer.\033[0m"
+                        echo -e "  📤 Pushing rebased commits to $peer..."
+                        if git -C "$repo_dir" push "$remote_name" "$current_branch"
+                            echo -e "  \033[1;32m✓ Successfully synced & pushed to $peer.\033[0m"
+                            set synced_count (math $synced_count + 1)
+                        else
+                            echo -e "  \033[1;31m✕ Failed to push rebased branch to $peer.\033[0m"
+                            return 1
+                        end
+                    else
+                        echo -e "  \033[1;31m✕ Git rebase failed.\033[0m Aborting rebase to preserve state..."
+                        git -C "$repo_dir" rebase --abort >/dev/null 2>&1
+                        return 1
+                    end
+
+                case 2 "push" "push-force" "pf"
                     echo -e "  🚀 \033[1;33mForce-pushing local branch '$current_branch' to $peer...\033[0m"
                     if git -C "$repo_dir" push --force "$remote_name" "$current_branch"
                         if test "$peer_shell" = "pwsh"
@@ -443,7 +479,7 @@ for r in routes:
                         return 1
                     end
 
-                case 2 "pull" "pull-force"
+                case 3 "pull" "pull-force"
                     echo -e "  📥 \033[1;36mForce-pulling $peer state into local branch '$current_branch'...\033[0m"
                     if git -C "$repo_dir" reset --hard "$remote_ref"
                         echo -e "  \033[1;32m✓ Local repository successfully reset to match $peer.\033[0m"
