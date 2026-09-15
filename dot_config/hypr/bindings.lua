@@ -30,18 +30,17 @@ hl.unbind("SUPER + CTRL + E")
 o.bind("SUPER + PERIOD", "Emojis", "omarchy-shell shell toggle omarchy.emojis")
 o.bind("SUPER + E", "File Manager", "nautilus")
 
+-- Float Nautilus file manager on open
+o.window("org.gnome.Nautilus", { tag = "+floating-window" })
+
 -- Open Omarchy menu by pressing Super alone
 o.bind("SUPER + SUPER_L", "Omarchy menu", "omarchy-menu toggle", { release = true })
 
 -- Unbind default SUPER + SPACE from Omarchy menu so Super+Space toggles keyboard layout directly via xkb
 hl.unbind("SUPER + SPACE")
 
--- VS Code (with proxy)
-o.bind("SUPER + A", "VS Code", { launch = "withproxy code" })
-
 -- Antigravity IDE (with proxy)
-hl.unbind("SUPER + SHIFT + A")
-o.bind("SUPER + SHIFT + A", "Antigravity IDE", { launch = "withproxy antigravity-ide" })
+o.bind("SUPER + A", "Antigravity IDE", { launch = "withproxy antigravity-ide" })
 
 -- Obsidian (replace default Pop window out with Obsidian)
 hl.unbind("SUPER + O")
