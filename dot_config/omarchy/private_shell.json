@@ -17,6 +17,9 @@
       ],
       "right": [
         {
+          "id": "unreal.indicators"
+        },
+        {
           "id": "user.keyboard-layout"
         },
         {
@@ -24,9 +27,6 @@
         },
         {
           "id": "user.btrfs-backup"
-        },
-        {
-          "id": "omarchy.indicators"
         },
         {
           "id": "user.tray"
@@ -61,7 +61,6 @@
     "lock": 300,
     "screensaver": 150
   },
-  "plugins": [],
   "plugins": [
     {
       "id": "io.github.codesmith28.omalt-tab"
