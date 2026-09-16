@@ -12,6 +12,8 @@ import argparse
 import urllib.parse
 import urllib.request
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
@@ -46,6 +48,40 @@ if not sys.stdout.isatty() or (os.name == 'nt' and 'ANSICON' not in os.environ a
             os.system('')  # Enable ANSI in Windows 10/11 CMD/PowerShell
         except Exception:
             Colors.disable()
+
+# Global lock to synchronize console outputs across threads
+print_lock = threading.Lock()
+
+def safe_print(*a, **kw):
+    """Thread-safe console print helper."""
+    with print_lock:
+        print(*a, **kw)
+
+
+class ProgressTracker:
+    """Thread-safe visual progress tracker and counter."""
+    def __init__(self, total: int):
+        self.total = total
+        self.completed = 0
+        self.lock = threading.Lock()
+
+    def get_progress_prefix(self, current_num: int) -> str:
+        pct = (current_num / self.total * 100) if self.total > 0 else 100
+        return f"{Colors.BOLD}{Colors.BLUE}[{current_num}/{self.total} - {pct:5.1f}%]{Colors.RESET}"
+
+    def step(self) -> int:
+        with self.lock:
+            self.completed += 1
+            return self.completed
+
+    def render_bar(self, width: int = 24) -> str:
+        with self.lock:
+            done = self.completed
+        pct = (done / self.total) if self.total > 0 else 1.0
+        pct = min(1.0, max(0.0, pct))
+        filled = int(round(width * pct))
+        bar = "█" * filled + "░" * (width - filled)
+        return f"{Colors.CYAN}[{bar}]{Colors.RESET} {Colors.BOLD}{done}/{self.total}{Colors.RESET} ({pct * 100:.1f}%)"
 
 # --- Mutagen Imports ---
 try:
@@ -592,21 +628,39 @@ def tag_ogg_opus(file_path: str, meta: dict, lyrics_text: str, dry_run: bool = F
     audio.save()
 
 
-def process_file(file_path: Path, args: argparse.Namespace, deep: bool = False) -> Optional[Path]:
+def process_file(
+    file_path: Path,
+    args: argparse.Namespace,
+    deep: bool = False,
+    tracker: Optional[ProgressTracker] = None
+) -> Optional[Path]:
     """Process a single audio file: search metadata, download art & lyrics, tag, and optionally rename."""
-    print(f"\n{Colors.BOLD}🎵 Processing:{Colors.RESET} {Colors.CYAN}{file_path.name}{Colors.RESET}")
+    # Build atomic log buffer to prevent line interleaving during multithreading
+    log_lines = []
 
     # Check if file was already processed and tagged
     if not getattr(args, "force", False) and is_already_tagged(file_path):
-        print(f"  {Colors.DIM}⏩ Skipping: Already tagged by Auto-Tagger (use --force to re-tag).{Colors.RESET}")
+        if tracker:
+            done_cnt = tracker.step()
+            p_str = tracker.get_progress_prefix(done_cnt)
+            safe_print(f"{p_str} {Colors.DIM}⏩ Skipping: '{file_path.name}' (already tagged, use --force to re-tag){Colors.RESET}")
+        else:
+            safe_print(f"\n{Colors.BOLD}🎵 Processing:{Colors.RESET} {Colors.CYAN}{file_path.name}{Colors.RESET}")
+            safe_print(f"  {Colors.DIM}⏩ Skipping: Already tagged by Auto-Tagger (use --force to re-tag).{Colors.RESET}")
         return file_path
 
     query = args.query if args.query else clean_filename_for_search(file_path.name)
-    print(f"  {Colors.DIM}🔍 Search Query:{Colors.RESET} '{query}'" + (f" {Colors.YELLOW}[Deep Mode]{Colors.RESET}" if deep else ""))
 
     meta = fetch_metadata(query, deep=deep, filename=file_path.name)
     if not meta:
-        print(f"  {Colors.RED}✗ No online metadata match found.{Colors.RESET}")
+        if tracker:
+            done_cnt = tracker.step()
+            p_str = tracker.get_progress_prefix(done_cnt)
+            safe_print(f"{p_str} {Colors.RED}✗ Not Found:{Colors.RESET} {file_path.name} {Colors.DIM}(Query: '{query}'){Colors.RESET}")
+        else:
+            safe_print(f"\n{Colors.BOLD}🎵 Processing:{Colors.RESET} {Colors.CYAN}{file_path.name}{Colors.RESET}")
+            safe_print(f"  {Colors.DIM}🔍 Search Query:{Colors.RESET} '{query}'" + (f" {Colors.YELLOW}[Deep Mode]{Colors.RESET}" if deep else ""))
+            safe_print(f"  {Colors.RED}✗ No online metadata match found.{Colors.RESET}")
         return None
 
     source = meta.get("_source", "iTunes")
@@ -619,23 +673,14 @@ def process_file(file_path: Path, args: argparse.Namespace, deep: bool = False) 
     track_count = meta.get("trackCount")
     track_str = f"{track_num}/{track_count}" if track_num and track_count else (str(track_num) if track_num else "-")
 
-    print(f"  {Colors.GREEN}✓ Match Found via {source}:{Colors.RESET}")
-    print(f"    {Colors.BOLD}Title:{Colors.RESET}   {title}")
-    print(f"    {Colors.BOLD}Artist:{Colors.RESET}  {artist}")
-    print(f"    {Colors.BOLD}Album:{Colors.RESET}   {album} {f'({year})' if year else ''}")
-    print(f"    {Colors.BOLD}Genre:{Colors.RESET}   {genre if genre else '-'} | {Colors.BOLD}Track:{Colors.RESET} {track_str}")
-
     # Cover Art
     art_bytes = None
     if not args.no_cover and "artworkUrl100" in meta:
         art_bytes = download_artwork(meta["artworkUrl100"], resolution=args.resolution)
-        if art_bytes:
-            print(f"    {Colors.BOLD}Artwork:{Colors.RESET} Downloaded ({args.resolution}x{args.resolution} px, {len(art_bytes)//1024} KB)")
-        else:
-            print(f"    {Colors.YELLOW}[!] Could not download cover artwork.{Colors.RESET}")
 
     # Lyrics Search
     lyrics_text = ""
+    lyrics_info = ""
     if not args.no_lyrics:
         base_stem = file_path.stem
         parent_dir = file_path.parent
@@ -646,7 +691,7 @@ def process_file(file_path: Path, args: argparse.Namespace, deep: bool = False) 
                 try:
                     with open(lrc_candidate, "r", encoding="utf-8") as lf:
                         lyrics_text = lf.read().strip()
-                    print(f"    {Colors.BOLD}Lyrics:{Colors.RESET}  Found local sidecar ({lrc_candidate.name})")
+                    lyrics_info = f"local ({lrc_candidate.name})"
                     break
                 except Exception:
                     pass
@@ -657,10 +702,11 @@ def process_file(file_path: Path, args: argparse.Namespace, deep: bool = False) 
             if online_lyrics:
                 lyrics_text = online_lyrics
                 line_count = len(lyrics_text.splitlines())
-                print(f"    {Colors.BOLD}Lyrics:{Colors.RESET}  Fetched online ({line_count} lines)")
+                lyrics_info = f"online ({line_count} lines)"
 
     # Tag according to format
     ext = file_path.suffix.lower()
+    tag_err = None
     try:
         if ext == ".mp3":
             tag_mp3(str(file_path), meta, art_bytes, lyrics_text, dry_run=args.dry_run)
@@ -671,23 +717,82 @@ def process_file(file_path: Path, args: argparse.Namespace, deep: bool = False) 
         elif ext in {".ogg", ".opus"}:
             tag_ogg_opus(str(file_path), meta, lyrics_text, dry_run=args.dry_run)
         else:
-            print(f"  {Colors.RED}Unsupported format: {ext}{Colors.RESET}")
-            return None
-
-        if args.dry_run:
-            print(f"  {Colors.YELLOW}[Dry-Run]{Colors.RESET} Tags simulated, no file changes saved.")
-        else:
-            print(f"  {Colors.GREEN}✓ Successfully tagged and embedded metadata!{Colors.RESET}")
-
-        # Optional file renaming to "Artist - Title.ext"
-        current_path = file_path
-        if args.rename:
-            current_path = rename_audio_file(file_path, artist, title, dry_run=args.dry_run)
-
-        return current_path
+            tag_err = f"Unsupported format: {ext}"
     except Exception as e:
-        print(f"  {Colors.RED}✗ Error saving tags: {e}{Colors.RESET}")
+        tag_err = str(e)
+
+    if tag_err:
+        if tracker:
+            done_cnt = tracker.step()
+            p_str = tracker.get_progress_prefix(done_cnt)
+            safe_print(f"{p_str} {Colors.RED}✗ Error saving tags for {file_path.name}: {tag_err}{Colors.RESET}")
+        else:
+            safe_print(f"  {Colors.RED}✗ Error saving tags: {tag_err}{Colors.RESET}")
         return None
+
+    # Optional file renaming to "Artist - Title.ext"
+    current_path = file_path
+    renamed_msg = ""
+    if args.rename:
+        clean_artist = sanitize_filename_part(artist)
+        clean_title = sanitize_filename_part(title)
+        if clean_artist and clean_title and clean_artist.lower() != "unknown" and clean_title.lower() != "unknown":
+            new_name = f"{clean_artist} - {clean_title}{ext}"
+            target_path = file_path.parent / new_name
+            if target_path.name != file_path.name and not target_path.exists():
+                if not args.dry_run:
+                    try:
+                        old_lrc = file_path.parent / f"{file_path.stem}.lrc"
+                        new_lrc = file_path.parent / f"{clean_artist} - {clean_title}.lrc"
+                        if old_lrc.exists() and not new_lrc.exists():
+                            old_lrc.rename(new_lrc)
+                        file_path.rename(target_path)
+                        current_path = target_path
+                        renamed_msg = f" -> {new_name}"
+                    except Exception as e:
+                        renamed_msg = f" (rename failed: {e})"
+                else:
+                    renamed_msg = f" [Dry-Run -> {new_name}]"
+
+    # Print completed track log atomically
+    if tracker:
+        done_cnt = tracker.step()
+        p_str = tracker.get_progress_prefix(done_cnt)
+        extras = []
+        if art_bytes:
+            extras.append(f"Art {args.resolution}px")
+        if lyrics_info:
+            extras.append(f"Lyr: {lyrics_info}")
+        extras_str = f" {Colors.DIM}({', '.join(extras)}){Colors.RESET}" if extras else ""
+        mode_str = f" {Colors.YELLOW}[Dry-Run]{Colors.RESET}" if args.dry_run else ""
+        
+        safe_print(
+            f"{p_str} {Colors.GREEN}✓{Colors.RESET} {Colors.BOLD}{artist} - {title}{Colors.RESET}"
+            f" {Colors.DIM}[{album}{f' ({year})' if year else ''} / {source}]{Colors.RESET}"
+            f"{extras_str}{renamed_msg}{mode_str}"
+        )
+    else:
+        # Detailed block printing for single-file mode
+        log_lines.append(f"\n{Colors.BOLD}🎵 Processing:{Colors.RESET} {Colors.CYAN}{file_path.name}{Colors.RESET}")
+        log_lines.append(f"  {Colors.DIM}🔍 Search Query:{Colors.RESET} '{query}'" + (f" {Colors.YELLOW}[Deep Mode]{Colors.RESET}" if deep else ""))
+        log_lines.append(f"  {Colors.GREEN}✓ Match Found via {source}:{Colors.RESET}")
+        log_lines.append(f"    {Colors.BOLD}Title:{Colors.RESET}   {title}")
+        log_lines.append(f"    {Colors.BOLD}Artist:{Colors.RESET}  {artist}")
+        log_lines.append(f"    {Colors.BOLD}Album:{Colors.RESET}   {album} {f'({year})' if year else ''}")
+        log_lines.append(f"    {Colors.BOLD}Genre:{Colors.RESET}   {genre if genre else '-'} | {Colors.BOLD}Track:{Colors.RESET} {track_str}")
+        if art_bytes:
+            log_lines.append(f"    {Colors.BOLD}Artwork:{Colors.RESET} Downloaded ({args.resolution}x{args.resolution} px, {len(art_bytes)//1024} KB)")
+        if lyrics_info:
+            log_lines.append(f"    {Colors.BOLD}Lyrics:{Colors.RESET}  {lyrics_info}")
+        if args.dry_run:
+            log_lines.append(f"  {Colors.YELLOW}[Dry-Run]{Colors.RESET} Tags simulated, no file changes saved.")
+        else:
+            log_lines.append(f"  {Colors.GREEN}✓ Successfully tagged and embedded metadata!{Colors.RESET}")
+        if renamed_msg:
+            log_lines.append(f"  {Colors.GREEN}✓ Renamed:{Colors.RESET} {renamed_msg}")
+        safe_print("\n".join(log_lines))
+
+    return current_path
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -774,8 +879,57 @@ Examples:
         action="store_true",
         help="Enable aggressive query fallback and secondary APIs immediately without prompting"
     )
+    parser.add_argument(
+        "-j", "--threads",
+        type=int,
+        default=4,
+        help="Number of concurrent worker threads for network and tagging operations (default: 4)"
+    )
 
     return parser
+
+
+def run_batch_parallel(
+    file_list: List[Path],
+    args: argparse.Namespace,
+    deep: bool = False,
+    desc: str = "Processing"
+) -> (List[Path], List[Path]):
+    """Process a list of audio files concurrently using ThreadPoolExecutor."""
+    tracks_done: List[Path] = []
+    tracks_not_found: List[Path] = []
+
+    if not file_list:
+        return tracks_done, tracks_not_found
+
+    tracker = ProgressTracker(len(file_list))
+    workers = max(1, min(args.threads, len(file_list)))
+    safe_print(f"{Colors.CYAN}{desc} {len(file_list)} file(s) with {workers} worker thread(s)...{Colors.RESET}\n" + "-" * 50)
+
+    # Use ThreadPoolExecutor to parallelize I/O & network requests
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        # Submit all tasks
+        future_to_file = {
+            executor.submit(process_file, f, args, deep=deep, tracker=tracker): f
+            for f in file_list
+        }
+
+        for future in as_completed(future_to_file):
+            orig_file = future_to_file[future]
+            try:
+                res = future.result()
+                if res:
+                    tracks_done.append(res)
+                else:
+                    tracks_not_found.append(orig_file)
+            except Exception as e:
+                safe_print(f"{Colors.RED}✗ Unhandled thread exception on {orig_file.name}: {e}{Colors.RESET}")
+                tracks_not_found.append(orig_file)
+
+    # Render complete progress bar
+    safe_print("-" * 50)
+    safe_print(f"Progress: {tracker.render_bar()}")
+    return tracks_done, tracks_not_found
 
 
 def main():
@@ -788,11 +942,13 @@ def main():
         sys.exit(1)
 
     print(f"\n{Colors.BOLD}{Colors.HEADER}=== Auto-Tagger Music Library Utility ==={Colors.RESET}")
-    print(f"Target: {Colors.CYAN}{target}{Colors.RESET}")
+    print(f"Target:  {Colors.CYAN}{target}{Colors.RESET}")
+    if args.threads > 1 and target.is_dir():
+        print(f"Threads: {Colors.BOLD}{args.threads}{Colors.RESET} concurrent workers")
     if args.rename:
-        print(f"Format: {Colors.GREEN}Auto-Rename enabled ('Artist - Title.ext'){Colors.RESET}")
+        print(f"Format:  {Colors.GREEN}Auto-Rename enabled ('Artist - Title.ext'){Colors.RESET}")
     if args.dry_run:
-        print(f"Mode:   {Colors.YELLOW}Dry-Run (Simulation){Colors.RESET}")
+        print(f"Mode:    {Colors.YELLOW}Dry-Run (Simulation){Colors.RESET}")
 
     if target.is_file():
         if target.suffix.lower() not in SUPPORTED_EXTENSIONS:
@@ -822,18 +978,15 @@ def main():
             print(f"\n{Colors.YELLOW}No supported audio files found in {target}.{Colors.RESET}")
             sys.exit(0)
 
-        print(f"Found {Colors.BOLD}{len(files)}{Colors.RESET} audio file(s). Starting tagging process...\n" + "-" * 50)
+        print(f"Found {Colors.BOLD}{len(files)}{Colors.RESET} audio file(s). Starting tagging process...\n" + "=" * 50)
         
-        tracks_done = []
-        tracks_not_found = []
-
-        # Pass 1: Standard Search (fast iTunes search)
-        for f in files:
-            res = process_file(f, args, deep=args.deep)
-            if res:
-                tracks_done.append(res)
-            else:
-                tracks_not_found.append(f)
+        # Pass 1: Standard Search with thread pool and progress tracker
+        tracks_done, tracks_not_found = run_batch_parallel(
+            files,
+            args,
+            deep=args.deep,
+            desc="Standard Matching"
+        )
 
         # Pass 2: Interactive Deep Search for tracks that were not found
         if tracks_not_found and not args.deep and not args.dry_run:
@@ -846,15 +999,15 @@ def main():
                 choice = "n"
 
             if choice in {"", "y", "yes"}:
-                print(f"\n{Colors.CYAN}Starting Deep Search on {len(tracks_not_found)} file(s)...{Colors.RESET}\n" + "-" * 50)
-                still_not_found = []
-                for f in tracks_not_found:
-                    res = process_file(f, args, deep=True)
-                    if res:
-                        tracks_done.append(res)
-                    else:
-                        still_not_found.append(f)
-                tracks_not_found = still_not_found
+                print(f"\n{Colors.CYAN}Starting Deep Search on {len(tracks_not_found)} file(s)...{Colors.RESET}")
+                deep_done, deep_not_found = run_batch_parallel(
+                    tracks_not_found,
+                    args,
+                    deep=True,
+                    desc="Deep Matching"
+                )
+                tracks_done.extend(deep_done)
+                tracks_not_found = deep_not_found
 
         # Summary output
         print(f"\n{Colors.BOLD}=========================================={Colors.RESET}")
