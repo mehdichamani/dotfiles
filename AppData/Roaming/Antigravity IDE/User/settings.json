@@ -19,7 +19,6 @@
         }
     },
     "terminal.integrated.defaultProfile.windows": "PowerShell (Mini)",
-    "window.zoomLevel": 0.5,
     "editor.fontFamily": "'JetBrainsMono Nerd Font', 'Jet Brains Mono Nerd Font', 'JetBrainsMono NF', 'Vazirmatn', 'Segoe UI', monospace",
     "editor.fontSize": 14,
     "terminal.integrated.fontFamily": "'JetBrainsMono Nerd Font', 'Jet Brains Mono Nerd Font', 'JetBrainsMono NF', 'Vazirmatn', 'Segoe UI', monospace",
