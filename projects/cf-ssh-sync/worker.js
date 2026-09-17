@@ -146,12 +146,13 @@ set -euo pipefail
 SSH_DIR="\${HOME}/.ssh"
 SECRETS_DIR="\${HOME}/.config/secrets"
 
-# Ensure openssl, tar, and curl are installed
+# Ensure openssl, tar, curl, and gzip/unzip are installed
 ensure_deps() {
   local missing=()
   command -v openssl >/dev/null 2>&1 || missing+=("openssl")
   command -v tar >/dev/null 2>&1 || missing+=("tar")
   command -v curl >/dev/null 2>&1 || missing+=("curl")
+  command -v gzip >/dev/null 2>&1 || missing+=("gzip")
 
   if [ \${#missing[@]} -ne 0 ]; then
     echo "Missing dependencies: \${missing[*]}"
@@ -171,7 +172,7 @@ ensure_deps() {
     elif command -v brew >/dev/null 2>&1; then
       brew install "\${missing[@]}"
     else
-      echo "Please install \${missing[*]} manually and rerun." >&2
+      echo "❌ Please install \${missing[*]} manually and rerun." >&2
       exit 1
     fi
   fi
@@ -194,24 +195,42 @@ fi
 
 echo "Fetching encrypted payload..."
 TEMP_FILE=$(mktemp)
+TEMP_DECRYPTED=$(mktemp)
 TEMP_EXTRACT=$(mktemp -d)
-trap 'rm -rf "$TEMP_FILE" "$TEMP_EXTRACT"' EXIT
+trap 'rm -rf "$TEMP_FILE" "$TEMP_DECRYPTED" "$TEMP_EXTRACT"' EXIT
 
 HTTP_CODE=$(curl -s -w "%{http_code}" -o "\$TEMP_FILE" "${origin}/data")
 
 if [ "\$HTTP_CODE" -ne 200 ]; then
   echo "❌ Failed to download vault payload. HTTP status: \$HTTP_CODE (Payload may not have been uploaded yet)" >&2
-  rm -rf "\$TEMP_FILE" "\$TEMP_EXTRACT"
+  rm -rf "\$TEMP_FILE" "\$TEMP_DECRYPTED" "\$TEMP_EXTRACT"
   exit 1
 fi
 
-echo "Decrypting and extracting payload..."
-if openssl enc -d -aes-256-cbc -pbkdf2 -salt -pass pass:"\$PASSPHRASE" -in "\$TEMP_FILE" | tar -xzf - -C "\$TEMP_EXTRACT"; then
+echo "Decrypting vault payload..."
+if openssl enc -d -aes-256-cbc -pbkdf2 -salt -pass pass:"\$PASSPHRASE" -in "\$TEMP_FILE" -out "\$TEMP_DECRYPTED" 2>/dev/null; then
   echo "✅ Decryption successful."
 else
   echo "❌ Decryption failed! Check your passphrase." >&2
-  rm -rf "\$TEMP_FILE" "\$TEMP_EXTRACT"
+  rm -rf "\$TEMP_FILE" "\$TEMP_DECRYPTED" "\$TEMP_EXTRACT"
   exit 1
+fi
+
+echo "Extracting archive contents..."
+# Detect format (Gzip Tar, Standard Tar, or Zip)
+FIRST_BYTES=$(od -N 2 -t x1 "\$TEMP_DECRYPTED" 2>/dev/null | head -n 1 | awk '{print \$2 \$3}')
+if [ "\$FIRST_BYTES" = "1f8b" ]; then
+  # Gzip Tar
+  tar -xzf "\$TEMP_DECRYPTED" -C "\$TEMP_EXTRACT"
+elif [ "\$FIRST_BYTES" = "504b" ]; then
+  # Zip archive
+  if ! command -v unzip >/dev/null 2>&1; then
+    if command -v pkg >/dev/null 2>&1; then pkg install -y unzip; elif command -v pacman >/dev/null 2>&1; then sudo pacman -S --noconfirm unzip; elif command -v apt-get >/dev/null 2>&1; then sudo apt-get install -y unzip; fi
+  fi
+  unzip -q "\$TEMP_DECRYPTED" -d "\$TEMP_EXTRACT"
+else
+  # Plain Tar or fallback
+  tar -xf "\$TEMP_DECRYPTED" -C "\$TEMP_EXTRACT" 2>/dev/null || unzip -q "\$TEMP_DECRYPTED" -d "\$TEMP_EXTRACT"
 fi
 
 # 1. Restore SSH if present in archive (or legacy root archive format)
@@ -350,14 +369,25 @@ try {
             Remove-Item -Force $tempTar, $tempEnc -ErrorAction SilentlyContinue
         }
     } else {
-        Write-Host "OpenSSL/Tar not found. Using PowerShell Zip & AES-256..." -ForegroundColor Yellow
-        $tempZip = [System.IO.Path]::GetTempFileName() + ".zip"
-        try {
-            Compress-Archive -Path "$tempFolder\\*" -DestinationPath $tempZip -Force
-            $zipBytes = [System.IO.File]::ReadAllBytes($tempZip)
+        # Standard OpenSSL-compatible AES-256-CBC PBKDF2 via native PowerShell/.NET
+        $tempArchive = $null
+        $archiveBytes = $null
 
-            # AES-256 PBKDF2 via .NET
-            $salt = New-Object byte[](16)
+        if ($hasTar) {
+            Write-Host "Archiving with Windows Tar and native .NET OpenSSL AES-256..." -ForegroundColor Yellow
+            $tempArchive = [System.IO.Path]::GetTempFileName()
+            & tar -C $tempFolder -czf $tempArchive .
+            $archiveBytes = [System.IO.File]::ReadAllBytes($tempArchive)
+        } else {
+            Write-Host "Archiving with PowerShell Zip and native .NET OpenSSL AES-256..." -ForegroundColor Yellow
+            $tempArchive = [System.IO.Path]::GetTempFileName() + ".zip"
+            Compress-Archive -Path "$tempFolder\\*" -DestinationPath $tempArchive -Force
+            $archiveBytes = [System.IO.File]::ReadAllBytes($tempArchive)
+        }
+
+        try {
+            # Standard OpenSSL PBKDF2: 8-byte salt, SHA-256, 10000 iterations
+            $salt = New-Object byte[](8)
             [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($salt)
             $derive = New-Object System.Security.Cryptography.Rfc2898DeriveBytes($plainPass, $salt, 10000, [System.Security.Cryptography.HashAlgorithmName]::SHA256)
             $key = $derive.GetBytes(32)
@@ -369,13 +399,14 @@ try {
             $aes.Mode = [System.Security.Cryptography.CipherMode]::CBC
             $aes.Padding = [System.Security.Cryptography.PaddingMode]::PKCS7
             $encryptor = $aes.CreateEncryptor()
-            $encrypted = $encryptor.TransformFinalBlock($zipBytes, 0, $zipBytes.Length)
+            $encrypted = $encryptor.TransformFinalBlock($archiveBytes, 0, $archiveBytes.Length)
 
-            # Format: [16 bytes salt][16 bytes IV][Ciphertext]
-            $payload = [byte[]]::new(32 + $encrypted.Length)
-            [Buffer]::BlockCopy($salt, 0, $payload, 0, 16)
-            [Buffer]::BlockCopy($iv, 0, $payload, 16, 16)
-            [Buffer]::BlockCopy($encrypted, 0, $payload, 32, $encrypted.Length)
+            # Standard OpenSSL File Format: [8 bytes 'Salted__'][8 bytes Salt][Ciphertext]
+            $magic = [System.Text.Encoding]::ASCII.GetBytes("Salted__")
+            $payload = [byte[]]::new(16 + $encrypted.Length)
+            [Buffer]::BlockCopy($magic, 0, $payload, 0, 8)
+            [Buffer]::BlockCopy($salt, 0, $payload, 8, 8)
+            [Buffer]::BlockCopy($encrypted, 0, $payload, 16, $encrypted.Length)
 
             $headers = @{ "Content-Type" = "application/octet-stream" }
             ${clientToken ? `$headers["X-Sync-Token"] = "${clientToken}"` : ''}
@@ -383,7 +414,7 @@ try {
             Invoke-RestMethod -Uri "${origin}/data${tokenQuery}" -Method Post -Body $payload -Headers $headers
             Write-Host "✅ Success! Encrypted vault uploaded." -ForegroundColor Green
         } finally {
-            Remove-Item -Force $tempZip -ErrorAction SilentlyContinue
+            if ($tempArchive) { Remove-Item -Force $tempArchive -ErrorAction SilentlyContinue }
         }
     }
 } finally {
