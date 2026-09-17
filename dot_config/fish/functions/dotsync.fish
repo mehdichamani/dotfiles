@@ -18,7 +18,7 @@ except ModuleNotFoundError:
     import tomli as tomllib
 with open('$devices_toml', 'rb') as f:
     data = tomllib.load(f)
-peers = [k for k, v in data.get('ssh', {}).items() if v.get('sync') is True]
+peers = [k for k, v in data.get('devices', {}).items() if v.get('sync') is True]
 print('\n'.join(peers))
 " 2>/dev/null)
     end
@@ -514,7 +514,7 @@ except ModuleNotFoundError:
     import tomli as tomllib
 with open(\"$dev_file\", \"rb\") as f:
     data = tomllib.load(f)
-peers = [k for k, v in data.get(\"ssh\", {}).items() if v.get(\"sync\") is True]
+peers = [k for k, v in data.get(\"devices\", {}).items() if v.get(\"sync\") is True]
 print(\"\n\".join(peers))
 " 2>/dev/null
     end

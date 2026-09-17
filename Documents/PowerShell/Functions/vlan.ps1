@@ -167,6 +167,20 @@ function vlan {
             Start-Sleep -Milliseconds 800
         }
 
+        # Predefined persistent MAC addresses to guarantee DHCP reservations on routers
+        $staticMacAddresses = @{
+            "0"   = "00155D01C80E"
+            "100" = "00155D01C80F"
+            "400" = "00155D01C805" # Bound to 172.20.0.100 (DHCP Reservation)
+            "500" = "00155D01C806" # Bound to 192.168.1.100 (DHCP Reservation)
+        }
+
+        if ($staticMacAddresses.ContainsKey($vlan)) {
+            $rawMac = $staticMacAddresses[$vlan]
+            # Set physical MAC via NetworkAdapter advanced property (works directly on vEthernet without Hyper-V parameter set limitation)
+            Set-NetAdapterAdvancedProperty -Name $interfaceAlias -RegistryKeyword "NetworkAddress" -RegistryValue $rawMac -ErrorAction SilentlyContinue
+        }
+
         # Configure VLAN Tagging
         if ($vlan -eq "0") {
             Set-VMNetworkAdapterVlan -ManagementOS -VMNetworkAdapterName $vnicName -Untagged -ErrorAction SilentlyContinue

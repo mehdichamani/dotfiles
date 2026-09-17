@@ -46,39 +46,63 @@ function dotsync {
     $hostInfo = @{}
 
     if (Test-Path $devicesToml) {
-        $rawContent = Get-Content $devicesToml -Raw
-        # Fast regex parser for TOML tables in PowerShell
-        $curNode = ""
-        $isSync = $false
-        $curRepo = ""
-        $curRoutes = @()
-
-        $lines = Get-Content $devicesToml
-        foreach ($line in $lines) {
-            $l = $line.Trim()
-            if ($l -match '^\[ssh\.([^\]]+)\]') {
-                if ($curNode -and $isSync) {
-                    $allPeers += $curNode
-                    if ($curRepo) { $peerRepoPaths[$curNode] = $curRepo }
-                    if ($curRoutes.Count -gt 0) { $candidateHostsByPeer[$curNode] = $curRoutes }
+        $parsedViaPython = $false
+        if (Get-Command python -ErrorAction SilentlyContinue) {
+            try {
+                $pyScript = "import tomllib, json, sys; print(json.dumps(tomllib.load(open(sys.argv[1], chr(114)+chr(98)))))"
+                $json = python -c $pyScript $devicesToml 2>$null
+                if ($json) {
+                    $parsed = $json | ConvertFrom-Json
+                    if ($parsed.devices) {
+                        foreach ($prop in $parsed.devices.PSObject.Properties) {
+                            $k = $prop.Name.ToLower()
+                            $v = $prop.Value
+                            if ($v.sync -eq $true) {
+                                $allPeers += $k
+                                if ($v.repo) { $peerRepoPaths[$k] = $v.repo }
+                                if ($v.routes) { $candidateHostsByPeer[$k] = @($v.routes) }
+                            }
+                        }
+                        $parsedViaPython = $true
+                    }
                 }
-                $curNode = $Matches[1].ToLower()
-                $isSync = $false
-                $curRepo = ""
-                $curRoutes = @()
-            } elseif ($curNode -and ($l -match '^sync\s*=\s*true')) {
-                $isSync = $true
-            } elseif ($curNode -and ($l -match '^repo\s*=\s*["'']([^"'']+)["'']')) {
-                $curRepo = $Matches[1]
-            } elseif ($curNode -and ($l -match '^routes\s*=\s*\[(.*)\]')) {
-                $rawList = $Matches[1]
-                $curRoutes = ($rawList -split ',' | ForEach-Object { $_.Trim().Trim('"').Trim("'") })
-            }
+            } catch {}
         }
-        if ($curNode -and $isSync) {
-            $allPeers += $curNode
-            if ($curRepo) { $peerRepoPaths[$curNode] = $curRepo }
-            if ($curRoutes.Count -gt 0) { $candidateHostsByPeer[$curNode] = $curRoutes }
+
+        # Fallback if Python is unavailable
+        if (-not $parsedViaPython) {
+            $curNode = ""
+            $isSync = $false
+            $curRepo = ""
+            $curRoutes = @()
+
+            $lines = Get-Content $devicesToml
+            foreach ($line in $lines) {
+                $l = $line.Trim()
+                if ($l -match '^\[devices\.([^\]\.]+)\]') {
+                    if ($curNode -and $isSync) {
+                        $allPeers += $curNode
+                        if ($curRepo) { $peerRepoPaths[$curNode] = $curRepo }
+                        if ($curRoutes.Count -gt 0) { $candidateHostsByPeer[$curNode] = $curRoutes }
+                    }
+                    $curNode = $Matches[1].ToLower()
+                    $isSync = $false
+                    $curRepo = ""
+                    $curRoutes = @()
+                } elseif ($curNode -and ($l -match '^sync\s*=\s*true')) {
+                    $isSync = $true
+                } elseif ($curNode -and ($l -match '^repo\s*=\s*["'']([^"'']+)["'']')) {
+                    $curRepo = $Matches[1]
+                } elseif ($curNode -and ($l -match '^routes\s*=\s*\[(.*)\]')) {
+                    $rawList = $Matches[1]
+                    $curRoutes = ($rawList -split ',' | ForEach-Object { $_.Trim().Trim('"').Trim("'") })
+                }
+            }
+            if ($curNode -and $isSync) {
+                $allPeers += $curNode
+                if ($curRepo) { $peerRepoPaths[$curNode] = $curRepo }
+                if ($curRoutes.Count -gt 0) { $candidateHostsByPeer[$curNode] = $curRoutes }
+            }
         }
     }
 

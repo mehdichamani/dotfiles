@@ -96,13 +96,35 @@ except ModuleNotFoundError:
     import tomli as tomllib
 with open('$devices_toml', 'rb') as f:
     data = tomllib.load(f)
-for node, info in data.get('ssh', {}).items():
-    name = info.get('name', node)
-    print(f'{node:<12} │ {name}')
+
+devs = data.get('devices', {})
+
+# 1. Workstations & Servers & Mobile
+for k, v in devs.items():
+    t = v.get('type', 'workstation')
+    if t in ('workstation', 'server', 'mobile'):
+        icon = '📱' if t == 'mobile' else '💻'
+        name = v.get('name', k)
+        desc = f' - {v.get(\"desc\", \"\")}' if v.get('desc') else ''
+        print(f'{k:<14} │ {icon} {name}{desc}')
+
+# 2. Routers
+for k, v in devs.items():
+    if v.get('type') == 'router':
+        name = v.get('name', k)
+        desc = f' - {v.get(\"desc\", \"\")}' if v.get('desc') else ''
+        print(f'{k:<14} │ 🌐 {name}{desc}')
+
+# 3. Cisco Switches
+for k, v in devs.items():
+    if v.get('type') == 'switch':
+        ip = v.get('ip', '')
+        desc = f' - {v.get(\"desc\", \"\")}' if v.get('desc') else ''
+        print(f'{k:<14} │ 🔌 {ip}{desc}')
 " 2>/dev/null)
 
             if test -z "$node_list"
-                echo "⚠️ No SSH nodes found in $devices_toml"
+                echo "⚠️ No devices found in $devices_toml"
                 return 1
             end
 
@@ -111,7 +133,7 @@ for node, info in data.get('ssh', {}).items():
                 --min-height=15 \
                 --layout=reverse \
                 --border=rounded \
-                --prompt="📱 Select Node > " \
+                --prompt="📱 Select Device > " \
                 --header="[Right / Enter: Select] [ESC / Left: Exit]" \
                 --bind="right:accept,left:abort" \
                 --preview="python3 -c '
@@ -124,19 +146,38 @@ try:
     with open(\"$devices_toml\", \"rb\") as f:
         d = tomllib.load(f)
     node = sys.argv[1] if len(sys.argv) > 1 else \"\"
-    i = d.get(\"ssh\", dict()).get(node, dict())
+    devs = d.get(\"devices\", {})
+    i = devs.get(node, {})
     if not i:
         sys.exit(0)
+    dev_type = i.get(\"type\", \"workstation\")
     name = i.get(\"name\", node)
+    desc = i.get(\"desc\", \"-\")
     sh = i.get(\"shell\", \"-\")
     sy = i.get(\"sync\", False)
     rt = \", \".join(i.get(\"routes\", list())) or \"-\"
     cp = \", \".join(i.get(\"capabilities\", list())) or \"-\"
+    web = i.get(\"web\", \"-\")
+    ip = i.get(\"ip\", \"-\")
+
+    if dev_type == \"switch\":
+        print(f\"\033[1;36m=== Cisco Switch: {name} ({node}) ===\033[0m\n\")
+        print(f\"\033[1;33mIP Address:\033[0m  {ip}\")
+        print(f\"\033[1;33mDescription:\033[0m {desc}\")
+        print(\"\n\033[1;32m🔐 Direct SSH Authentication\033[0m (via ~/.ssh/config)\")
+        sys.exit(0)
+
     print(f\"\033[1;36m=== {name} ({node}) ===\033[0m\n\")
-    print(f\"\033[1;33mOS Shell:\033[0m  {sh}\")
-    print(f\"\033[1;33mSync Repo:\033[0m {sy}\")
-    print(f\"\033[1;33mRoutes:\033[0m    {rt}\")
-    print(f\"\033[1;33mCaps:\033[0m      {cp}\")
+    print(f\"\033[1;33mType:\033[0m        {dev_type}\")
+    print(f\"\033[1;33mDescription:\033[0m {desc}\")
+    print(f\"\033[1;33mOS Shell:\033[0m    {sh}\")
+    if sy:
+        print(f\"\033[1;33mSync Repo:\033[0m   {sy}\")
+    print(f\"\033[1;33mRoutes:\033[0m      {rt}\")
+    if cp != \"-\":
+        print(f\"\033[1;33mCaps:\033[0m        {cp}\")
+    if web != \"-\":
+        print(f\"\033[1;33mWeb Portal:\033[0m  {web}\")
     cmds = i.get(\"commands\", dict())
     if cmds:
         print(\"\n\033[1;32m📋 Named Commands:\033[0m\")
@@ -151,8 +192,27 @@ except Exception as e:
                 return 0
             end
 
-            set target (string split -n ' ' -- $selected_line)[1]
+            set target (string trim -- (string split '│' -- $selected_line)[1])
             test -z "$target"; and return 0
+
+            # Check if selected target is a Cisco switch, connect directly
+            set -l is_switch (python3 -c "
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
+with open('$devices_toml', 'rb') as f:
+    d = tomllib.load(f)
+dev = d.get('devices', {}).get('$target', {})
+if dev.get('type') == 'switch':
+    print(dev.get('ip') or (dev.get('routes', [''])[0]))
+" 2>/dev/null)
+
+            if test -n "$is_switch"
+                echo "🔐 Connecting to Cisco Switch $target ($is_switch) via SSH..."
+                command ssh "$is_switch"
+                return $status
+            end
 
             # --- Step 2: Select Action / Commands (flattened list) ---
             set -l action_list (python3 -c "
@@ -162,7 +222,7 @@ except ModuleNotFoundError:
     import tomli as tomllib
 with open('$devices_toml', 'rb') as f:
     data = tomllib.load(f)
-info = data.get('ssh', {}).get('$target', {})
+info = data.get('devices', {}).get('$target', {})
 caps = info.get('capabilities', [])
 shell = info.get('shell', '')
 
@@ -249,7 +309,7 @@ except ModuleNotFoundError:
     import tomli as tomllib
 with open('$devices_toml', 'rb') as f:
     data = tomllib.load(f)
-info = data.get('ssh', {}).get('$target', {})
+info = data.get('devices', {}).get('$target', {})
 cmds = info.get('commands', {})
 if cmds:
     print(f'📋 Commands for {info.get(\"name\", \"$target\")}:')
@@ -278,7 +338,7 @@ except ModuleNotFoundError:
     import tomli as tomllib
 with open('$devices_toml', 'rb') as f:
     data = tomllib.load(f)
-cmds = data.get('ssh', {}).get('$target', {}).get('commands', {})
+cmds = data.get('devices', {}).get('$target', {}).get('commands', {})
 if '$potential_cmd' in cmds:
     print(cmds['$potential_cmd'])
 " 2>/dev/null)
@@ -447,6 +507,28 @@ if '$potential_cmd' in cmds:
         end
     end
 
+    # Check if target is a Cisco switch (by key or ip)
+    set -l switch_ip (python3 -c "
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
+with open('$devices_toml', 'rb') as f:
+    d = tomllib.load(f)
+devs = d.get('devices', {})
+for k, v in devs.items():
+    if v.get('type') == 'switch':
+        if k == '$target' or v.get('name', '').lower() == '$target'.lower() or v.get('ip') == '$target':
+            print(v.get('ip') or v.get('routes', [''])[0])
+            break
+" 2>/dev/null)
+
+    if test -n "$switch_ip"
+        echo "🔐 Connecting to Cisco Switch $target ($switch_ip) via SSH..."
+        command ssh "$switch_ip" $extra_args
+        return $status
+    end
+
     # Extract candidate routes for target from devices.toml
     set -l candidate_hosts
     if test -f "$devices_toml"
@@ -457,7 +539,7 @@ except ModuleNotFoundError:
     import tomli as tomllib
 with open('$devices_toml', 'rb') as f:
     data = tomllib.load(f)
-routes = data.get('ssh', {}).get('$target', {}).get('routes', [])
+routes = data.get('devices', {}).get('$target', {}).get('routes', [])
 for r in routes:
     print(r)
 " 2>/dev/null)
@@ -471,14 +553,20 @@ for r in routes:
 
     echo "🔍 Probing target '$target': $candidate_hosts"
 
-    set -l tmp_dir (mktemp -d 2>/dev/null; or mktemp -d -t s_probe)
+    set -l tmp_dir (mktemp -d)
     set -l idx 1
 
     for h in $candidate_hosts
-        set -l h_info (command ssh -G "$h" 2>/dev/null | awk '/^hostname / {hn=$2} /^port / {pt=$2} END {print hn; print pt}')
-        set -l hn $h_info[1]
-        set -l pt $h_info[2]
-        test -z "$pt"; and set pt 22
+        set -l hn ""
+        set -l pt "22"
+        # Parse host and port via ssh -G (respects ~/.ssh/config)
+        for line in (command ssh -G "$h" 2>/dev/null)
+            if string match -qr '^hostname ' -- "$line"
+                set hn (string replace -r '^hostname ' '' -- "$line")
+            else if string match -qr '^port ' -- "$line"
+                set pt (string replace -r '^port ' '' -- "$line")
+            end
+        end
 
         fish -c "
             if test -n '$hn'
@@ -550,10 +638,14 @@ except ModuleNotFoundError:
     import tomli as tomllib
 with open(\"$dev_file\", \"rb\") as f:
     data = tomllib.load(f)
-for node, info in data.get(\"ssh\", {}).items():
-    print(node)
-    for r in info.get(\"routes\", []):
+devs = data.get(\"devices\", {})
+for k, v in devs.items():
+    print(k)
+    for r in v.get(\"routes\", []):
         print(r)
+    if v.get(\"type\") == \"switch\":
+        if v.get(\"ip\"):
+            print(v.get(\"ip\"))
 " 2>/dev/null
     end
     echo -rdp
@@ -578,7 +670,7 @@ except ModuleNotFoundError:
     import tomli as tomllib
 with open(\"$dev_file\", \"rb\") as f:
     data = tomllib.load(f)
-print(\" \".join(data.get(\"ssh\", {}).keys()))
+print(\" \".join(data.get(\"devices\", {}).keys()))
 " 2>/dev/null
     end
 )' -a '(
@@ -594,7 +686,7 @@ except ModuleNotFoundError:
     import tomli as tomllib
 with open(\"$dev_file\", \"rb\") as f:
     data = tomllib.load(f)
-cmds = data.get(\"ssh\", {}).get(\"$target\", {}).get(\"commands\", {})
+cmds = data.get(\"devices\", {}).get(\"$target\", {}).get(\"commands\", {})
 for k in cmds.keys():
     print(k)
 " 2>/dev/null
