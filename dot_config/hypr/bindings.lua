@@ -42,6 +42,10 @@ hl.unbind("SUPER + SPACE")
 -- Antigravity IDE (with proxy)
 o.bind("SUPER + A", "Antigravity IDE", { launch = "withproxy antigravity-ide" })
 
+-- Remmina (always open in workspace 5)
+o.window("org.remmina.Remmina", { workspace = "5" })
+o.bind("SUPER + R", "Remmina", { launch = "remmina" })
+
 -- Obsidian (replace default Pop window out with Obsidian)
 hl.unbind("SUPER + O")
 o.bind("SUPER + O", "Obsidian", "obsidian")
