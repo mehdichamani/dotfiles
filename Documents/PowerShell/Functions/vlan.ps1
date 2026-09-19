@@ -5,13 +5,17 @@
     Creates or reconfigures a Hyper-V Virtual Switch on the dedicated Intel OnBoard adapter
     allowing simultaneous access to multiple VLANs (e.g., VLAN 0 Cisco Mgmt, VLAN 100, 400, 500).
 .PARAMETER Vlans
-    List of VLAN IDs to configure simultaneously (e.g. 0, 100).
+    List of VLAN IDs to configure simultaneously (e.g. 0, 100, 700).
+.PARAMETER Add
+    Safely adds specified VLAN(s) without removing or resetting already active VLAN adapters.
 .PARAMETER Reset
     Reverts the Hyper-V Trunk Switch and restores adapter to standalone DHCP.
 .EXAMPLE
     vlan
 .EXAMPLE
-    vlan 0, 100
+    vlan 700 -Add
+.EXAMPLE
+    vlan 0, 100, 400, 500, 700
 .EXAMPLE
     vlan -Reset
 #>
@@ -20,6 +24,12 @@ function vlan {
     param(
         [Parameter(Position = 0)]
         [string[]]$Vlans,
+
+        [Parameter()]
+        [switch]$Add,
+
+        [Parameter()]
+        [switch]$KeepExisting,
 
         [Parameter()]
         [switch]$Reset
@@ -79,20 +89,32 @@ function vlan {
     # Interactive menu if no VLANs provided as parameters
     if (-not $Vlans -or $Vlans.Count -eq 0) {
         Write-Host "`nSelect simultaneous VLAN mode:" -ForegroundColor White
+        Write-Host "  [+] Add VLAN(s) without touching existing active adapters (SAFE)" -ForegroundColor Green
         Write-Host "  [1] Cisco Mgmt + Edari (VLAN 0 & 100 simultaneous) [RECOMMENDED]" -ForegroundColor Cyan
         Write-Host "  [2] Cisco Mgmt + Edari + 400 + 500 (VLAN 0, 100, 400, 500)" -ForegroundColor Cyan
-        Write-Host "  [3] Custom VLANs list (comma-separated, e.g. 0,100,600)"
-        Write-Host "  [4] Single VLAN (e.g. 100 only)"
+        Write-Host "  [3] Cisco Mgmt + Edari + 400 + 500 + 700 (VLAN 0, 100, 400, 500, 700)" -ForegroundColor Cyan
+        Write-Host "  [4] Custom VLANs list (comma-separated, e.g. 0,100,700)"
+        Write-Host "  [5] Single VLAN (e.g. 700 only)"
         Write-Host "  [r] Reset / Remove Hyper-V Switch (revert to standalone adapter)" -ForegroundColor DarkYellow
         Write-Host "  [q] Quit / Cancel" -ForegroundColor DarkGray
 
-        $choice = Read-Host "`nEnter option [1-4/r/q, Default: 1]"
-        if ([string]::IsNullOrWhiteSpace($choice)) { $choice = "1" }
+        $choice = Read-Host "`nEnter option [+/1-5/r/q, Default: +]"
+        if ([string]::IsNullOrWhiteSpace($choice)) { $choice = "+" }
 
         switch ($choice.Trim().ToLower()) {
+            "+" {
+                $Add = $true
+                $rawInput = Read-Host "Enter VLAN ID(s) to add without disconnecting existing (e.g. 700)"
+                if ([string]::IsNullOrWhiteSpace($rawInput)) {
+                    Write-Host "Operation cancelled." -ForegroundColor Yellow
+                    return
+                }
+                $selectedVlans = $rawInput.Split(",") | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" }
+            }
             "1" { $selectedVlans = @("0", "100") }
             "2" { $selectedVlans = @("0", "100", "400", "500") }
-            "3" {
+            "3" { $selectedVlans = @("0", "100", "400", "500", "700") }
+            "4" {
                 $rawInput = Read-Host "Enter VLAN IDs separated by comma (e.g. 0, 100, 400, 700)"
                 if ([string]::IsNullOrWhiteSpace($rawInput)) {
                     Write-Host "Operation cancelled." -ForegroundColor Yellow
@@ -100,7 +122,7 @@ function vlan {
                 }
                 $selectedVlans = $rawInput.Split(",") | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" }
             }
-            "4" {
+            "5" {
                 $singleInput = Read-Host "Enter single VLAN ID (e.g. 0, 100, 400, 500, 600, 700)"
                 if ([string]::IsNullOrWhiteSpace($singleInput)) {
                     Write-Host "Operation cancelled." -ForegroundColor Yellow
@@ -141,8 +163,6 @@ function vlan {
         return
     }
 
-    Write-Host "`nConfiguring Intel Hyper-V Trunk Switch for simultaneous VLANs: $($validVlans -join ', ')..." -ForegroundColor Green
-
     # Create Virtual Switch on Intel adapter if not already created
     if (-not $existingSwitch) {
         Write-Host "Creating Hyper-V Virtual Switch '$switchName' on '$($physAdapter.Name)' ($($physAdapter.InterfaceDescription))..." -ForegroundColor Cyan
@@ -153,6 +173,20 @@ function vlan {
     $currentVNics = Get-VMNetworkAdapter -ManagementOS -SwitchName $switchName -ErrorAction SilentlyContinue
     $currentVNicNames = if ($currentVNics) { $currentVNics.Name } else { @() }
 
+    # If -Add or -KeepExisting is specified, retain all currently active vNICs
+    if ($Add -or $KeepExisting) {
+        foreach ($curName in $currentVNicNames) {
+            if ($curName -match '^VLAN-(\d+)$') {
+                $curId = $Matches[1]
+                if (-not $validVlans.Contains($curId)) {
+                    $validVlans.Add($curId)
+                }
+            }
+        }
+    }
+
+    Write-Host "`nConfiguring Intel Hyper-V Trunk Switch for VLANs: $($validVlans -join ', ')..." -ForegroundColor Green
+
     # Desired vNIC names
     $desiredVNicNames = @()
 
@@ -160,11 +194,18 @@ function vlan {
         $vnicName = "VLAN-$vlan"
         $desiredVNicNames += $vnicName
         $interfaceAlias = "vEthernet ($vnicName)"
+        $isExisting = ($vnicName -in $currentVNicNames)
 
-        if ($vnicName -notin $currentVNicNames) {
+        if (-not $isExisting) {
             Write-Host "Adding Virtual Adapter: $vnicName..." -ForegroundColor Cyan
             Add-VMNetworkAdapter -ManagementOS -SwitchName $switchName -Name $vnicName -ErrorAction SilentlyContinue | Out-Null
             Start-Sleep -Milliseconds 800
+        }
+
+        # If adding non-destructively and adapter already exists and is configured, do not disturb it
+        if (($Add -or $KeepExisting) -and $isExisting) {
+            Write-Host "  ✔ $vnicName -> already active, kept intact." -ForegroundColor DarkGray
+            continue
         }
 
         # Predefined persistent MAC addresses to guarantee DHCP reservations on routers
@@ -200,6 +241,19 @@ function vlan {
                 New-NetIPAddress -InterfaceAlias $interfaceAlias -IPAddress $mgmtIP -PrefixLength 24 -ErrorAction SilentlyContinue | Out-Null
             }
             Write-Host "  ✔ $vnicName -> VLAN 0 (Untagged) / Static IP: $mgmtIP/24" -ForegroundColor Green
+        } elseif ($vlan -eq "700") {
+            # VLAN 700 -> Static IP 192.168.50.100 (No Gateway, Isolated Subnet Access Only)
+            $vlan700IP = "192.168.50.100"
+            Set-NetIPInterface -InterfaceAlias $interfaceAlias -Dhcp Disabled -IgnoreDefaultRoutes Enabled -ErrorAction SilentlyContinue
+            Remove-NetIPAddress -InterfaceAlias $interfaceAlias -AddressFamily IPv4 -Confirm:$false -ErrorAction SilentlyContinue
+            Remove-NetRoute -InterfaceAlias $interfaceAlias -DestinationPrefix "0.0.0.0/0" -Confirm:$false -ErrorAction SilentlyContinue
+            Set-DnsClientServerAddress -InterfaceAlias $interfaceAlias -ResetServerAddresses -ErrorAction SilentlyContinue
+
+            $existingIP = Get-NetIPAddress -InterfaceAlias $interfaceAlias -AddressFamily IPv4 -IPAddress $vlan700IP -ErrorAction SilentlyContinue
+            if (-not $existingIP) {
+                New-NetIPAddress -InterfaceAlias $interfaceAlias -IPAddress $vlan700IP -PrefixLength 24 -ErrorAction SilentlyContinue | Out-Null
+            }
+            Write-Host "  ✔ $vnicName -> VLAN 700 / Static IP: $vlan700IP/24 (No Gateway, Local Subnet Only)" -ForegroundColor Green
         } else {
             # All other VLANs -> DHCP
             Remove-NetIPAddress -InterfaceAlias $interfaceAlias -AddressFamily IPv4 -Confirm:$false -ErrorAction SilentlyContinue
@@ -209,11 +263,13 @@ function vlan {
         }
     }
 
-    # Remove extra vNICs that are no longer requested
-    foreach ($oldVNic in $currentVNics) {
-        if ($oldVNic.Name -notin $desiredVNicNames) {
-            Write-Host "Removing unselected Virtual Adapter: $($oldVNic.Name)..." -ForegroundColor Yellow
-            Remove-VMNetworkAdapter -ManagementOS -SwitchName $switchName -Name $oldVNic.Name -ErrorAction SilentlyContinue | Out-Null
+    # Remove extra vNICs that are no longer requested (skipped if -Add or -KeepExisting)
+    if (-not ($Add -or $KeepExisting)) {
+        foreach ($oldVNic in $currentVNics) {
+            if ($oldVNic.Name -notin $desiredVNicNames) {
+                Write-Host "Removing unselected Virtual Adapter: $($oldVNic.Name)..." -ForegroundColor Yellow
+                Remove-VMNetworkAdapter -ManagementOS -SwitchName $switchName -Name $oldVNic.Name -ErrorAction SilentlyContinue | Out-Null
+            }
         }
     }
 
