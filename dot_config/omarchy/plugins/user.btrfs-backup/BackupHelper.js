@@ -17,6 +17,8 @@ function parseStatusOutput(rawJson) {
     storage_used_human: "0B",
     storage_avail_human: "0B",
     last_success_timestamp: null,
+    timer_schedule: "Unknown",
+    timer_active: false,
     updated_at: ""
   };
 
@@ -110,3 +112,19 @@ function getStatusTooltip(data) {
   if (!isConnected(data)) return "Btrfs Backup: External SSD absent / disconnected";
   return "Btrfs Backup: Cycle Day " + (data.cycle_day || 0) + "/15 · " + (data.storage_avail_human || "0B") + " Free";
 }
+
+function formatSchedule(data) {
+  if (!data || !data.timer_schedule || data.timer_schedule === "Unknown") {
+    return "Daily at 22:00 (Active)";
+  }
+  var sched = data.timer_schedule;
+  var statusSuffix = (data.timer_active === false) ? " (Inactive)" : " (Active)";
+
+  // Format standard daily cron expression cleanly
+  if (sched.indexOf("*-*-* ") === 0) {
+    var timePart = sched.substring(6);
+    return "Daily at " + timePart + statusSuffix;
+  }
+  return sched + statusSuffix;
+}
+

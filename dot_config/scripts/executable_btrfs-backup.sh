@@ -172,6 +172,20 @@ update_status_json() {
         last_ts=$(jq -r '.last_success_timestamp // empty' "${STATUS_JSON}" 2>/dev/null || echo "null")
     fi
 
+    # Detect current systemd timer schedule dynamically
+    local timer_sched="Unknown"
+    local timer_is_active="false"
+    if command -v systemctl >/dev/null 2>&1; then
+        local raw_cal
+        raw_cal=$(systemctl cat btrfs-backup.timer 2>/dev/null | grep -E "^\s*OnCalendar\s*=" | tail -n 1 | cut -d= -f2- | xargs || true)
+        if [[ -n "${raw_cal}" ]]; then
+            timer_sched="${raw_cal}"
+        fi
+        if systemctl is-active --quiet btrfs-backup.timer 2>/dev/null; then
+            timer_is_active="true"
+        fi
+    fi
+
     local json_payload
     json_payload=$(cat <<EOF
 {
@@ -190,6 +204,8 @@ update_status_json() {
   "storage_used_human": "${storage_used_h:-0B}",
   "storage_avail_human": "${storage_avail_h:-0B}",
   "last_success_timestamp": ${last_ts:-null},
+  "timer_schedule": "${timer_sched}",
+  "timer_active": ${timer_is_active},
   "updated_at": "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 }
 EOF
@@ -758,6 +774,47 @@ EOF
 }
 
 # ------------------------------------------------------------------------------
+# Systemd Timer Schedule Editor Helper
+# ------------------------------------------------------------------------------
+edit_schedule() {
+    require_root
+    local timer_path="/etc/systemd/system/btrfs-backup.timer"
+
+    if [[ ! -f "${timer_path}" ]]; then
+        log_warn "Timer file ${timer_path} not found. Running systemd installer first..."
+        install_systemd
+    fi
+
+    local editor="${EDITOR:-${VISUAL:-}}"
+    if [[ -z "${editor}" ]]; then
+        if command -v nvim >/dev/null 2>&1; then
+            editor="nvim"
+        elif command -v vim >/dev/null 2>&1; then
+            editor="vim"
+        elif command -v nano >/dev/null 2>&1; then
+            editor="nano"
+        else
+            editor="vi"
+        fi
+    fi
+
+    log_info "Opening ${timer_path} with ${editor}..."
+    "${editor}" "${timer_path}"
+
+    log_info "Reloading systemd daemon and restarting btrfs-backup.timer..."
+    systemctl daemon-reload
+    systemctl restart btrfs-backup.timer
+
+    echo ""
+    echo "✓ Timer reloaded successfully!"
+    echo "✓ Current status:"
+    systemctl status btrfs-backup.timer --no-pager -l || true
+    echo ""
+    echo "✓ Next scheduled execution:"
+    systemctl list-timers btrfs-backup.timer --no-pager || true
+}
+
+# ------------------------------------------------------------------------------
 # Help & Argument Parsing
 # ------------------------------------------------------------------------------
 show_help() {
@@ -771,6 +828,7 @@ Options:
   -p, --probe            Temporarily mount and probe drive stats on demand, then unmount
   -e, --eject            Safely unmount all partitions on the external backup drive
       --install-systemd  Install and enable systemd service and daily timer
+      --edit-schedule    Open systemd timer file in editor to change backup schedule
   -h, --help             Display this help message
 
 Examples:
@@ -779,6 +837,7 @@ Examples:
   sudo btrfs-backup.sh --dry-run         # Dry-run test of backup actions
   sudo btrfs-backup.sh --probe           # Probe stats & unmount
   sudo btrfs-backup.sh --install-systemd # Setup & enable systemd timer
+  sudo btrfs-backup.sh --edit-schedule   # Edit timer schedule and reload
   sudo btrfs-backup.sh --eject           # Safe ejection of external drive
   btrfs-backup.sh --status               # View JSON status for widget/scripting
 EOF
@@ -786,6 +845,7 @@ EOF
 
 # Parse CLI arguments
 INSTALL_SYSTEMD=false
+EDIT_SCHEDULE=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -811,6 +871,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --install-systemd)
             INSTALL_SYSTEMD=true
+            shift
+            ;;
+        --edit-schedule)
+            EDIT_SCHEDULE=true
             shift
             ;;
         -h|--help)
@@ -841,6 +905,9 @@ elif [[ "${EJECT_ONLY}" == "true" ]]; then
     exit 0
 elif [[ "${INSTALL_SYSTEMD}" == "true" ]]; then
     install_systemd
+    exit 0
+elif [[ "${EDIT_SCHEDULE}" == "true" ]]; then
+    edit_schedule
     exit 0
 else
     run_backup

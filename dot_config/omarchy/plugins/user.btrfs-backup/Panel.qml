@@ -82,6 +82,10 @@ Panel {
     runCmd("omarchy-launch-floating-terminal-with-presentation \"tail -n 100 -f /var/log/btrfs-backup.log\"")
   }
 
+  function triggerEditSchedule() {
+    runCmd("omarchy-launch-floating-terminal-with-presentation \"sudo $HOME/.config/scripts/btrfs-backup.sh --edit-schedule\"")
+  }
+
   function openRepositoryFolder() {
     runCmd("sh -c 'DEV=$(blkid -U 33a3cf69-9264-4d71-8d96-16dc1a72b39a 2>/dev/null); if [ -n \"$DEV\" ]; then TARGET=$(findmnt -rn -t btrfs -S \"$DEV\" -o TARGET 2>/dev/null | head -n 1); if [ -z \"$TARGET\" ]; then udisksctl mount -b \"$DEV\" >/dev/null 2>&1; TARGET=$(findmnt -rn -t btrfs -S \"$DEV\" -o TARGET 2>/dev/null | head -n 1); fi; if [ -n \"$TARGET\" ]; then xdg-open \"$TARGET\"; fi; fi'")
   }
@@ -447,7 +451,7 @@ Panel {
                 }
                 Item { Layout.fillWidth: true }
                 Text {
-                  text: "Daily at 02:00 AM (Active)"
+                  text: Helper.formatSchedule(root.backupData)
                   color: root.accent
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.caption
