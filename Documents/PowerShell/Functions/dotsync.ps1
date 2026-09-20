@@ -34,7 +34,7 @@ function dotsync {
     if ($Target) {
         $tLower = $Target.ToLower()
         if ($tLower -in @("-h", "--help", "help")) {
-            Write-Host "Usage: dotsync [dry-run | apply | install | refresh | <peer_device>]" -ForegroundColor Yellow
+            Write-Host "Usage: dotsync [dry-run | apply | install | <peer_device>]" -ForegroundColor Yellow
             return
         } elseif ($tLower -in @("dry-run", "dryrun", "-n", "--dry-run")) {
             $DryRun = $true
@@ -42,11 +42,13 @@ function dotsync {
         } elseif ($tLower -eq "apply") {
             Write-Host "🔄 Applying Chezmoi state..." -ForegroundColor Cyan
             & chezmoi apply
-            return
-        } elseif ($tLower -eq "refresh") {
-            Write-Host "✨ Refreshing live environment..." -ForegroundColor Cyan
-            & chezmoi apply
-            Write-Host "✅ Refreshed." -ForegroundColor Green
+            if ($LASTEXITCODE -eq 0 -or $? -eq $true) {
+                Write-Host "🐚 Reloading PowerShell profile..." -ForegroundColor Cyan
+                if (Test-Path $PROFILE) {
+                    . $PROFILE
+                }
+                Write-Host "✅ Applied and profile reloaded." -ForegroundColor Green
+            }
             return
         }
     }
