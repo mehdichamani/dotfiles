@@ -96,6 +96,11 @@ else if type -q apt
     alias update='sudo apt update && sudo apt upgrade -y'
 end
 
+# Network connection switching (Ethernet / Wi-Fi)
+abbr -a lanup 'nmcli connection up "Wired connection 1"'
+abbr -a landown 'nmcli connection down "Wired connection 1"'
+
+
 if test -z "$TERMUX_VERSION"
     function cline
         mise exec node@22 -- cline $argv
