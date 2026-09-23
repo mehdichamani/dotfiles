@@ -33,8 +33,7 @@ function parseGitOutput(stdoutText) {
 // Color mapping for repository badges and status
 function statusBadgeColor(repo, foreground, accent, urgent, dim) {
   if (repo.isError) return urgent;
-  if (repo.isDirty) return "#EBCB8B"; // Warm amber
-  if (repo.hasSync) return accent;     // Accent for ahead/behind
+  if (repo.isDirty || repo.hasSync) return accent;
   return dim;                          // Clean
 }
 

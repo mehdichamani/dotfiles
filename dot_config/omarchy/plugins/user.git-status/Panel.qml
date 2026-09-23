@@ -120,7 +120,7 @@ Panel {
     text: root.attentionCount > 0 ? ("󰊢 " + root.attentionCount) : "󰊢"
     dimmed: root.attentionCount === 0
     active: root.attentionCount > 0
-    activeColor: root.dirtyCount > 0 ? "#EBCB8B" : ((root.bar && root.bar.accent) ? root.bar.accent : Color.accent)
+    activeColor: (root.bar && root.bar.accent) ? root.bar.accent : Color.accent
     tooltipText: {
       if (root.totalCount === 0) return "Git Repositories";
       if (root.attentionCount === 0) return "All " + root.totalCount + " Git repositories clean";
@@ -187,7 +187,7 @@ Panel {
 
                 Text {
                   text: "󰊢"
-                  color: root.attentionCount > 0 ? (root.dirtyCount > 0 ? "#EBCB8B" : root.accent) : root.foreground
+                  color: root.attentionCount > 0 ? root.accent : root.foreground
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.display
                   Layout.alignment: Qt.AlignVCenter
@@ -214,7 +214,7 @@ Panel {
                       if (root.syncCount > 0) parts.push(root.syncCount + " sync pending")
                       return parts.join(", ") + " · " + root.totalCount + " Total"
                     }
-                    color: root.attentionCount > 0 ? (root.dirtyCount > 0 ? "#EBCB8B" : root.accent) : root.dim
+                    color: root.attentionCount > 0 ? root.accent : root.dim
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.caption
                   }
@@ -272,7 +272,7 @@ Panel {
                 implicitHeight: Style.space(42)
                 radius: Style.cornerRadius
                 color: Style.hoverFillFor(root.foreground, root.accent)
-                border.color: repoRow.r.isDirty ? Qt.rgba(0.92, 0.8, 0.54, 0.25) : (repoRow.r.hasSync ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.2) : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.06))
+                border.color: (repoRow.r.isDirty || repoRow.r.hasSync) ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.2) : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.06)
                 border.width: 1
 
                 readonly property var r: modelData
@@ -286,7 +286,7 @@ Panel {
                   // Status Indicator Dot / Icon
                   Text {
                     text: repoRow.r.isError ? "⚠" : (repoRow.r.isDirty ? "●" : (repoRow.r.hasSync ? "󰛀" : "✓"))
-                    color: repoRow.r.isError ? root.urgent : (repoRow.r.isDirty ? "#EBCB8B" : (repoRow.r.hasSync ? root.accent : root.dim))
+                    color: repoRow.r.isError ? root.urgent : ((repoRow.r.isDirty || repoRow.r.hasSync) ? root.accent : root.dim)
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.body
                     Layout.alignment: Qt.AlignVCenter
@@ -348,7 +348,7 @@ Panel {
                         if (parts.length === 0) return "Up to date & clean"
                         return parts.join("  ·  ")
                       }
-                      color: repoRow.r.isError ? root.urgent : (repoRow.r.isDirty ? "#EBCB8B" : (repoRow.r.hasSync ? root.accent : root.dim))
+                      color: repoRow.r.isError ? root.urgent : ((repoRow.r.isDirty || repoRow.r.hasSync) ? root.accent : root.dim)
                       font.family: root.fontFamily
                       font.pixelSize: Style.font.caption
                       elide: Text.ElideRight
