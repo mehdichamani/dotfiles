@@ -29,6 +29,9 @@
           "id": "user.git-status"
         },
         {
+          "id": "user.syncthing"
+        },
+        {
           "id": "user.btrfs-backup"
         },
         {

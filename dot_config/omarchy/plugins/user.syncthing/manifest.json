@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "user.syncthing",
+  "name": "Syncthing Status",
+  "version": "1.0.0",
+  "author": "User",
+  "description": "Interactive Syncthing sync status indicator, folder manager, and device monitor",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Syncthing Status",
+    "description": "Interactive Syncthing sync status indicator, folder manager, and device monitor",
+    "category": "Network",
+    "allowMultiple": false
+  }
+}
