@@ -26,6 +26,9 @@
           "id": "user.docker"
         },
         {
+          "id": "user.git-status"
+        },
+        {
           "id": "user.btrfs-backup"
         },
         {
@@ -55,7 +58,7 @@
       ]
     },
     "position": "top",
-    "transparent": false
+    "transparent": true
   },
   "idle": {
     "lock": 300,

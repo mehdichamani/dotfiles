@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "user.git-status",
+  "name": "Git Repositories",
+  "version": "1.0.0",
+  "author": "User",
+  "description": "Interactive Git repository status indicator and quick manager",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Git Repositories",
+    "description": "Interactive Git repository status indicator and quick manager",
+    "category": "Development",
+    "allowMultiple": false
+  }
+}
