@@ -58,7 +58,7 @@
       ]
     },
     "position": "top",
-    "transparent": true
+    "transparent": false
   },
   "idle": {
     "lock": 300,
@@ -67,7 +67,16 @@
   "plugins": [
     {
       "id": "io.github.codesmith28.omalt-tab"
+    },
+    {
+      "id": "unreal.lock"
     }
   ],
-  "version": 1
+  "version": 1,
+  "disabledPlugins": [
+    "omarchy.lock"
+  ],
+  "cloneSourceRestores": [
+    "unreal.lock"
+  ]
 }
