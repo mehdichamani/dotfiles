@@ -17,10 +17,10 @@
       ],
       "right": [
         {
-          "id": "unreal.indicators"
+          "id": "user.keyboard-layout"
         },
         {
-          "id": "user.keyboard-layout"
+          "id": "unreal.indicators"
         },
         {
           "id": "user.docker"
@@ -44,7 +44,7 @@
           "id": "omarchy.bluetooth"
         },
         {
-          "id": "omarchy.network"
+          "id": "user.network"
         },
         {
           "id": "omarchy.audio"
