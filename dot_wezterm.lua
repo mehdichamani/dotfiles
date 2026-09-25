@@ -26,6 +26,15 @@ config.font = wezterm.font_with_fallback({
 })
 config.font_size = 11.0
 
+
+
+-- فعال‌سازی شکل‌دهی پیشرفته کاراکترها در WezTerm
+config.harfbuzz_features = { "calt=1", "clig=1", "liga=1" }
+-- فعال‌سازی شکل‌دهی پیشرفته کاراکترها در WezTerm
+
+
+
+
 -- ۳. ظاهر و تم رنگی (گزینه‌های پیشنهادی: 'Catppuccin Mocha' یا 'Tokyo Night')
 config.color_scheme = 'Catppuccin Mocha'
 
