@@ -39,6 +39,25 @@ function dotsync {
         } elseif ($tLower -in @("dry-run", "dryrun", "-n", "--dry-run")) {
             $DryRun = $true
             $Target = ""
+        } elseif ($tLower -eq "install") {
+            Write-Host "📦 Running package verification & installer..." -ForegroundColor Cyan
+            $checkPkgScript = Join-Path $HOME ".config\scripts\check-packages.ps1"
+            if (Test-Path $checkPkgScript) {
+                & pwsh -NoProfile -ExecutionPolicy Bypass -File $checkPkgScript
+            } else {
+                Write-Host "⚠️  $checkPkgScript not found. Running via chezmoi execute-template..." -ForegroundColor DarkYellow
+                & chezmoi execute-template (Get-Content (Join-Path $repoDir "dot_config\scripts\check-packages.ps1.tmpl") -Raw) | & pwsh -NoProfile -ExecutionPolicy Bypass -Command -
+            }
+
+            Write-Host "🔗 Checking Obsidian vault symlink..." -ForegroundColor Cyan
+            $setupObsidianScript = Join-Path $HOME ".config\scripts\setup-obsidian.ps1"
+            if (Test-Path $setupObsidianScript) {
+                & pwsh -NoProfile -ExecutionPolicy Bypass -File $setupObsidianScript
+            } else {
+                Write-Host "⚠️  $setupObsidianScript not found. Running via chezmoi execute-template..." -ForegroundColor DarkYellow
+                & chezmoi execute-template (Get-Content (Join-Path $repoDir "dot_config\scripts\setup-obsidian.ps1.tmpl") -Raw) | & pwsh -NoProfile -ExecutionPolicy Bypass -Command -
+            }
+            return
         } elseif ($tLower -eq "apply") {
             Write-Host "🔄 Applying Chezmoi state..." -ForegroundColor Cyan
             & chezmoi apply
