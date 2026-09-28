@@ -76,9 +76,6 @@
     }
   ],
   "version": 1,
-  "disabledPlugins": [
-    "omarchy.lock"
-  ],
   "cloneSourceRestores": [
     "unreal.lock"
   ]
