@@ -1,10 +1,13 @@
 ---
-trigger: always_on
+name: obsidian-tech-notes
+description: >-
+  Standardize, structure, format, and translate technical notes in Obsidian (~/Notes or obsidian-vault).
+  Covers YAML frontmatter, naming conventions, folder taxonomy, code block formatting, and cross-referencing.
 ---
 
-# دستورالعمل استانداردسازی و نگارش یادداشت‌های فنی (Obsidian Tech Notes Guidelines)
+# دستورالعمل استانداردسازی و نگارش یادداشت‌های فنی (Obsidian Tech Notes)
 
-این سند به عنوان مرجع قوانین و استانداردهای ساختاری برای نگارش، تمیزکاری و استانداردسازی یادداشت‌های حوزه **Tech** در Obsidian تعریف شده است (مسیر `obsidian-vault/` یا `~/Notes`).
+این مهارت به عنوان مرجع قوانین و استانداردهای ساختاری برای نگارش، تمیزکاری و استانداردسازی یادداشت‌های حوزه **Tech** در Obsidian تعریف شده است (مسیر `~/Notes` یا `obsidian-vault/`).
 
 ---
 
@@ -93,6 +96,3 @@ status: stable # مقادیر مجاز: draft, growing, stable
 ```bash
 ~/.config/scripts/setup-earlyboot-login-ui.sh
 ```
-
-
-
