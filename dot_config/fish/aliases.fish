@@ -25,6 +25,7 @@ alias q='exit'
 alias mkv='python3 ~/.config/scripts/mkvOrganizer.py'
 alias pinstall='~/.config/scripts/pinstall.sh'
 alias ipl='~/.config/scripts/ipl'
+alias agy-chat-sync-worker='python3 ~/.config/scripts/sync_live_chat.py'
 
 if command -v batcat > /dev/null
     alias bat='batcat'
