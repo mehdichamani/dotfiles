@@ -86,11 +86,19 @@ function metric {
         Write-Host "🎯 Targeting: $($chosen.InterfaceAlias) (ifIndex: $($chosen.ifIndex))" -ForegroundColor Cyan
         try {
             Set-NetIPInterface -InterfaceAlias $chosen.InterfaceAlias -InterfaceMetric $PrimaryMetric -ErrorAction Stop
+            
+            # Update live default route metric immediately without restarting adapter
+            Get-NetRoute -DestinationPrefix "0.0.0.0/0" -InterfaceAlias $chosen.InterfaceAlias -ErrorAction SilentlyContinue |
+                Set-NetRoute -RouteMetric $PrimaryMetric -ErrorAction SilentlyContinue
+
             Write-Host "✅ Metric of '$($chosen.InterfaceAlias)' set to $PrimaryMetric (High Priority)" -ForegroundColor Green
 
-            # Flush DNS cache to apply routes instantly
+            # Flush DNS & ARP cache to apply routes instantly
             Clear-DnsClientCache -ErrorAction SilentlyContinue
-            Write-Host "🚀 DNS cache flushed. Route is now active!" -ForegroundColor Cyan
+            Remove-NetNeighbor -AddressFamily IPv4 -Confirm:$false -ErrorAction SilentlyContinue
+            & arp -d * 2>$null
+            & nbtstat -R 2>$null
+            Write-Host "🚀 Route updated & DNS/ARP cache flushed. Active instantly!" -ForegroundColor Cyan
         } catch {
             Write-Host "❌ Error updating metric: $_" -ForegroundColor Red
         }
@@ -159,9 +167,15 @@ function metric {
         Write-Host "`n🔁 Swapping metrics between '$name1' and '$name2'..." -ForegroundColor Cyan
         try {
             Set-NetIPInterface -InterfaceAlias $name1 -InterfaceMetric $newMetric1 -ErrorAction Stop
+            Get-NetRoute -DestinationPrefix "0.0.0.0/0" -InterfaceAlias $name1 -ErrorAction SilentlyContinue |
+                Set-NetRoute -RouteMetric $newMetric1 -ErrorAction SilentlyContinue
             Write-Host "✅ '$name1': $metric1 ➔ $newMetric1" -ForegroundColor Green
+
             Set-NetIPInterface -InterfaceAlias $name2 -InterfaceMetric $newMetric2 -ErrorAction Stop
+            Get-NetRoute -DestinationPrefix "0.0.0.0/0" -InterfaceAlias $name2 -ErrorAction SilentlyContinue |
+                Set-NetRoute -RouteMetric $newMetric2 -ErrorAction SilentlyContinue
             Write-Host "✅ '$name2': $metric2 ➔ $newMetric2" -ForegroundColor Green
+
             $changed = $true
         } catch {
             Write-Host "❌ Error during metric swap: $_" -ForegroundColor Red
@@ -188,7 +202,10 @@ function metric {
 
             if ($inputVal -match '^\d+$') {
                 try {
-                    Set-NetIPInterface -InterfaceAlias $name -InterfaceMetric ([int]$inputVal) -ErrorAction Stop
+                    $val = [int]$inputVal
+                    Set-NetIPInterface -InterfaceAlias $name -InterfaceMetric $val -ErrorAction Stop
+                    Get-NetRoute -DestinationPrefix "0.0.0.0/0" -InterfaceAlias $name -ErrorAction SilentlyContinue |
+                        Set-NetRoute -RouteMetric $val -ErrorAction SilentlyContinue
                     Write-Host "✅ Metric of $name changed from $current to $inputVal" -ForegroundColor Green
                     $changed = $true
                 } catch {
@@ -202,7 +219,10 @@ function metric {
 
     if ($changed) {
         Clear-DnsClientCache -ErrorAction SilentlyContinue
-        Write-Host "`n🚀 DNS cache flushed for instant switch." -ForegroundColor Cyan
+        Remove-NetNeighbor -AddressFamily IPv4 -Confirm:$false -ErrorAction SilentlyContinue
+        & arp -d * 2>$null
+        & nbtstat -R 2>$null
+        Write-Host "`n🚀 Routes updated & DNS/ARP cache flushed for instant switch." -ForegroundColor Cyan
     }
 
     Write-Host "`n📊 Final interface metrics:" -ForegroundColor Cyan
