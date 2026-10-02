@@ -57,6 +57,30 @@ abbr -a dlogs 'docker compose logs -f'
 # aria2
 abbr -a aria2c 'aria2c -c -x 16 -s 16 -k 1M'
 
+# Node.js & JavaScript (Standardized on Bun)
+if type -q bun
+    abbr -a n 'bun'
+    abbr -a nr 'bun run'
+    abbr -a nx 'bunx'
+    abbr -a ni 'bun install'
+    abbr -a na 'bun add'
+    abbr -a nrm 'bun remove'
+    alias npm='bun'
+    alias npx='bunx'
+    alias yarn='bun'
+    alias pnpm='bun'
+    alias node='bun'
+end
+
+# Python (Standardized on uv)
+if type -q uv
+    abbr -a py 'python3'
+    abbr -a pyr 'uv run'
+    abbr -a pyx 'uvx'
+    abbr -a pip 'uv pip'
+    abbr -a venv 'uv venv'
+end
+
 
 # Termux
 if test -n "$TERMUX_VERSION"

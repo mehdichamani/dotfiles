@@ -8,6 +8,7 @@ uv = "latest"
 [settings]
 experimental = true
 not_found_auto_install = false
+python.venv_stdlib = false
 
 [settings.upgrade]
 auto_prune = false
