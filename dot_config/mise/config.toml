@@ -2,8 +2,13 @@
 agy = "latest"
 bun = "latest"
 codex = "latest"
+node = "lts"
 opencode = "latest"
+pnpm = "latest"
 uv = "latest"
+"npm:cline" = "latest"
+"npm:wrangler" = "latest"
+
 
 [settings]
 experimental = true

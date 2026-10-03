@@ -2,16 +2,10 @@
 test -d /usr/share/omarchy; and set -gx OMARCHY_PATH /usr/share/omarchy
 set -gx EDITOR nvim 
 set -gx VISUAL nvim
-fish_add_path --prepend $HOME/.venv/bin
-
-set -gx ANDROID_HOME $HOME/Android/Sdk
-fish_add_path $ANDROID_HOME/cmdline-tools/latest/bin
-fish_add_path $ANDROID_HOME/platform-tools
 
 
 # Disable the greeting
 set -g fish_greeting
-
 
 # user shell tools
 if status is-interactive
