@@ -1,0 +1,211 @@
+# ==============================================================================
+# GLOBAL DEFAULTS
+# ==============================================================================
+Host *
+  ServerAliveInterval 30
+  ServerAliveCountMax 3
+  TCPKeepAlive yes
+  StrictHostKeyChecking accept-new
+
+# ==============================================================================
+# PERSONAL & WORKSPACES
+# ==============================================================================
+
+# --- GitHub & GitLab ---
+Host github.com gitlab.com
+  User git
+{{- if eq .chezmoi.os "windows" }}
+  ProxyCommand "C:/Program Files/Git/mingw64/bin/connect.exe" -S 127.0.0.1:10808 %h %p
+{{- else }}
+  ProxyCommand nc -X 5 -x 127.0.0.1:10808 %h %p
+{{- end }}
+
+# --- S24 Ultra
+Host s24h
+  HostName 192.168.0.101
+  User u0_a528
+  Port 8022
+
+Host s24w
+  HostName 192.168.1.101
+  User u0_a528
+  Port 8022
+
+Host s24wp
+  HostName 172.20.0.101
+  User u0_a528
+  Port 8022
+
+# --- Work PC
+Host it2
+  HostName 192.168.1.100
+  User mehdi
+  Port 22456
+
+Host it2p
+  HostName 172.20.0.100
+  User mehdi
+  Port 22456
+
+Host work
+  HostName 217.219.149.57
+  User mehdi
+  Port 22456
+
+Host workp
+  HostName 5.202.33.161
+  User mehdi
+  Port 22456
+
+# --- Home PC
+Host home
+  HostName 192.168.0.100
+  User unreal
+  Port 22456
+
+Host homer
+  HostName 5.201.141.186
+  User unreal
+  Port 22456
+
+Host homet
+  HostName 192.168.0.100
+  User root
+  Port 22456
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+  LogLevel ERROR
+  ConnectTimeout 5
+
+Host homert
+  HostName 5.201.141.186
+  User root
+  Port 22456
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+  LogLevel ERROR
+  ConnectTimeout 5
+
+# ==============================================================================
+# MIKROTIK ROUTERS & RADIOS
+# ==============================================================================
+
+# --- Core Routers
+Host Router-Pishgaman
+  HostName 172.20.0.1
+  Port 22789
+
+Host Router-Pishgaman-WAN
+  HostName 5.202.33.161
+  Port 22789
+
+Host Router-Mastermind
+  HostName 192.168.1.1
+  Port 22789
+
+Host Router-Mastermind-WAN
+  HostName 217.219.149.57
+  Port 22789
+
+# --- Wireless Radios & Hubs
+Host Hub-Batching
+  HostName 172.20.0.15
+
+Host Hub-Entezamat
+  HostName 172.20.0.18
+
+Host Hub-GharmKhane
+  HostName 172.20.0.11
+
+Host Hub-Koreh
+  HostName 172.20.0.19
+
+Host Hub-Parking
+  HostName 172.20.0.16
+
+Host Router-EdariAP
+  HostName 192.168.1.20
+
+Host Station-Batching
+  HostName 172.20.0.14
+
+Host Station-Entezamat
+  HostName 172.20.0.17
+
+Host Station-GharmKhane
+  HostName 172.20.0.10
+
+Host Station-Koreh
+  HostName 172.20.0.20
+
+Host Station-Parking
+  HostName 172.20.0.13
+
+Host Station-SalonTasisat
+  HostName 172.20.0.12
+
+Host HotspotHoteling
+  HostName 192.168.50.252
+
+# --- MikroTik Defaults
+Host Router-* Hub-* Station-* HotspotHoteling 172.20.0.* 192.168.1.* 192.168.50.* 10.99.99.*
+  User admin
+  HostKeyAlgorithms +ssh-rsa
+  PubkeyAcceptedKeyTypes +ssh-rsa
+  MACs +hmac-sha1,hmac-md5,hmac-sha2-256,hmac-sha2-512
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+  LogLevel ERROR
+
+# ==============================================================================
+# CISCO SWITCHES
+# ==============================================================================
+
+# --- Switch Hosts ---
+Host server-camera
+  HostName 192.168.30.10
+
+Host server-edari
+  HostName 192.168.30.11
+
+Host it-miz
+  HostName 192.168.30.12
+
+Host koreh
+  HostName 192.168.30.13
+
+Host radioha
+  HostName 192.168.30.14
+
+Host hoteling
+  HostName 192.168.30.22
+
+Host entezamat
+  HostName 192.168.30.24
+
+Host departeman
+  HostName 192.168.30.25
+
+Host abdarkhane
+  HostName 192.168.30.30
+
+Host petro
+  HostName 192.168.30.31
+
+Host anbar
+  HostName 192.168.30.32
+
+Host nimtabage
+  HostName 192.168.30.50
+
+# --- Cisco Defaults
+Host server-* it-miz koreh radioha hoteling entezamat departeman abdarkhane petro anbar nimtabage 192.168.30.*
+  User admin
+  HostKeyAlgorithms +ssh-rsa
+  PubkeyAcceptedKeyTypes +ssh-rsa
+  KexAlgorithms +diffie-hellman-group1-sha1,diffie-hellman-group14-sha1
+  Ciphers +aes128-cbc,aes256-cbc,3des-cbc
+  MACs +hmac-sha1,hmac-sha1-96
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+  LogLevel ERROR
