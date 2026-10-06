@@ -143,13 +143,8 @@ function gs { git status @args }
 function ga { git add @args }
 function gaa { git add . }
 function gc { git commit -m @args }
-function gp { git push @args }
-function gl { git log --oneline --graph --decorate --all @args }
-function gco { git checkout @args }
-function gb { git branch @args }
-function gd { git diff @args }
-function gpl { git pull @args }
-function gst { git stash @args }
+function gca { git commit --amend --no-edit @args }
+function gl { git log -n 5 --graph --pretty=format:'%C(yellow)%h%Creset -%C(auto)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' @args }
 
 # -----------------------------------------------------------------------------
 # Script launchers

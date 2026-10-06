@@ -40,8 +40,8 @@ abbr -a gs 'git status'
 abbr -a ga 'git add'
 abbr -a gaa 'git add .'
 abbr -a gc 'git commit -m'
-abbr -a gca 'git commit --amned --no-edit'
-abbr -a gl 'git log --oneline --graph --decorate --all'
+abbr -a gca 'git commit --amend --no-edit'
+abbr -a gl "git log -n 5 --graph --pretty=format:'%C(yellow)%h%Creset -%C(auto)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset'"
 
 # Docker
 abbr -a dps 'docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"'

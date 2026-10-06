@@ -79,10 +79,8 @@ if [[ $- == *i* ]]; then
     alias ga='git add'
     alias gaa='git add .'
     alias gc='git commit -m'
-    alias gp='git push'
-    alias gpl='git pull'
-    alias gl='git log --oneline --graph --decorate'
-    alias gd='git diff'
+    alias gca='git commit --amend --no-edit'
+    alias gl="git log -n 5 --graph --pretty=format:'%C(yellow)%h%Creset -%C(auto)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset'"
 
     # Python & uv
     if command -v uv &>/dev/null; then
