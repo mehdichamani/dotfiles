@@ -76,12 +76,9 @@ Panel {
   property string dnsProvider: ""
   property string pendingDnsProvider: ""
 
-  // Wired & WireGuard Custom State
+  // Wired Custom State
   property bool wiredConnected: wiredDevice && wiredDevice.connected
   property string wiredIfaceName: (wiredDevice && wiredDevice.name) ? wiredDevice.name : "enp5s0"
-  property var wireguardConnections: []
-  property string activeWgConnection: ""
-  property string pendingWgAction: ""
   property string pendingWiredAction: ""
   // Wi-Fi band state from `omarchy-network-band`. `bandCurrent` is the band
   // the radio is actually on; `bandSelected` is the pinned choice ("auto" when
@@ -225,14 +222,6 @@ Panel {
     wireguardActionProc.running = true
   }
 
-  function toggleWireguard(name) {
-    if (!name || wireguardActionProc.running) return
-    var isCurrentActive = (root.activeWgConnection === name)
-    root.pendingWgAction = name
-    wireguardActionProc.command = ["bash", "-c", isCurrentActive ? ("nmcli connection down " + Util.shellQuote(name)) : ("nmcli connection up " + Util.shellQuote(name))]
-    wireguardActionProc.running = true
-  }
-
   IpcHandler {
     target: "omarchy.network"
 
@@ -269,17 +258,6 @@ Panel {
   function activateDns() {
     if (dnsIndex < 0 || dnsIndex >= dnsProviders.length) return
     setDns(dnsProviders[dnsIndex])
-  }
-
-  function selectWgByDelta(delta) {
-    if (wireguardConnections.length === 0) return
-    wgIndex = Math.max(0, Math.min(wireguardConnections.length - 1, wgIndex + delta))
-  }
-
-  function activateWireguard() {
-    if (wgIndex < 0 || wgIndex >= wireguardConnections.length) return
-    var conn = wireguardConnections[wgIndex]
-    if (conn && conn.name) toggleWireguard(conn.name)
   }
 
   function selectBandByDelta(delta) {
@@ -529,29 +507,7 @@ Panel {
         setScannerEnabled(true)
       }
     }
-    if (!wireguardListProc.running) {
-      wireguardListProc.running = true
-    }
     syncWifiNetworks()
-  }
-
-  function updateWireguardConnections(raw) {
-    var lines = String(raw || "").trim().split("\n")
-    var list = []
-    var active = ""
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i].trim()
-      if (!line) continue
-      var parts = line.split(":")
-      var name = parts[0] || ""
-      var state = parts[1] || ""
-      if (!name) continue
-      var isActive = (state === "activated")
-      if (isActive) active = name
-      list.push({ name: name, active: isActive })
-    }
-    root.wireguardConnections = list
-    root.activeWgConnection = active
   }
 
   function formatHeaderSpeed(mbps) {
@@ -949,21 +905,10 @@ Panel {
     }
   }
 
-  // Fetch list of wireguard connections and status
-  Process {
-    id: wireguardListProc
-    command: ["bash", "-c", "nmcli -t -f NAME,TYPE,STATE connection show | awk -F: '$2==\"wireguard\"{print $1 \":\" $3}'"]
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: root.updateWireguardConnections(text)
-    }
-  }
-
-  // WireGuard and Wired connection actions
+  // Wired connection actions
   Process {
     id: wireguardActionProc
     onExited: function(exitCode) {
-      root.pendingWgAction = ""
       root.pendingWiredAction = ""
       root.refresh()
     }
@@ -1119,30 +1064,14 @@ Panel {
                 root.focusSection = "header"
                 root.headerIndex = 0
               }
-            } else if (root.wireguardConnections.length > 0) {
-              root.focusSection = "wireguard"
-              root.wgIndex = 0
-            } else if (root.wifiNetworks.length > 0) {
-              root.focusSection = "wifi"
-              if (root.selectedIndex < 0) root.selectedIndex = 0
-            }
-          } else if (root.focusSection === "wireguard") {
-            if (dy < 0) {
-              root.focusSection = "dns"
             } else if (root.wifiNetworks.length > 0) {
               root.focusSection = "wifi"
               if (root.selectedIndex < 0) root.selectedIndex = 0
             }
           } else {  // wifi
-            // k from the top row escapes back up to the WireGuard or DNS row rather than
-            // wrapping around to the bottom of the list.
+            // k from the top row escapes back up to DNS row
             if (dy < 0 && root.selectedIndex <= 0) {
-              if (root.wireguardConnections.length > 0) {
-                root.focusSection = "wireguard"
-                root.wgIndex = 0
-              } else {
-                root.focusSection = "dns"
-              }
+              root.focusSection = "dns"
               root.wifiActionFocused = false
             }
             else root.selectByDelta(dy)
@@ -1152,7 +1081,6 @@ Panel {
           if (root.focusSection === "header") root.selectHeaderByDelta(dx)
           else if (root.focusSection === "band") { if (!root.bandAutoFocused) root.selectBandByDelta(dx) }
           else if (root.focusSection === "dns") root.selectDnsByDelta(dx)
-          else if (root.focusSection === "wireguard") root.selectWgByDelta(dx)
           else if (root.focusSection === "wifi") root.selectWifiActionByDelta(dx)
         }
       }
@@ -1161,7 +1089,6 @@ Panel {
           if (root.focusSection === "header") root.activateHeader()
           else if (root.focusSection === "band") root.activateBand()
           else if (root.focusSection === "dns") root.activateDns()
-          else if (root.focusSection === "wireguard") root.activateWireguard()
           else root.activateSelected()
         }
       }
@@ -1569,51 +1496,6 @@ Panel {
         }
       }
 
-      // WireGuard / VPN Connections Section
-      PanelSeparator {
-        visible: root.wireguardConnections.length > 0
-        foreground: root.bar.foreground
-      }
-
-      Column {
-        visible: root.wireguardConnections.length > 0
-        width: parent.width
-        spacing: Style.space(10)
-
-        PanelSectionHeader {
-          text: "WIREGUARD / VPN"
-          foreground: root.bar.foreground
-          fontFamily: root.bar.fontFamily
-        }
-
-        Row {
-          id: wgRow
-          width: parent.width
-          spacing: Style.space(6)
-
-          readonly property int count: Math.max(1, root.wireguardConnections.length)
-          readonly property real cellWidth: (width - spacing * (count - 1)) / count
-
-          Repeater {
-            model: root.wireguardConnections
-
-            delegate: Item {
-              required property var modelData
-              required property int index
-              width: wgRow.cellWidth
-              height: wgPill.implicitHeight
-
-              WireguardPill {
-                id: wgPill
-                connName: modelData.name || ""
-                activeState: modelData.active || false
-                slot: index
-                width: parent.width
-              }
-            }
-          }
-        }
-      }
 
 
       // Wi-Fi networks (only if a Wi-Fi station is available).
@@ -1749,80 +1631,7 @@ Panel {
     }
   }
 
-  // WireGuard connection pill with prominent active/inactive indicator
-  component WireguardPill: CursorSurface {
-    id: pill
-    required property string connName
-    required property bool activeState
-    required property int slot
 
-    readonly property bool isSelected: root.focusSection === "wireguard" && root.wgIndex === slot
-    hasCursor: root.cursorActive && isSelected
-    current: activeState
-    foreground: root.bar.foreground
-    fill: root.hoverFill
-    currentFill: root.selectedFill
-
-    implicitHeight: wgPillRow.implicitHeight + Style.space(8)
-
-    MouseArea {
-      id: wgMouse
-      anchors.fill: parent
-      hoverEnabled: true
-      cursorShape: Qt.PointingHandCursor
-      onContainsMouseChanged: if (containsMouse) {
-        root.cursorActive = true
-        root.focusSection = "wireguard"
-        root.wgIndex = pill.slot
-      }
-      onClicked: root.toggleWireguard(connName)
-    }
-
-    PanelToolTip {
-      visible: wgMouse.containsMouse
-      text: activeState ? ("Disconnect " + connName) : ("Connect to " + connName)
-      fontFamily: root.bar.fontFamily
-    }
-
-    RowLayout {
-      id: wgPillRow
-      anchors.fill: parent
-      anchors.leftMargin: Style.space(10)
-      anchors.rightMargin: Style.space(10)
-      spacing: Style.space(8)
-
-      Text {
-        textFormat: Text.PlainText
-        text: activeState ? "󰌾" : "󰌿"
-        color: activeState ? (root.bar ? Color.accent : root.bar.foreground) : Qt.darker(root.bar.foreground, 1.6)
-        font.family: root.bar.fontFamily
-        font.pixelSize: Style.font.subtitle
-        Layout.alignment: Qt.AlignVCenter
-      }
-
-      Text {
-        textFormat: Text.PlainText
-        text: connName
-        color: activeState ? root.bar.foreground : Qt.darker(root.bar.foreground, 1.2)
-        font.family: root.bar.fontFamily
-        font.pixelSize: Style.font.bodySmall
-        font.bold: activeState
-        Layout.fillWidth: true
-        Layout.alignment: Qt.AlignVCenter
-        elide: Text.ElideRight
-      }
-
-      ToggleSwitch {
-        trackHeight: Math.round(Style.font.bodySmall * 1.3)
-        cursorPad: Style.space(2)
-        checked: activeState
-        busy: root.pendingWgAction === connName
-        foreground: root.bar.foreground
-        Layout.alignment: Qt.AlignVCenter
-        interactive: false
-      }
-    }
-  }
 
   // A single Wi-Fi network entry. Collapses to a one-line pill normally;
   // expands inline to a passphrase prompt when the user picks a network that

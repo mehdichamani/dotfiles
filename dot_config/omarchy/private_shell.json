@@ -38,6 +38,12 @@
           "id": "user.tray"
         },
         {
+          "id": "omarchy.tailscale"
+        },
+        {
+          "id": "user.wireguard"
+        },
+        {
           "id": "omarchy.agents"
         },
         {

@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "user.wireguard",
+  "name": "WireGuard",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "license": "MIT",
+  "description": "WireGuard status, tunnel switching, profile management, and quick copy actions in the Omarchy bar.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "WireGuard",
+    "description": "Toggle WireGuard tunnels, switch connections, browse endpoints, and copy tunnel IPs or endpoints.",
+    "category": "Network",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "refreshIntervalSec": 15
+    },
+    "schema": [
+      {
+        "key": "refreshIntervalSec",
+        "type": "integer",
+        "label": "Refresh interval (seconds)",
+        "min": 5,
+        "max": 3600,
+        "step": 5,
+        "defaultValue": 15
+      }
+    ]
+  },
+  "omarchy": {
+    "capabilities": ["process"]
+  }
+}
