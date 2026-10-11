@@ -267,6 +267,8 @@ echo "✔ Strict security permissions (700/600) applied."
 # 4. Optional fix_permisions.sh execution if present
 FIX_PERMS="\$SSH_DIR/fix_permisions.sh"
 if [ -f "\$FIX_PERMS" ]; then
+  # Strip carriage returns if uploaded from Windows
+  tr -d '\r' < "\$FIX_PERMS" > "\$FIX_PERMS.tmp" && mv -f "\$FIX_PERMS.tmp" "\$FIX_PERMS" 2>/dev/null || true
   chmod +x "\$FIX_PERMS"
   bash "\$FIX_PERMS"
 fi
