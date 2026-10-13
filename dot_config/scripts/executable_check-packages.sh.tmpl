@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Dotfiles Package Dependencies Verification & Installer (Linux / Termux / macOS)
+# Dotfiles Package Dependencies Verification & Installer (Linux / Termux)
 {{- if eq .chezmoi.os "windows" }}
 # Skip on Windows
 exit 0
@@ -19,10 +19,6 @@ if [ -n "$PREFIX" ] && [ -d "$PREFIX" ] && command -v pkg >/dev/null 2>&1; then
     OS_TYPE="termux"
     OS_NAME="Android (Termux)"
     PKG_MGR="pkg"
-elif [ "{{ .chezmoi.os }}" = "darwin" ]; then
-    OS_TYPE="macos"
-    OS_NAME="macOS"
-    PKG_MGR="brew"
 elif [ "{{ .chezmoi.os }}" = "linux" ]; then
     if [ -f /etc/os-release ]; then
         . /etc/os-release
@@ -112,7 +108,6 @@ case "$OS_TYPE" in
         check_tool "nvim" "neovim"
         check_tool "git" "git"
         check_tool "git-crypt" "git-crypt"
-        check_tool "direnv" "direnv"
         check_tool "python3" "python"
         check_tool "uv" "uv"
         check_tool "ffmpeg" "ffmpeg"
@@ -124,6 +119,9 @@ case "$OS_TYPE" in
         check_tool "docker" "docker docker-compose"
         check_tool "socat" "socat"
         check_tool "fzf" "fzf"
+        check_tool "7z" "7zip"
+        check_tool "syncthing" "syncthing"
+        check_tool "obsidian" "obsidian"
         check_font "JetBrainsMono-Nerd-Font" "JetBrainsMono.*Nerd" "JetBrainsMonoNerdFont-Regular.ttf" ""
         check_font "Vazirmatn" "Vazirmatn" "Vazirmatn-Regular.ttf" ""
         ;;
@@ -136,7 +134,6 @@ case "$OS_TYPE" in
         check_tool "nvim" "neovim"
         check_tool "git" "git"
         check_tool "git-crypt" "git-crypt"
-        check_tool "direnv" "direnv"
         check_tool "python3" "python3 python3-pip"
         check_tool "uv" ""
         check_tool "ffmpeg" "ffmpeg"
@@ -175,29 +172,6 @@ case "$OS_TYPE" in
         check_tool "aria2c" "aria2"
         check_tool "ssh" "openssh"
         check_tool "socat" "socat"
-        check_tool "fzf" "fzf"
-        check_font "JetBrainsMono-Nerd-Font" "JetBrainsMono.*Nerd" "JetBrainsMonoNerdFont-Regular.ttf" ""
-        check_font "Vazirmatn" "Vazirmatn" "Vazirmatn-Regular.ttf" ""
-        ;;
-    macos)
-        check_tool "starship" "starship"
-        check_tool "eza" "eza"
-        check_tool "zoxide" "zoxide"
-        check_tool "fastfetch" "fastfetch"
-        check_tool "bat" "bat"
-        check_tool "rg" "ripgrep"
-        check_tool "fd" "fd"
-        check_tool "nvim" "neovim"
-        check_tool "git" "git"
-        check_tool "git-crypt" "git-crypt"
-        check_tool "direnv" "direnv"
-        check_tool "python3" "python3"
-        check_tool "uv" "uv"
-        check_tool "ffmpeg" "ffmpeg"
-        check_tool "mkvmerge" "mkvtoolnix"
-        check_tool "yt-dlp" "yt-dlp"
-        check_tool "aria2c" "aria2"
-        check_tool "scrcpy" "scrcpy"
         check_tool "fzf" "fzf"
         check_font "JetBrainsMono-Nerd-Font" "JetBrainsMono.*Nerd" "JetBrainsMonoNerdFont-Regular.ttf" ""
         check_font "Vazirmatn" "Vazirmatn" "Vazirmatn-Regular.ttf" ""
@@ -272,9 +246,6 @@ case "$USER_CHOICE" in
                 pkg)
                     pkg update && pkg install -y ${MISSING_PKGS[*]}
                     ;;
-                brew)
-                    brew install ${MISSING_PKGS[*]}
-                    ;;
             esac
         fi
 
@@ -314,16 +285,6 @@ case "$USER_CHOICE" in
 
                 if command -v termux-reload-settings >/dev/null 2>&1; then
                     termux-reload-settings 2>/dev/null || true
-                fi
-            elif [ "$OS_TYPE" = "macos" ]; then
-                DEST_DIR="$HOME/Library/Fonts"
-                mkdir -p "$DEST_DIR"
-                if [ -d "$REPO_FONTS_DIR" ]; then
-                    cp -f "$REPO_FONTS_DIR"/*.ttf "$DEST_DIR/" 2>/dev/null || true
-                    echo "✓ Fonts (JetBrainsMono & Vazirmatn) installed in $DEST_DIR from repository!"
-                else
-                    echo "⚠️ Local font directory not found, downloading JetBrainsMono Nerd Font..."
-                    curl -#fLo "$DEST_DIR/JetBrainsMonoNerdFont-Regular.ttf" "https://github.com/ryanoasis/nerd-fonts/raw/master/patched-fonts/JetBrainsMono/Ligatures/Regular/JetBrainsMonoNerdFont-Regular.ttf" || true
                 fi
             else
                 DEST_DIR="$HOME/.local/share/fonts"

@@ -1171,41 +1171,96 @@ Endpoints:
       </div>
 
       <div class="tab-group">
-        <button class="tab-btn active" onclick="switchTab(this, 'cm-arch')">🏹 Arch Linux</button>
+        <button class="tab-btn active" onclick="switchTab(this, 'cm-arch')">👑 Omarchy Linux</button>
         <button class="tab-btn" onclick="switchTab(this, 'cm-ubuntu')">🐧 Ubuntu / Debian</button>
         <button class="tab-btn" onclick="switchTab(this, 'cm-termux')">📱 Termux</button>
         <button class="tab-btn" onclick="switchTab(this, 'cm-win')">🪟 Windows</button>
       </div>
 
-      <!-- Arch Linux -->
+      <!-- Omarchy Linux -->
       <div id="cm-arch" class="tab-content active">
+        <div style="font-size: 0.9rem; line-height: 1.6; color: #cbd5e1; margin-bottom: 0.8rem;">
+          <strong>مراحل راه‌اندازی کامل Omarchy Linux:</strong><br>
+          ۱. نصب Chezmoi و Fish و اعمال دات‌فایل‌ها:<br>
+        </div>
         <div class="code-box">
-          <div class="code-text" id="cmd-cm-arch">sudo pacman -S --needed --noconfirm chezmoi git openssh &amp;&amp; chezmoi init --apply mehdichamani</div>
-          <button class="copy-btn" onclick="copyCode('cmd-cm-arch', this)">کپی دستور</button>
+          <div class="code-text" id="cmd-cm-arch-1">sudo pacman -S --needed chezmoi fish && chezmoi init mehdichamani && chezmoi apply</div>
+          <button class="copy-btn" onclick="copyCode('cmd-cm-arch-1', this)">کپی</button>
+        </div>
+        <div style="font-size: 0.9rem; line-height: 1.6; color: #cbd5e1; margin: 0.8rem 0 0.3rem 0;">
+          ۲. نصب تمام پکیج‌ها و فعال‌سازی منوی اومارچ (در شل Fish):<br>
+        </div>
+        <div class="code-box">
+          <div class="code-text" id="cmd-cm-arch-2">dotsync install && omarchy plugin add https://github.com/filip-spaldon/omarchy-menu.git --enable</div>
+          <button class="copy-btn" onclick="copyCode('cmd-cm-arch-2', this)">کپی</button>
+        </div>
+        <div style="font-size: 0.9rem; line-height: 1.6; color: #cbd5e1; margin: 0.8rem 0 0.3rem 0;">
+          ۳. دریافت نوت‌ها و فایل‌های همگام از گوشی سامسونگ:<br>
+        </div>
+        <div class="code-box">
+          <div class="code-text" id="cmd-cm-arch-3">sftp s24-home</div>
+          <button class="copy-btn" onclick="copyCode('cmd-cm-arch-3', this)">کپی</button>
+        </div>
+        <div style="font-size: 0.82rem; color: #94a3b8; margin: 0.3rem 0 0.6rem 0;">(داخل SFTP اجرا کنید: <code>get -r /sdcard/Notes/</code> و <code>get -r /sdcard/insync/</code>)</div>
+        <div style="font-size: 0.9rem; line-height: 1.6; color: #cbd5e1; margin: 0.8rem 0 0.3rem 0;">
+          ۴. نصب کلاینت PattN، پروکسی و mise:<br>
+        </div>
+        <div class="code-box">
+          <div class="code-text" id="cmd-cm-arch-4">pinstall https://github.com/patterniha/PattN/ && proxy 10808 && mise install</div>
+          <button class="copy-btn" onclick="copyCode('cmd-cm-arch-4', this)">کپی</button>
+        </div>
+        <div style="font-size: 0.9rem; line-height: 1.6; color: #cbd5e1; margin: 0.8rem 0 0.3rem 0;">
+          ۵. نصب Antigravity IDE و فارسی‌ساز:<br>
+        </div>
+        <div class="code-box">
+          <div class="code-text" id="cmd-cm-arch-5">yay -S antigravity-ide && curl -fsSL https://raw.githubusercontent.com/mehdichamani/PersianAntigravityIDE/main/setup.sh | bash</div>
+          <button class="copy-btn" onclick="copyCode('cmd-cm-arch-5', this)">کپی</button>
+        </div>
+        <div style="font-size: 0.9rem; line-height: 1.6; color: #cbd5e1; margin: 0.8rem 0 0.3rem 0;">
+          ۶. فعال‌سازی سرویس‌ها (Syncthing, Docker, SSH Server روی پورت ۲۲۴۵۶ و فایروال):<br>
+        </div>
+        <div class="code-box">
+          <div class="code-text" id="cmd-cm-arch-6">systemctl --user enable --now syncthing.service && sudo systemctl enable --now docker.service && sudo usermod -aG docker $USER && echo "Port 22456" | sudo tee /etc/ssh/sshd_config.d/port.conf && sudo ufw allow 22456/tcp && sudo systemctl enable --now sshd && sudo systemctl restart sshd</div>
+          <button class="copy-btn" onclick="copyCode('cmd-cm-arch-6', this)">کپی</button>
         </div>
       </div>
 
       <!-- Ubuntu / Debian -->
       <div id="cm-ubuntu" class="tab-content">
-        <div class="code-box">
-          <div class="code-text" id="cmd-cm-ubuntu">sudo apt update &amp;&amp; sudo apt install -y git openssh-client &amp;&amp; sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin &amp;&amp; export PATH="$HOME/.local/bin:$PATH" &amp;&amp; chezmoi init --apply mehdichamani</div>
-          <button class="copy-btn" onclick="copyCode('cmd-cm-ubuntu', this)">کپی دستور</button>
+        <div style="padding: 1.5rem; text-align: center; color: #94a3b8;">
+          <span style="font-size: 2rem; display: block; margin-bottom: 0.5rem;">⏳</span>
+          <strong style="color: #f1f5f9; font-size: 1.05rem;">راهنمای راه‌اندازی Ubuntu / Debian به زودی اضافه می‌شود...</strong>
+          <p style="margin-top: 0.5rem; font-size: 0.88rem;">دستور موقت بوت‌استرپ دات‌فایلز:</p>
+          <div class="code-box" style="margin-top: 0.5rem;">
+            <div class="code-text" id="cmd-cm-ubuntu">sudo apt update && sudo apt install -y git openssh-client && sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin && export PATH="$HOME/.local/bin:$PATH" && chezmoi init --apply mehdichamani</div>
+            <button class="copy-btn" onclick="copyCode('cmd-cm-ubuntu', this)">کپی</button>
+          </div>
         </div>
       </div>
 
       <!-- Termux -->
       <div id="cm-termux" class="tab-content">
-        <div class="code-box">
-          <div class="code-text" id="cmd-cm-termux">pkg update -y &amp;&amp; pkg install -y chezmoi git openssh &amp;&amp; chezmoi init --apply mehdichamani</div>
-          <button class="copy-btn" onclick="copyCode('cmd-cm-termux', this)">کپی دستور</button>
+        <div style="padding: 1.5rem; text-align: center; color: #94a3b8;">
+          <span style="font-size: 2rem; display: block; margin-bottom: 0.5rem;">⏳</span>
+          <strong style="color: #f1f5f9; font-size: 1.05rem;">راهنمای راه‌اندازی Android Termux به زودی اضافه می‌شود...</strong>
+          <p style="margin-top: 0.5rem; font-size: 0.88rem;">دستور موقت بوت‌استرپ دات‌فایلز:</p>
+          <div class="code-box" style="margin-top: 0.5rem;">
+            <div class="code-text" id="cmd-cm-termux">pkg update -y && pkg install -y chezmoi git openssh && chezmoi init --apply mehdichamani</div>
+            <button class="copy-btn" onclick="copyCode('cmd-cm-termux', this)">کپی</button>
+          </div>
         </div>
       </div>
 
       <!-- Windows -->
       <div id="cm-win" class="tab-content">
-        <div class="code-box">
-          <div class="code-text" id="cmd-cm-win">winget install Git.Git twpayne.chezmoi -e --accept-source-agreements --accept-package-agreements ; chezmoi init --apply mehdichamani</div>
-          <button class="copy-btn" onclick="copyCode('cmd-cm-win', this)">کپی دستور</button>
+        <div style="padding: 1.5rem; text-align: center; color: #94a3b8;">
+          <span style="font-size: 2rem; display: block; margin-bottom: 0.5rem;">⏳</span>
+          <strong style="color: #f1f5f9; font-size: 1.05rem;">راهنمای راه‌اندازی Windows به زودی اضافه می‌شود...</strong>
+          <p style="margin-top: 0.5rem; font-size: 0.88rem;">دستور موقت بوت‌استرپ دات‌فایلز:</p>
+          <div class="code-box" style="margin-top: 0.5rem;">
+            <div class="code-text" id="cmd-cm-win">winget install Git.Git twpayne.chezmoi -e --accept-source-agreements --accept-package-agreements ; chezmoi init --apply mehdichamani</div>
+            <button class="copy-btn" onclick="copyCode('cmd-cm-win', this)">کپی</button>
+          </div>
         </div>
       </div>
     </div>
