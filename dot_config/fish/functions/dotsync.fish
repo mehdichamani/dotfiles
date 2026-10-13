@@ -56,11 +56,19 @@ function dotsync --description "Dynamic P2P Git sync for Chezmoi dotfiles across
                 if test -f "$inst_script"
                     echo -e "\033[1;36m📦 Running system package verification...\033[0m"
                     bash "$inst_script"
-                    return $status
                 else
                     echo -e "\033[1;31m❌ Package checker script not found at:\033[0m $inst_script"
                     return 1
                 end
+
+                set -l obsidian_script "$HOME/.config/scripts/setup-obsidian.sh"
+                if test -f "$obsidian_script"
+                    echo -e "\033[1;36m🔗 Checking Obsidian vault symlink...\033[0m"
+                    bash "$obsidian_script"
+                else
+                    echo -e "\033[1;33m⚠️  Obsidian setup script not found at:\033[0m $obsidian_script"
+                end
+                return 0
             case '*'
                 set target_peer "$arg"
         end

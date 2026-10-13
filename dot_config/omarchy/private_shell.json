@@ -12,6 +12,9 @@
           "id": "user.menu"
         },
         {
+          "id": "omarchy-menu-omni"
+        },
+        {
           "id": "user.workspaces"
         }
       ],
@@ -83,6 +86,10 @@
   ],
   "version": 1,
   "cloneSourceRestores": [
-    "unreal.lock"
+    "unreal.lock",
+    "omarchy-menu-omni"
+  ],
+  "disabledPlugins": [
+    "omarchy.menu"
   ]
 }
