@@ -83,8 +83,19 @@ BarWidget {
     var baseIds = []
     if (name === "DP-1") {
       baseIds = [1, 2, 3]
-    } else if (name === "HDMI-A-1") {
+    } else if (name === "HDMI-A-2") {
       baseIds = [4, 5, 6]
+    } else if (name === "HDMI-A-1") {
+      // In home setup: HDMI-A-1 is secondary (right monitor) -> [4, 5, 6]
+      // In work setup: HDMI-A-1 is primary (left monitor, alongside HDMI-A-2) -> [1, 2, 3]
+      var hasDp1 = false
+      for (var m = 0; m < monitors.length; m++) {
+        if (monitors[m] && monitors[m].name === "DP-1") {
+          hasDp1 = true
+          break
+        }
+      }
+      baseIds = hasDp1 ? [4, 5, 6] : [1, 2, 3]
     } else {
       baseIds = [1, 2, 3, 4, 5, 6]
     }

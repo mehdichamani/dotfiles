@@ -1,0 +1,66 @@
+-- See https://wiki.hypr.land/Configuring/Basics/Monitors/
+-- List current monitors and supported resolutions with: hyprctl monitors all
+
+{{- $device := "" -}}
+{{- if hasKey . "deviceName" -}}
+  {{- $device = .deviceName -}}
+{{- else if eq .chezmoi.os "windows" -}}
+  {{- $device = "work" -}}
+{{- else if eq .chezmoi.os "android" -}}
+  {{- $device = "s24" -}}
+{{- else -}}
+  {{- $device = "home" -}}
+{{- end }}
+
+{{- if eq $device "work" }}
+-- =============================================================================
+-- Work Setup (Samsung S22C31x [Left] + LG FULL HD [Right])
+-- =============================================================================
+local omarchy_gdk_scale = 1
+local omarchy_monitor_scale = 1
+
+hl.env("GDK_SCALE", tostring(omarchy_gdk_scale))
+
+-- Monitor 1: Samsung S22C31x (Main Display - Left)
+hl.monitor({ output = "HDMI-A-1", mode = "1920x1080@60", position = "0x0", scale = omarchy_monitor_scale })
+
+-- Monitor 2: LG FULL HD (Secondary Display - Right)
+hl.monitor({ output = "HDMI-A-2", mode = "1920x1080@60", position = "1920x0", scale = omarchy_monitor_scale })
+
+-- Dedicated Workspace Ranges:
+-- HDMI-A-1 (Main): Workspaces 1-3
+hl.workspace_rule({ workspace = "1", monitor = "HDMI-A-1", default = true })
+hl.workspace_rule({ workspace = "2", monitor = "HDMI-A-1" })
+hl.workspace_rule({ workspace = "3", monitor = "HDMI-A-1" })
+
+-- HDMI-A-2 (Secondary): Workspaces 4-6
+hl.workspace_rule({ workspace = "4", monitor = "HDMI-A-2", default = true })
+hl.workspace_rule({ workspace = "5", monitor = "HDMI-A-2" })
+hl.workspace_rule({ workspace = "6", monitor = "HDMI-A-2" })
+
+{{- else }}
+-- =============================================================================
+-- Home Setup (MSI MP275 E2 [Main 120Hz] + Samsung LS24D300G [Right 100Hz])
+-- =============================================================================
+local omarchy_gdk_scale = 2
+local omarchy_monitor_scale = 1
+
+hl.env("GDK_SCALE", tostring(omarchy_gdk_scale))
+
+-- Monitor 1: MSI MP275 E2 (27" 120Hz) - Main Display
+hl.monitor({ output = "DP-1", mode = "1920x1080@120", position = "0x0", scale = omarchy_monitor_scale })
+
+-- Monitor 2: Samsung LS24D300G (24" 100Hz) - Secondary Display (Right)
+hl.monitor({ output = "HDMI-A-1", mode = "1920x1080@100", position = "1920x0", scale = omarchy_monitor_scale })
+
+-- Dedicated Workspace Ranges:
+-- DP-1 (Main): Workspaces 1-5
+hl.workspace_rule({ workspace = "1", monitor = "DP-1", default = true })
+hl.workspace_rule({ workspace = "2", monitor = "DP-1" })
+hl.workspace_rule({ workspace = "3", monitor = "DP-1" })
+
+-- HDMI-A-1 (Secondary): Workspaces 6-10
+hl.workspace_rule({ workspace = "4", monitor = "HDMI-A-1", default = true })
+hl.workspace_rule({ workspace = "5", monitor = "HDMI-A-1" })
+hl.workspace_rule({ workspace = "6", monitor = "HDMI-A-1" })
+{{- end }}
