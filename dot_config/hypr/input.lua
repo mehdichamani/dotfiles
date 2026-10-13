@@ -64,7 +64,7 @@ hl.config({
     kb_options = "grp:alt_shift_toggle,grp:win_space_toggle",
 
     -- Mouse sensitivity (-1.0 to 1.0, default: 0.0)
-    sensitivity = -0.8,
+    sensitivity = -0.97,
   },
 })
 
