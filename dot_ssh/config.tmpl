@@ -72,6 +72,15 @@ Host work-tailscale
   User mehdi
   Port 22456
 
+Host work-tinyssh
+  HostName 192.168.30.110
+  User root
+  Port 22456
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+  LogLevel ERROR
+  ConnectTimeout 5
+
 # --- Branch Maragheh 11 ---
 Host maragheh11
   HostName 10.50.0.11
