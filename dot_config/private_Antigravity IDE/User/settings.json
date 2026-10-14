@@ -4,5 +4,6 @@
         "/home/unreal/.config/Antigravity IDE/User/markdown-rtl.css"
     ],
     "python.languageServer": "Default",
-    "window.autoDetectColorScheme": true
+    "window.autoDetectColorScheme": true,
+    "extensions.ignoreRecommendations": true
 }
