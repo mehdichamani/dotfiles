@@ -75,11 +75,22 @@ def fetch_folder_status(base_url, headers, folder):
         "watchError": st.get("watchError", "")
     }
 
+def fetch_device_completion(base_url, headers, dev_id):
+    url = f"{base_url}/rest/db/completion?device={urllib.parse.quote(dev_id)}"
+    comp = fetch_json(url, headers, timeout=2.0) or {}
+    return {
+        "completion": comp.get("completion", 100),
+        "needBytes": comp.get("needBytes", 0),
+        "needItems": comp.get("needItems", 0),
+        "needDeletes": comp.get("needDeletes", 0),
+    }
+
 def main():
     cfg = get_syncthing_config()
     if not cfg:
         print(json.dumps({
             "isAvailable": False,
+            "overallStatus": "attention",
             "error": "Syncthing configuration not found",
             "folders": [],
             "devices": [],
@@ -100,6 +111,7 @@ def main():
     if not sys_status:
         print(json.dumps({
             "isAvailable": False,
+            "overallStatus": "attention",
             "error": "Syncthing service is stopped or unreachable",
             "folders": [],
             "devices": [],
@@ -139,17 +151,47 @@ def main():
 
     folders.sort(key=lambda x: (x["paused"], x["state"] == "idle", x["label"].lower()))
 
+    # Fetch completion for remote devices
+    remote_raw = [d for d in raw_devices if d.get("deviceID", "") != my_id]
+    device_completions = {}
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        futures = {d.get("deviceID", ""): ex.submit(fetch_device_completion, base_url, headers, d.get("deviceID", "")) for d in remote_raw}
+        for did, fut in futures.items():
+            device_completions[did] = fut.result()
+
     devices = []
     connected_count = 0
-    for d in raw_devices:
+    all_devices_up_to_date = True
+    any_device_syncing = False
+    any_device_attention = False
+
+    for d in remote_raw:
         dev_id = d.get("deviceID", "")
-        if dev_id == my_id:
-            continue
         c_info = connections.get(dev_id, {})
         is_connected = bool(c_info.get("connected", False))
         is_paused = bool(d.get("paused", False))
         if is_connected:
             connected_count += 1
+
+        comp_info = device_completions.get(dev_id, {"completion": 100, "needBytes": 0, "needItems": 0})
+        completion = comp_info.get("completion", 100)
+        need_bytes = comp_info.get("needBytes", 0)
+
+        # Status text and state
+        if is_paused:
+            status_text = "Paused"
+            any_device_attention = True
+            all_devices_up_to_date = False
+        elif not is_connected:
+            status_text = "Disconnected"
+            any_device_attention = True
+            all_devices_up_to_date = False
+        elif completion < 100 or need_bytes > 0:
+            status_text = f"Syncing ({completion:.0f}%)"
+            any_device_syncing = True
+            all_devices_up_to_date = False
+        else:
+            status_text = "Up to Date"
 
         devices.append({
             "id": dev_id,
@@ -157,6 +199,9 @@ def main():
             "name": d.get("name") or dev_id[:7],
             "connected": is_connected,
             "paused": is_paused,
+            "completion": completion,
+            "needBytes": need_bytes,
+            "statusText": status_text,
             "address": c_info.get("address", ""),
             "clientVersion": c_info.get("clientVersion", ""),
             "inBytesTotal": c_info.get("inBytesTotal", 0),
@@ -165,12 +210,23 @@ def main():
 
     devices.sort(key=lambda x: (not x["connected"], x["name"].lower()))
 
-    syncing_count = sum(1 for f in folders if f["state"] in ("syncing", "sync-preparing", "scanning"))
-    error_count = sum(1 for f in folders if f["errors"] > 0 or f["state"] == "error")
-    idle_count = sum(1 for f in folders if f["state"] == "idle" and not f["paused"])
+    syncing_folders = sum(1 for f in folders if f["state"] in ("syncing", "sync-preparing", "scanning"))
+    error_folders = sum(1 for f in folders if f["errors"] > 0 or f["state"] == "error")
+    idle_folders = sum(1 for f in folders if f["state"] == "idle" and not f["paused"])
+
+    # Calculate overallStatus: 'attention' | 'syncing' | 'ok'
+    if error_folders > 0 or any_device_attention or (len(devices) > 0 and connected_count == 0):
+        overall_status = "attention"
+    elif syncing_folders > 0 or any_device_syncing:
+        overall_status = "syncing"
+    elif all_devices_up_to_date and len(devices) > 0:
+        overall_status = "ok"
+    else:
+        overall_status = "ok"
 
     output = {
         "isAvailable": True,
+        "overallStatus": overall_status,
         "myID": my_id,
         "uptime": uptime_sec,
         "guiUrl": base_url,
@@ -179,9 +235,9 @@ def main():
         "folders": folders,
         "devices": devices,
         "totalFolders": len(folders),
-        "syncingFolders": syncing_count,
-        "idleFolders": idle_count,
-        "errorFolders": error_count,
+        "syncingFolders": syncing_folders,
+        "idleFolders": idle_folders,
+        "errorFolders": error_folders,
         "totalDevices": len(devices),
         "connectedDevices": connected_count
     }
@@ -190,3 +246,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

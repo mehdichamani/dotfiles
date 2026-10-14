@@ -4,6 +4,7 @@
 function parseSyncthingOutput(stdoutText) {
   var emptyState = {
     isAvailable: false,
+    overallStatus: "attention",
     error: "",
     myID: "",
     uptime: 0,
@@ -26,6 +27,7 @@ function parseSyncthingOutput(stdoutText) {
     var data = JSON.parse(stdoutText.trim());
     return {
       isAvailable: !!data.isAvailable,
+      overallStatus: data.overallStatus || (data.isAvailable ? "ok" : "attention"),
       error: data.error || "",
       myID: data.myID || "",
       uptime: data.uptime || 0,
@@ -46,21 +48,23 @@ function parseSyncthingOutput(stdoutText) {
   }
 }
 
-// Color mapping for folder badges and status
-function folderStatusColor(folder, foreground, accent, urgent, dim) {
-  if (!folder) return dim;
-  if (folder.errors > 0 || folder.state === "error") return urgent;
-  if (folder.paused) return "#EBCB8B"; // Amber
-  if (folder.state === "syncing" || folder.state === "sync-preparing" || folder.state === "scanning") return accent;
-  return dim; // Up to date / idle
+// Device status glyph
+function deviceStatusGlyph(dev) {
+  if (!dev) return "󰅖";
+  if (dev.paused) return "󰏤";
+  if (!dev.connected) return "󰅖";
+  if (dev.completion !== undefined && dev.completion < 100) return "󰑐";
+  return "󰄬";
 }
 
-// Color mapping for devices
-function deviceStatusColor(dev, foreground, accent, urgent, dim) {
-  if (!dev) return dim;
-  if (dev.paused) return "#EBCB8B";
-  if (dev.connected) return accent;
-  return dim;
+// Glyph icon for folder status
+function folderStatusGlyph(folder) {
+  if (!folder) return "󰅖";
+  if (folder.errors > 0 || folder.state === "error") return "󰅖";
+  if (folder.paused) return "󰏤";
+  if (folder.state === "syncing" || folder.state === "sync-preparing") return "󰑐";
+  if (folder.state === "scanning") return "󰍉";
+  return "󰄬";
 }
 
 // Status text summary for folder
@@ -69,33 +73,24 @@ function folderStatusSummary(folder) {
   if (folder.errors > 0) return "Error (" + folder.errors + ")";
   if (folder.paused) return "Paused";
   if (folder.state === "syncing") {
-    return "Syncing " + (folder.syncPercentage !== undefined ? folder.syncPercentage + "%" : "");
+    return "Syncing (" + (folder.syncPercentage !== undefined ? folder.syncPercentage + "%" : "") + ")";
   }
-  if (folder.state === "scanning") return "Scanning...";
-  if (folder.state === "sync-preparing") return "Preparing...";
-  if (folder.state === "idle") return "Up to date";
+  if (folder.state === "scanning") return "Scanning";
+  if (folder.state === "sync-preparing") return "Preparing";
+  if (folder.state === "idle") return "Up to Date";
   return folder.state || "Idle";
-}
-
-// Glyph icon for folder status
-function folderStatusGlyph(folder) {
-  if (!folder) return "󰅖";
-  if (folder.errors > 0 || folder.state === "error") return "󰅖";
-  if (folder.paused) return "󰏤";
-  if (folder.state === "syncing") return "󰑐";
-  if (folder.state === "scanning") return "󰍉";
-  return "󰄬";
 }
 
 // Device status summary
 function deviceStatusSummary(dev) {
-  if (!dev) return "Offline";
+  if (!dev) return "Disconnected";
+  if (dev.statusText) return dev.statusText;
   if (dev.paused) return "Paused";
-  if (dev.connected) {
-    if (dev.address) return "Connected (" + dev.address.split(":")[0] + ")";
-    return "Connected";
+  if (!dev.connected) return "Disconnected";
+  if (dev.completion !== undefined && dev.completion < 100) {
+    return "Syncing (" + Math.round(dev.completion) + "%)";
   }
-  return "Disconnected";
+  return "Up to Date";
 }
 
 // Human readable bytes format

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Effects
 import Quickshell
 import Quickshell.Io
 import qs.Commons
@@ -123,6 +124,15 @@ Panel {
     onTriggered: root.refresh()
   }
 
+  readonly property string overallStatus: stData ? (stData.overallStatus || "attention") : "attention"
+
+  readonly property string statusGlyph: {
+    if (!root.isAvailable) return "\udb82\udfe1"
+    if (root.overallStatus === "ok") return "\udb80\udc02"
+    if (root.overallStatus === "syncing") return "\udb86\udecb"
+    return "\udb82\udfe1"
+  }
+
   implicitWidth: button.implicitWidth
   implicitHeight: root.barSize
 
@@ -131,24 +141,15 @@ Panel {
     anchors.fill: parent
     bar: root.bar
     fontSize: 20
-    text: {
-      if (!root.isAvailable) return "\uf4ad"
-      if (root.errorCount > 0) return "\ue654 " + root.errorCount
-      if (root.syncingCount > 0) return "\uea83 \uea77 " + root.syncingCount
-      return "\uea83"
-    }
+    text: root.statusGlyph
     dimmed: !root.isAvailable
     active: root.isAvailable
-    activeColor: {
-      if (!root.isAvailable) return root.dim
-      if (root.errorCount > 0) return root.urgent
-      return (root.bar && root.bar.accent) ? root.bar.accent : Color.accent
-    }
+    activeColor: (root.bar && root.bar.accent) ? root.bar.accent : Color.accent
     tooltipText: {
       if (!root.isAvailable) return "Syncthing: Offline / Unreachable"
-      if (root.errorCount > 0) return "Syncthing: " + root.errorCount + " folder error(s)"
-      if (root.syncingCount > 0) return "Syncthing: Syncing " + root.syncingCount + " folder(s)"
-      return "Syncthing: Up to date (" + root.connectedDevices + " device(s) connected, " + root.totalFolders + " folders)"
+      if (root.overallStatus === "ok") return "Syncthing: All remotes up to date (" + root.connectedDevices + " connected)"
+      if (root.overallStatus === "syncing") return "Syncthing: Syncing in progress..."
+      return "Syncthing: Attention needed (Disconnected / Paused / Error)"
     }
 
     onPressed: function(b) {
@@ -206,8 +207,8 @@ Panel {
                 spacing: Style.space(8)
 
                 Text {
-                  text: "󰛢"
-                  color: root.isAvailable ? (root.errorCount > 0 ? root.urgent : (root.syncingCount > 0 ? root.accent : root.foreground)) : root.dim
+                  text: root.statusGlyph
+                  color: root.foreground
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.display
                   Layout.alignment: Qt.AlignVCenter
@@ -228,11 +229,11 @@ Panel {
                   Text {
                     text: {
                       if (!root.isAvailable) return "Service unreachable or stopped"
-                      if (root.errorCount > 0) return root.errorCount + " folder error(s)"
-                      if (root.syncingCount > 0) return "Syncing " + root.syncingCount + " folder(s)"
-                      return "Up to date · " + root.connectedDevices + " Connected · " + root.totalFolders + " Folders"
+                      if (root.overallStatus === "ok") return "All Up to Date · " + root.connectedDevices + " Connected"
+                      if (root.overallStatus === "syncing") return "Syncing in progress..."
+                      return "Attention needed · " + root.connectedDevices + "/" + root.stData.totalDevices + " Connected"
                     }
-                    color: root.isAvailable ? (root.errorCount > 0 ? root.urgent : (root.syncingCount > 0 ? root.accent : root.dim)) : root.urgent
+                    color: root.dim
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.caption
                   }
@@ -262,14 +263,14 @@ Panel {
             }
           }
 
-          // 2. Connected Devices Section
+          // 2. Remote Devices Section (Matching Dashboard First Order)
           Column {
             width: parent.width
             spacing: Style.space(6)
             visible: root.isAvailable && root.stData.devices && root.stData.devices.length > 0
 
             Text {
-              text: "DEVICES"
+              text: "REMOTE DEVICES"
               color: root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.small
@@ -283,10 +284,10 @@ Panel {
                 id: deviceCard
                 width: parent.width
                 implicitHeight: devRow.implicitHeight + Style.space(12)
-                radius: Style.radius(8)
+                radius: Style.cornerRadius
                 color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.04)
                 border.width: 1
-                border.color: modelData.connected ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.25) : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
+                border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
 
                 RowLayout {
                   id: devRow
@@ -295,44 +296,36 @@ Panel {
                   spacing: Style.space(8)
 
                   Text {
-                    text: modelData.connected ? "󰄬" : "󰅖"
-                    color: Helper.deviceStatusColor(modelData, root.foreground, root.accent, root.urgent, root.dim)
+                    text: "󰄬"
+                    color: root.foreground
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.body
                     Layout.alignment: Qt.AlignVCenter
                   }
 
-                  ColumnLayout {
+                  Text {
+                    text: modelData.name
+                    color: root.foreground
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.body
+                    font.bold: true
+                    elide: Text.ElideRight
                     Layout.fillWidth: true
-                    spacing: 1
-
-                    Text {
-                      text: modelData.name
-                      color: root.foreground
-                      font.family: root.fontFamily
-                      font.pixelSize: Style.font.body
-                      font.bold: true
-                      elide: Text.ElideRight
-                    }
-
-                    Text {
-                      text: Helper.deviceStatusSummary(modelData) + (modelData.clientVersion ? " · " + modelData.clientVersion : "")
-                      color: modelData.connected ? root.accent : root.dim
-                      font.family: root.fontFamily
-                      font.pixelSize: Style.font.caption
-                    }
                   }
 
                   Text {
-                    text: {
-                      if (!modelData.connected) return ""
-                      var inB = Helper.formatBytes(modelData.inBytesTotal || 0)
-                      var outB = Helper.formatBytes(modelData.outBytesTotal || 0)
-                      return "↓" + inB + "  ↑" + outB
-                    }
+                    text: Helper.deviceStatusSummary(modelData)
+                    color: root.foreground
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.body
+                    Layout.alignment: Qt.AlignVCenter
+                  }
+
+                  Text {
+                    text: modelData.connected ? "󰈀" : "󰅖"
                     color: root.dim
                     font.family: root.fontFamily
-                    font.pixelSize: Style.font.caption
+                    font.pixelSize: Style.font.body
                     Layout.alignment: Qt.AlignVCenter
                   }
                 }
@@ -361,10 +354,10 @@ Panel {
                 id: folderCard
                 width: parent.width
                 implicitHeight: folderRow.implicitHeight + Style.space(12)
-                radius: Style.radius(8)
+                radius: Style.cornerRadius
                 color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.04)
                 border.width: 1
-                border.color: (modelData.errors > 0) ? Qt.rgba(root.urgent.r, root.urgent.g, root.urgent.b, 0.4) : ((modelData.state === "syncing") ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.3) : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08))
+                border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
 
                 RowLayout {
                   id: folderRow
@@ -373,50 +366,29 @@ Panel {
                   spacing: Style.space(8)
 
                   Text {
-                    text: Helper.folderStatusGlyph(modelData)
-                    color: Helper.folderStatusColor(modelData, root.foreground, root.accent, root.urgent, root.dim)
+                    text: "󰉋"
+                    color: root.foreground
                     font.family: root.fontFamily
-                    font.pixelSize: Style.font.title
+                    font.pixelSize: Style.font.body
                     Layout.alignment: Qt.AlignVCenter
                   }
 
-                  ColumnLayout {
+                  Text {
+                    text: modelData.label
+                    color: root.foreground
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.body
+                    font.bold: true
+                    elide: Text.ElideRight
                     Layout.fillWidth: true
-                    spacing: 2
+                  }
 
-                    RowLayout {
-                      spacing: Style.space(6)
-                      Layout.fillWidth: true
-
-                      Text {
-                        text: modelData.label
-                        color: root.foreground
-                        font.family: root.fontFamily
-                        font.pixelSize: Style.font.body
-                        font.bold: true
-                        elide: Text.ElideRight
-                      }
-
-                      Text {
-                        text: Helper.formatBytes(modelData.globalBytes || 0)
-                        color: root.dim
-                        font.family: root.fontFamily
-                        font.pixelSize: Style.font.caption
-                      }
-                    }
-
-                    Text {
-                      text: {
-                        var desc = Helper.folderStatusSummary(modelData);
-                        if (modelData.path) desc += " · " + modelData.path;
-                        return desc;
-                      }
-                      color: Helper.folderStatusColor(modelData, root.foreground, root.accent, root.urgent, root.dim)
-                      font.family: root.fontFamily
-                      font.pixelSize: Style.font.caption
-                      elide: Text.ElideRight
-                      Layout.fillWidth: true
-                    }
+                  Text {
+                    text: Helper.folderStatusSummary(modelData)
+                    color: root.foreground
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.body
+                    Layout.alignment: Qt.AlignVCenter
                   }
 
                   RowLayout {
@@ -456,7 +428,7 @@ Panel {
           Rectangle {
             width: parent.width
             implicitHeight: emptyColumn.implicitHeight + Style.space(24)
-            radius: Style.radius(8)
+            radius: Style.cornerRadius
             color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.03)
             visible: !root.isAvailable || (!root.stData.folders || root.stData.folders.length === 0)
 
@@ -467,7 +439,7 @@ Panel {
 
               Text {
                 text: root.isAvailable ? "󰄬" : "󰛢"
-                color: root.isAvailable ? root.accent : root.urgent
+                color: root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.display
                 Layout.alignment: Qt.AlignHCenter
