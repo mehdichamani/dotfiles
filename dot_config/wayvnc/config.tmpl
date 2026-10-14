@@ -1,0 +1,16 @@
+{{- $secretFile := joinPath .chezmoi.homeDir ".config" "secrets" "wayvnc.env" -}}
+{{- $password := "changeme" -}}
+{{- if stat $secretFile -}}
+{{-   $content := include $secretFile -}}
+{{-   range splitList "\n" $content -}}
+{{-     $line := trim . -}}
+{{-     if hasPrefix "WAYVNC_PASSWORD=" $line -}}
+{{-       $password = trim (trimPrefix "WAYVNC_PASSWORD=" $line) | trimAll "\"" | trimAll "'" -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}
+address=0.0.0.0
+port=5900
+enable_auth=true
+allow_broken_crypto=true
+password={{ $password }}
