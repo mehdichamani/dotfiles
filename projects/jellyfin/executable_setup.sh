@@ -19,7 +19,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SCRIPT_DIR}"
 
 IMAGE_NAME="jellyfin/jellyfin:latest"
-BACKUP_IMAGE_BASE="/run/media/unreal/TUF_NTFS"
+BACKUP_IMAGE_BASE="/run/media/unreal/TUF_Data"
 BACKUP_IMAGE_DIR="${BACKUP_IMAGE_BASE}/programs/docker-images"
 BACKUP_IMAGE_FILE="${BACKUP_IMAGE_DIR}/jellyfin-latest.tar"
 MEDIA_MOUNT="/mnt/ssd"
