@@ -1,7 +1,7 @@
 {{- if hasKey . "deviceName" -}}
 {{ .deviceName }}
 {{- else if eq .chezmoi.os "windows" -}}
-work
+workwin
 {{- else if eq .chezmoi.os "android" -}}
 s24
 {{- else -}}
