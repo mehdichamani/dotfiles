@@ -825,16 +825,18 @@ except Exception:
     GITHUB_APP_NAME="$(basename "$repo")"
 }
 
-# --- Download URL to Temporary Location ---
+# --- Download URL to Cache Location ---
 download_url_asset() {
     local url="$1"
     local filename="$2"
 
-    TEMP_DOWNLOAD_DIR="$(mktemp -d -t pinstall-XXXXXX)"
-    local target_path="$TEMP_DOWNLOAD_DIR/$filename"
+    local cache_dir="$HOME/Downloads/pinstall_cache"
+    mkdir -p "$cache_dir"
+    local target_path="$cache_dir/$filename"
 
     info "Downloading '$filename'..."
     info "From: $url"
+    info "Cache: $target_path"
 
     if ! curl -fL --progress-bar -H "User-Agent: pinstall" -o "$target_path" "$url"; then
         err "Download failed from: '$url'"
