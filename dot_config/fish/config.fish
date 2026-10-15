@@ -19,23 +19,6 @@ if status is-interactive
             set -gx all_proxy "$_p_val"; set -gx ALL_PROXY "$_p_val"
             set -gx no_proxy "localhost,127.0.0.1,::1,localaddress,.local,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12"
             set -gx NO_PROXY "$no_proxy"
-
-            if type -q socat
-                set -l parsed (python3 -c "
-import urllib.parse
-u = urllib.parse.urlparse('$_p_val')
-scheme = u.scheme or 'http'
-host = u.hostname or '127.0.0.1'
-port = u.port or (1080 if 'socks' in scheme else 8080)
-print(f'{scheme} {host} {port}')
-" 2>/dev/null)
-                if test -n "$parsed"
-                    set -l parts (string split " " "$parsed")
-                    set -l p_host $parts[2]
-                    set -l p_port $parts[3]
-                    set -gx GIT_SSH_COMMAND "ssh -o ProxyCommand='socat - SOCKS5:$p_host:%h:%p,socksport=$p_port'"
-                end
-            end
         end
     end
 

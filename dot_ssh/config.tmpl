@@ -14,11 +14,6 @@ Host *
 # --- GitHub & GitLab ---
 Host github.com gitlab.com
   User git
-{{- if eq .chezmoi.os "windows" }}
-  ProxyCommand "C:/Program Files/Git/mingw64/bin/connect.exe" -S 127.0.0.1:10808 %h %p
-{{- else }}
-  ProxyCommand nc -X 5 -x 127.0.0.1:10808 %h %p
-{{- end }}
 
 # --- S24 Ultra
 Host s24-home

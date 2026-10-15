@@ -122,28 +122,13 @@ _proxy_npm_off() {
     fi
 }
 
-# --- Git & SSH Layer (Socat Proxy) ---
+# --- Git & SSH Layer (Keep direct, unset legacy proxies) ---
 _proxy_git_ssh_set() {
-    local target="$1"
-    read -r scheme host port < <(_proxy_parse_url "$target")
-    if [ -z "$host" ] || [ -z "$port" ]; then
-        return 0
-    fi
-
-    # Clean up legacy git config if present to keep chezmoi clean
+    # Ensure git config and environment stay direct and clean
+    unset GIT_SSH_COMMAND
     if command -v git >/dev/null 2>&1; then
         git config --global --unset http.https://github.com.proxy 2>/dev/null || true
         git config --global --unset core.sshCommand 2>/dev/null || true
-    fi
-
-    # Configure SSH proxy via socat if available
-    if command -v socat >/dev/null 2>&1; then
-        local socks_type="SOCKS5"
-        if echo "$scheme" | grep -q "socks5h"; then
-            socks_type="SOCKS5"
-        fi
-        export GIT_SSH_COMMAND="ssh -o ProxyCommand='socat - ${socks_type}:${host}:%h:%p,socksport=${port}'"
-        printf "  ${_proxy_c_green}✓ GIT_SSH_COMMAND set via socat -> %s:%s${_proxy_c_reset}\n" "$host" "$port"
     fi
 }
 
@@ -153,7 +138,6 @@ _proxy_git_ssh_off() {
         git config --global --unset http.https://github.com.proxy 2>/dev/null || true
         git config --global --unset core.sshCommand 2>/dev/null || true
     fi
-    printf "  ${_proxy_c_yellow}✓ GIT_SSH_COMMAND cleared${_proxy_c_reset}\n"
 }
 
 _proxy_cli_set() {
