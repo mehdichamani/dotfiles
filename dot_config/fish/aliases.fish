@@ -19,6 +19,7 @@ end
 # Shared cross-platform helpers
 alias c='clear'
 alias q='exit'
+alias ff='fastfetch'
 
 
 # System shortcuts

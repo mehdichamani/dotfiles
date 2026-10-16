@@ -135,6 +135,9 @@ function c { Clear-Host }
 # Exit shortcut
 function q { exit }
 
+# Fastfetch shortcut
+function ff { fastfetch @args }
+
 # -----------------------------------------------------------------------------
 # Git shortcuts
 # -----------------------------------------------------------------------------
