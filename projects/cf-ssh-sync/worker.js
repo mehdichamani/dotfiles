@@ -3,8 +3,8 @@
  * 
  * Routes:
  *  - GET  /         : Rich Web UI / CLI instructions
- *  - GET  /send.sh  : Bash script to encrypt and upload ~/.ssh and ~/.config/secrets (Requires token)
- *  - GET  /get.sh   : Bash script to download, decrypt and restore ~/.ssh, secrets, and unlock git-crypt
+ *  - GET  /send.sh  : Bash script to encrypt and upload ~/.ssh and ~/.ssh/secrets (Requires token)
+ *  - GET  /get.sh   : Bash script to download, decrypt and restore ~/.ssh and ~/.ssh/secrets
  *  - GET  /send.ps1 : PowerShell script to encrypt and upload (Windows, Requires token)
  *  - GET  /get.ps1  : PowerShell script to download, decrypt and restore (Windows)
  *  - POST /data     : Stores raw encrypted payload into KV (Requires token)
@@ -648,24 +648,20 @@ try {
 
     if (isCli && pathname === '/') {
       return new Response(
-        `🔒 Warden Cloudflare Vault & SSH Sync Worker
+        `[WARDEN VAULT & SYNC SERVICE]
+-----------------------------------------------------------------
+Zero-Knowledge Encrypted State Transfer Protocol (AES-256-CBC)
 
-Usage:
-------
-1. Download & Restore vault (Public, Zero-Knowledge):
-   - Linux/Mac/Termux : curl -fsSL ${origin}/get.sh | bash
-   - Windows (PS)     : irm ${origin}/get.ps1 | iex
+DEPLOYMENT INSTRUCTIONS:
+------------------------
+1. RESTORE VAULT (Target Node - Zero-Knowledge):
+   Linux / macOS / Termux : curl -fsSL ${origin}/get.sh | bash
+   Windows (PowerShell)   : irm ${origin}/get.ps1 | iex
 
-2. Encrypt & Upload vault (Requires token):
-   - Linux/Mac/Termux : curl -fsSL "${origin}/send.sh?token=YOUR_TOKEN" | bash
-   - Windows (PS)     : irm "${origin}/send.ps1?token=YOUR_TOKEN" | iex
-
-Endpoints:
-----------
-- Linux Send Script : ${origin}/send.sh?token=YOUR_TOKEN
-- Linux Get Script  : ${origin}/get.sh
-- Win Send Script   : ${origin}/send.ps1?token=YOUR_TOKEN
-- Win Get Script    : ${origin}/get.ps1
+2. COMMIT & UPLOAD VAULT (Source Node - Requires Token):
+   Linux / macOS / Termux : curl -fsSL "${origin}/send.sh?token=YOUR_TOKEN" | bash
+   Windows (PowerShell)   : irm "${origin}/send.ps1?token=YOUR_TOKEN" | iex
+-----------------------------------------------------------------
 `,
         { headers: { 'Content-Type': 'text/plain; charset=utf-8' } }
       );
@@ -673,28 +669,28 @@ Endpoints:
 
     if (pathname === '/') {
       const html = `<!DOCTYPE html>
-<html lang="fa" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Warden Vault Sync | هماهنگ‌سازی امن کلیدها و سکرت‌ها</title>
+  <title>WARDEN // ZERO-KNOWLEDGE VAULT SYNC</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-primary: #0b0f19;
-      --bg-card: rgba(22, 29, 47, 0.75);
-      --bg-card-hover: rgba(30, 41, 67, 0.85);
-      --border-color: rgba(255, 255, 255, 0.08);
-      --accent-cyan: #06b6d4;
-      --accent-cyan-glow: rgba(6, 182, 212, 0.25);
-      --accent-blue: #3b82f6;
-      --accent-emerald: #10b981;
-      --accent-purple: #a855f7;
-      --text-main: #f8fafc;
-      --text-muted: #94a3b8;
-      --code-bg: #050811;
+      --bg-primary: #05070a;
+      --bg-card: rgba(10, 15, 23, 0.95);
+      --border-color: #1e293b;
+      --border-active: #00ff66;
+      --accent-green: #00ff66;
+      --accent-green-dim: rgba(0, 255, 102, 0.12);
+      --accent-cyan: #00e5ff;
+      --accent-amber: #ffb700;
+      --text-main: #f1f5f9;
+      --text-muted: #64748b;
+      --text-secondary: #94a3b8;
+      --code-bg: #020408;
     }
 
     * {
@@ -706,130 +702,174 @@ Endpoints:
     body {
       background-color: var(--bg-primary);
       color: var(--text-main);
-      font-family: 'Vazirmatn', sans-serif;
+      font-family: 'JetBrains Mono', monospace;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 2rem 1rem;
+      padding: 2.5rem 1rem;
       background-image: 
-        radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.12) 0px, transparent 50%),
-        radial-gradient(at 100% 100%, rgba(6, 182, 212, 0.12) 0px, transparent 50%);
-      background-attachment: fixed;
+        linear-gradient(rgba(0, 255, 102, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 255, 102, 0.03) 1px, transparent 1px);
+      background-size: 32px 32px;
+      position: relative;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(circle at 50% 20%, rgba(0, 229, 255, 0.04) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
     }
 
     .container {
       width: 100%;
-      max-width: 950px;
+      max-width: 960px;
+      position: relative;
+      z-index: 1;
     }
 
     header {
-      text-align: center;
-      margin-bottom: 1.75rem;
+      margin-bottom: 2rem;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 1.5rem;
+    }
+
+    .top-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
     }
 
     .badge {
       display: inline-flex;
       align-items: center;
-      gap: 0.5rem;
-      background: rgba(6, 182, 212, 0.1);
-      border: 1px solid rgba(6, 182, 212, 0.25);
-      color: var(--accent-cyan);
-      font-size: 0.8rem;
-      font-weight: 600;
-      padding: 0.25rem 0.8rem;
-      border-radius: 9999px;
-      margin-bottom: 0.75rem;
-      box-shadow: 0 0 15px var(--accent-cyan-glow);
+      gap: 0.6rem;
+      background: rgba(0, 255, 102, 0.05);
+      border: 1px solid rgba(0, 255, 102, 0.3);
+      color: var(--accent-green);
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 0.3rem 0.75rem;
+      border-radius: 2px;
     }
 
     .status-dot {
-      width: 8px;
-      height: 8px;
-      background-color: var(--accent-emerald);
-      border-radius: 50%;
-      box-shadow: 0 0 8px var(--accent-emerald);
+      width: 6px;
+      height: 6px;
+      background-color: var(--accent-green);
+      box-shadow: 0 0 8px var(--accent-green);
+    }
+
+    .meta-id {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
     }
 
     h1 {
-      font-size: 1.85rem;
+      font-size: 1.65rem;
       font-weight: 800;
-      letter-spacing: -0.02em;
+      letter-spacing: -0.01em;
       margin-bottom: 0.4rem;
-      background: linear-gradient(135deg, #ffffff 30%, var(--accent-cyan) 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      color: #ffffff;
+      text-transform: uppercase;
+    }
+
+    h1 span {
+      color: var(--accent-green);
     }
 
     p.subtitle {
-      color: var(--text-muted);
-      font-size: 0.95rem;
-      line-height: 1.5;
+      color: var(--text-secondary);
+      font-size: 0.82rem;
+      line-height: 1.6;
+      letter-spacing: 0.02em;
     }
 
     .card {
       background: var(--bg-card);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
       border: 1px solid var(--border-color);
-      border-radius: 14px;
-      padding: 1.25rem;
+      border-radius: 2px;
+      padding: 1.25rem 1.4rem;
       margin-bottom: 1.25rem;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
-      transition: border-color 0.2s ease;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+      position: relative;
     }
 
-    .card:hover {
-      border-color: rgba(6, 182, 212, 0.3);
+    .card::before {
+      content: "";
+      position: absolute;
+      top: -1px;
+      left: 0;
+      width: 24px;
+      height: 2px;
+      background: var(--accent-cyan);
     }
 
     .card-title {
-      font-size: 1.1rem;
+      font-size: 0.92rem;
       font-weight: 700;
-      margin-bottom: 0.85rem;
+      margin-bottom: 0.9rem;
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 0.6rem;
-      color: #fff;
+      color: #ffffff;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
     }
 
     .card-title-left {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.6rem;
     }
 
-    .card-title .icon {
-      font-size: 1.25rem;
+    .tag-prefix {
+      color: var(--accent-green);
+      font-weight: 800;
     }
 
     .step-tag {
-      font-size: 0.72rem;
+      font-size: 0.68rem;
       font-weight: 700;
-      padding: 0.15rem 0.55rem;
-      border-radius: 6px;
-      background: rgba(6, 182, 212, 0.15);
+      letter-spacing: 0.1em;
+      padding: 0.2rem 0.5rem;
+      border-radius: 2px;
+      background: rgba(0, 229, 255, 0.08);
       color: var(--accent-cyan);
-      border: 1px solid rgba(6, 182, 212, 0.3);
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      text-transform: uppercase;
     }
 
     .step-tag.green {
-      background: rgba(16, 185, 129, 0.15);
-      color: var(--accent-emerald);
-      border-color: rgba(16, 185, 129, 0.3);
+      background: rgba(0, 255, 102, 0.08);
+      color: var(--accent-green);
+      border-color: rgba(0, 255, 102, 0.3);
     }
 
-    .step-tag.purple {
-      background: rgba(168, 85, 247, 0.15);
-      color: var(--accent-purple);
-      border-color: rgba(168, 85, 247, 0.3);
+    .step-tag.amber {
+      background: rgba(255, 183, 0, 0.08);
+      color: var(--accent-amber);
+      border-color: rgba(255, 183, 0, 0.3);
     }
 
     .ssh-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-      gap: 1rem;
+      gap: 1.25rem;
       margin-bottom: 1.25rem;
     }
 
@@ -839,38 +879,41 @@ Endpoints:
 
     .tab-group {
       display: flex;
-      gap: 0.35rem;
-      margin-bottom: 0.75rem;
-      background: rgba(0, 0, 0, 0.35);
+      gap: 0.3rem;
+      margin-bottom: 0.85rem;
+      background: #000000;
       padding: 0.25rem;
-      border-radius: 8px;
       border: 1px solid var(--border-color);
+      border-radius: 2px;
       overflow-x: auto;
     }
 
     .tab-btn {
       flex: 1;
       background: transparent;
-      border: none;
+      border: 1px solid transparent;
       color: var(--text-muted);
-      font-family: inherit;
-      font-size: 0.82rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
       font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
       padding: 0.45rem 0.6rem;
-      border-radius: 6px;
+      border-radius: 2px;
       cursor: pointer;
-      transition: all 0.2s ease;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.35rem;
+      transition: all 0.15s ease;
       white-space: nowrap;
+      text-align: center;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-main);
     }
 
     .tab-btn.active {
-      background: rgba(255, 255, 255, 0.12);
-      color: #fff;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+      background: #111a28;
+      color: var(--accent-cyan);
+      border-color: #24354d;
     }
 
     .tab-content {
@@ -882,16 +925,13 @@ Endpoints:
     }
 
     .code-box {
-      position: relative;
       background: var(--code-bg);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 10px;
-      padding: 0.75rem 1rem;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.85rem;
-      direction: ltr;
-      text-align: left;
-      color: #38bdf8;
+      border: 1px solid #162030;
+      border-left: 2px solid var(--accent-cyan);
+      border-radius: 2px;
+      padding: 0.8rem 1rem;
+      font-size: 0.8rem;
+      color: #7dd3fc;
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
@@ -902,326 +942,279 @@ Endpoints:
       white-space: pre-wrap;
       word-break: break-word;
       overflow-wrap: anywhere;
-      line-height: 1.55;
-      padding-right: 0.5rem;
+      line-height: 1.6;
       flex: 1;
+      font-family: 'JetBrains Mono', monospace;
     }
 
     .copy-btn {
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      color: #e2e8f0;
-      border-radius: 6px;
+      background: #0b1320;
+      border: 1px solid #23354e;
+      color: var(--text-secondary);
+      border-radius: 2px;
       padding: 0.35rem 0.75rem;
-      font-size: 0.75rem;
-      font-family: 'Vazirmatn', sans-serif;
-      font-weight: 600;
+      font-size: 0.68rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
       cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 0.3rem;
       white-space: nowrap;
-      transition: all 0.2s ease;
+      transition: all 0.15s ease;
       flex-shrink: 0;
     }
 
     .copy-btn:hover {
       background: var(--accent-cyan);
-      color: #04101e;
+      color: #000000;
       border-color: var(--accent-cyan);
     }
 
     .copy-btn.copied {
-      background: var(--accent-emerald);
-      color: #022415;
-      border-color: var(--accent-emerald);
+      background: var(--accent-green);
+      color: #000000;
+      border-color: var(--accent-green);
     }
 
     .cmd-desc {
-      color: var(--text-muted);
-      font-size: 0.8rem;
-      margin-bottom: 0.6rem;
-      line-height: 1.4;
-    }
-
-    .links-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 0.75rem;
-      margin-top: 0.5rem;
-    }
-
-    .link-item {
-      background: rgba(0, 0, 0, 0.25);
-      border: 1px solid var(--border-color);
-      border-radius: 8px;
-      padding: 0.75rem 0.85rem;
-      text-decoration: none;
-      color: var(--text-main);
-      display: flex;
-      flex-direction: column;
-      gap: 0.25rem;
-      transition: all 0.2s ease;
-    }
-
-    .link-item:hover {
-      background: var(--bg-card-hover);
-      border-color: var(--accent-cyan);
-      transform: translateY(-2px);
-    }
-
-    .link-item .name {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.85rem;
-      font-weight: 700;
-      color: var(--accent-cyan);
-      direction: ltr;
-      text-align: left;
-    }
-
-    .link-item .desc {
+      color: var(--text-secondary);
       font-size: 0.75rem;
+      margin-bottom: 0.75rem;
+      line-height: 1.5;
+    }
+
+    .terminal-step {
+      font-size: 0.78rem;
+      line-height: 1.6;
+      color: var(--text-secondary);
+      margin: 0.9rem 0 0.35rem 0;
+    }
+
+    .terminal-step strong {
+      color: #ffffff;
+      font-weight: 600;
+    }
+
+    .terminal-step:first-child {
+      margin-top: 0;
+    }
+
+    .note-hint {
+      font-size: 0.72rem;
       color: var(--text-muted);
+      margin: 0.35rem 0 0.75rem 0;
+    }
+
+    .note-hint code {
+      color: var(--accent-cyan);
+      background: rgba(0, 229, 255, 0.06);
+      padding: 0.1rem 0.35rem;
+      border-radius: 2px;
     }
 
     .feature-list {
       list-style: none;
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 0.75rem;
-      margin-top: 0.25rem;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 0.85rem;
     }
 
     .feature-item {
       display: flex;
       align-items: flex-start;
-      gap: 0.5rem;
-      font-size: 0.82rem;
-      color: var(--text-muted);
-      line-height: 1.4;
+      gap: 0.65rem;
+      font-size: 0.76rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      background: #020408;
+      border: 1px solid #131c2b;
+      padding: 0.75rem 0.85rem;
+      border-radius: 2px;
     }
 
     .feature-item strong {
-      color: var(--text-main);
+      color: #ffffff;
+      display: block;
+      margin-bottom: 0.15rem;
+      font-size: 0.78rem;
     }
 
-    .feature-item .check {
-      color: var(--accent-emerald);
-      font-size: 1rem;
-      line-height: 1;
+    .bullet {
+      color: var(--accent-green);
+      font-size: 0.85rem;
+      line-height: 1.2;
     }
 
     footer {
       text-align: center;
-      margin-top: 1.5rem;
+      margin-top: 2rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border-color);
       color: var(--text-muted);
-      font-size: 0.8rem;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
     }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
-      <div class="badge">
-        <span class="status-dot"></span>
-        <span>Cloudflare Worker &amp; KV Online</span>
+      <div class="top-meta">
+        <div class="badge">
+          <span class="status-dot"></span>
+          <span>SERVICE STATUS: OPERATIONAL</span>
+        </div>
+        <div class="meta-id">PROTOCOL // WARDEN-AES256-KV</div>
       </div>
-      <h1>همگام‌سازی امن سکرت‌ها، کلیدهای SSH و Chezmoi</h1>
-      <p class="subtitle">انتقال رمزنگاری‌شده محلی دایرکتوری‌های ~/.ssh و ~/.config/secrets به همراه آنلاک خودکار Git-Crypt</p>
+      <h1>WARDEN // <span>SECURITY VAULT SYNC</span></h1>
+      <p class="subtitle">Zero-knowledge local encryption pipeline for ~/.ssh keys and ~/.ssh/secrets vault distribution.</p>
     </header>
 
-    <!-- SSH & Vault Section -->
+    <!-- Transfer Pipeline -->
     <div class="ssh-grid">
-      <!-- Send Vault -->
+      <!-- 01. Commit & Upload -->
       <div class="card">
         <div class="card-title">
           <div class="card-title-left">
-            <span class="icon">📤</span>
-            <span>۱. ارسال و رمزنگاری (دستگاه مبدأ)</span>
+            <span class="tag-prefix">[01]</span>
+            <span>SOURCE NODE // ENCRYPT &amp; PUSH</span>
           </div>
-          <span class="step-tag">Upload</span>
+          <span class="step-tag">UPLOAD</span>
         </div>
-        <div class="cmd-desc">در سیستمی که سکرت‌ها و کلیدها روی آن است اجرا کنید (نیازمند توکن):</div>
+        <div class="cmd-desc">Execute on authorized source host containing active keys (Requires SYNC_TOKEN):</div>
         <div class="tab-group">
-          <button class="tab-btn active" onclick="switchTab(this, 'send-linux')">🐧 Linux / macOS / Termux</button>
-          <button class="tab-btn" onclick="switchTab(this, 'send-win')">🪟 Windows (PS)</button>
+          <button class="tab-btn active" onclick="switchTab(this, 'send-linux')">LINUX / MACOS / TERMUX</button>
+          <button class="tab-btn" onclick="switchTab(this, 'send-win')">WINDOWS (PWSH)</button>
         </div>
         <div id="send-linux" class="tab-content active">
           <div class="code-box">
             <div class="code-text" id="cmd-send-linux">curl -fsSL "${origin}/send.sh?token=YOUR_TOKEN" | bash</div>
-            <button class="copy-btn" onclick="copyCode('cmd-send-linux', this)">کپی</button>
+            <button class="copy-btn" onclick="copyCode('cmd-send-linux', this)">COPY</button>
           </div>
         </div>
         <div id="send-win" class="tab-content">
           <div class="code-box">
             <div class="code-text" id="cmd-send-win">irm "${origin}/send.ps1?token=YOUR_TOKEN" | iex</div>
-            <button class="copy-btn" onclick="copyCode('cmd-send-win', this)">کپی</button>
+            <button class="copy-btn" onclick="copyCode('cmd-send-win', this)">COPY</button>
           </div>
         </div>
       </div>
 
-      <!-- Get Vault -->
+      <!-- 02. Download & Decrypt -->
       <div class="card">
         <div class="card-title">
           <div class="card-title-left">
-            <span class="icon">📥</span>
-            <span>۲. دریافت و رمزگشایی (دستگاه مقصد)</span>
+            <span class="tag-prefix">[02]</span>
+            <span>TARGET NODE // PULL &amp; DECRYPT</span>
           </div>
-          <span class="step-tag green">Restore</span>
+          <span class="step-tag green">RESTORE</span>
         </div>
-        <div class="cmd-desc">در سیستم جدید اجرا کرده و پسورد رمزنگاری را وارد کنید (بدون نیاز به توکن):</div>
+        <div class="cmd-desc">Execute on new host and enter passphrase (Zero-Knowledge, No token required):</div>
         <div class="tab-group">
-          <button class="tab-btn active" onclick="switchTab(this, 'get-linux')">🐧 Linux / macOS / Termux</button>
-          <button class="tab-btn" onclick="switchTab(this, 'get-win')">🪟 Windows (PS)</button>
+          <button class="tab-btn active" onclick="switchTab(this, 'get-linux')">LINUX / MACOS / TERMUX</button>
+          <button class="tab-btn" onclick="switchTab(this, 'get-win')">WINDOWS (PWSH)</button>
         </div>
         <div id="get-linux" class="tab-content active">
           <div class="code-box">
             <div class="code-text" id="cmd-get-linux">curl -fsSL ${origin}/get.sh | bash</div>
-            <button class="copy-btn" onclick="copyCode('cmd-get-linux', this)">کپی</button>
+            <button class="copy-btn" onclick="copyCode('cmd-get-linux', this)">COPY</button>
           </div>
         </div>
         <div id="get-win" class="tab-content">
           <div class="code-box">
             <div class="code-text" id="cmd-get-win">irm ${origin}/get.ps1 | iex</div>
-            <button class="copy-btn" onclick="copyCode('cmd-get-win', this)">کپی</button>
+            <button class="copy-btn" onclick="copyCode('cmd-get-win', this)">COPY</button>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Step 3: Chezmoi Dotfiles Bootstrap by OS -->
+    <!-- 03. Environment Provisioning -->
     <div class="card">
       <div class="card-title">
         <div class="card-title-left">
-          <span class="icon">⚡</span>
-          <span>۳. کلون و اعمال مخزن دات‌فایل‌ها (Chezmoi Bootstrap)</span>
+          <span class="tag-prefix">[03]</span>
+          <span>HOST BOOTSTRAP // DOTFILES PROVISIONING</span>
         </div>
-        <span class="step-tag purple">Dotfiles</span>
+        <span class="step-tag amber">PROVISION</span>
       </div>
       <div class="cmd-desc">
-        پس از دریافت سکرت‌ها و کلیدها، دستور سیستم‌عامل خود را اجرا کنید تا دات‌فایل‌ها کلون و اعمال شوند:
+        Run corresponding initialization steps for host platform after vault restoration:
       </div>
 
       <div class="tab-group">
-        <button class="tab-btn active" onclick="switchTab(this, 'cm-arch')">👑 Omarchy Linux</button>
-        <button class="tab-btn" onclick="switchTab(this, 'cm-ubuntu')">🐧 Ubuntu / Debian</button>
-        <button class="tab-btn" onclick="switchTab(this, 'cm-termux')">📱 Termux</button>
-        <button class="tab-btn" onclick="switchTab(this, 'cm-win')">🪟 Windows</button>
+        <button class="tab-btn active" onclick="switchTab(this, 'cm-arch')">OMARCHY LINUX</button>
+        <button class="tab-btn" onclick="switchTab(this, 'cm-ubuntu')">UBUNTU / DEBIAN</button>
+        <button class="tab-btn" onclick="switchTab(this, 'cm-termux')">ANDROID (TERMUX)</button>
+        <button class="tab-btn" onclick="switchTab(this, 'cm-win')">WINDOWS</button>
       </div>
 
       <!-- Omarchy Linux -->
       <div id="cm-arch" class="tab-content active">
-        <div style="font-size: 0.9rem; line-height: 1.6; color: #cbd5e1; margin-bottom: 0.8rem;">
-          <strong>مراحل راه‌اندازی کامل Omarchy Linux:</strong><br>
-          ۱. نصب Chezmoi و Fish و اعمال دات‌فایل‌ها:<br>
-        </div>
+        <div class="terminal-step"><strong>1. Initialize Chezmoi and apply base configuration:</strong></div>
         <div class="code-box">
           <div class="code-text" id="cmd-cm-arch-1">sudo pacman -S --needed chezmoi fish && chezmoi init mehdichamani && chezmoi apply</div>
-          <button class="copy-btn" onclick="copyCode('cmd-cm-arch-1', this)">کپی</button>
+          <button class="copy-btn" onclick="copyCode('cmd-cm-arch-1', this)">COPY</button>
         </div>
-        <div style="font-size: 0.9rem; line-height: 1.6; color: #cbd5e1; margin: 0.8rem 0 0.3rem 0;">
-          ۲. نصب تمام پکیج‌ها و فعال‌سازی منوی اومارچ (در شل Fish):<br>
-        </div>
+
+        <div class="terminal-step"><strong>2. Install core package bundle &amp; Omarchy menu (in fish):</strong></div>
         <div class="code-box">
           <div class="code-text" id="cmd-cm-arch-2">dotsync install && omarchy plugin add https://github.com/filip-spaldon/omarchy-menu.git --enable</div>
-          <button class="copy-btn" onclick="copyCode('cmd-cm-arch-2', this)">کپی</button>
+          <button class="copy-btn" onclick="copyCode('cmd-cm-arch-2', this)">COPY</button>
         </div>
-        <div style="font-size: 0.9rem; line-height: 1.6; color: #cbd5e1; margin: 0.8rem 0 0.3rem 0;">
-          ۳. دریافت نوت‌ها و فایل‌های همگام از گوشی سامسونگ:<br>
-        </div>
+
+        <div class="terminal-step"><strong>3. Sync encrypted notes and archives from primary device:</strong></div>
         <div class="code-box">
           <div class="code-text" id="cmd-cm-arch-3">sftp s24-home</div>
-          <button class="copy-btn" onclick="copyCode('cmd-cm-arch-3', this)">کپی</button>
+          <button class="copy-btn" onclick="copyCode('cmd-cm-arch-3', this)">COPY</button>
         </div>
-        <div style="font-size: 0.82rem; color: #94a3b8; margin: 0.3rem 0 0.6rem 0;">(داخل SFTP اجرا کنید: <code>get -r /sdcard/Notes/</code> و <code>get -r /sdcard/insync/</code>)</div>
-        <div style="font-size: 0.9rem; line-height: 1.6; color: #cbd5e1; margin: 0.8rem 0 0.3rem 0;">
-          ۴. نصب کلاینت PattN، پروکسی و mise:<br>
-        </div>
+        <div class="note-hint">(In SFTP session run: <code>get -r /sdcard/Notes/</code> and <code>get -r /sdcard/insync/</code>)</div>
+
+        <div class="terminal-step"><strong>4. Install network proxy runtime and toolchains:</strong></div>
         <div class="code-box">
           <div class="code-text" id="cmd-cm-arch-4">pinstall https://github.com/patterniha/PattN/ && proxy 10808 && mise install</div>
-          <button class="copy-btn" onclick="copyCode('cmd-cm-arch-4', this)">کپی</button>
+          <button class="copy-btn" onclick="copyCode('cmd-cm-arch-4', this)">COPY</button>
         </div>
-        <div style="font-size: 0.9rem; line-height: 1.6; color: #cbd5e1; margin: 0.8rem 0 0.3rem 0;">
-          ۵. نصب Antigravity IDE و فارسی‌ساز:<br>
-        </div>
+
+        <div class="terminal-step"><strong>5. Install Antigravity IDE and Persian UI language pack:</strong></div>
         <div class="code-box">
           <div class="code-text" id="cmd-cm-arch-5">yay -S antigravity-ide && curl -fsSL https://raw.githubusercontent.com/mehdichamani/PersianAntigravityIDE/main/setup.sh | bash</div>
-          <button class="copy-btn" onclick="copyCode('cmd-cm-arch-5', this)">کپی</button>
+          <button class="copy-btn" onclick="copyCode('cmd-cm-arch-5', this)">COPY</button>
         </div>
-        <div style="font-size: 0.9rem; line-height: 1.6; color: #cbd5e1; margin: 0.8rem 0 0.3rem 0;">
-          ۶. فعال‌سازی سرویس‌ها (Syncthing, Docker, SSH Server روی پورت ۲۲۴۵۶ و فایروال):<br>
-        </div>
+
+        <div class="terminal-step"><strong>6. Enable system services &amp; harden SSH daemon (Port 22456 + UFW):</strong></div>
         <div class="code-box">
           <div class="code-text" id="cmd-cm-arch-6">systemctl --user enable --now syncthing.service && sudo systemctl enable --now docker.service && sudo usermod -aG docker $USER && echo "Port 22456" | sudo tee /etc/ssh/sshd_config.d/port.conf && sudo ufw allow 22456/tcp && sudo systemctl enable --now sshd && sudo systemctl restart sshd</div>
-          <button class="copy-btn" onclick="copyCode('cmd-cm-arch-6', this)">کپی</button>
+          <button class="copy-btn" onclick="copyCode('cmd-cm-arch-6', this)">COPY</button>
         </div>
       </div>
 
       <!-- Ubuntu / Debian -->
       <div id="cm-ubuntu" class="tab-content">
-        <div style="padding: 1.5rem; text-align: center; color: #94a3b8;">
-          <span style="font-size: 2rem; display: block; margin-bottom: 0.5rem;">⏳</span>
-          <strong style="color: #f1f5f9; font-size: 1.05rem;">راهنمای راه‌اندازی Ubuntu / Debian به زودی اضافه می‌شود...</strong>
-          <p style="margin-top: 0.5rem; font-size: 0.88rem;">دستور موقت بوت‌استرپ دات‌فایلز:</p>
-          <div class="code-box" style="margin-top: 0.5rem;">
-            <div class="code-text" id="cmd-cm-ubuntu">sudo apt update && sudo apt install -y git openssh-client && sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin && export PATH="$HOME/.local/bin:$PATH" && chezmoi init --apply mehdichamani</div>
-            <button class="copy-btn" onclick="copyCode('cmd-cm-ubuntu', this)">کپی</button>
-          </div>
+        <div class="terminal-step"><strong>Ubuntu / Debian Bootstrap Protocol:</strong></div>
+        <div class="code-box">
+          <div class="code-text" id="cmd-cm-ubuntu">sudo apt update && sudo apt install -y git openssh-client && sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin && export PATH="$HOME/.local/bin:$PATH" && chezmoi init --apply mehdichamani</div>
+          <button class="copy-btn" onclick="copyCode('cmd-cm-ubuntu', this)">COPY</button>
         </div>
       </div>
 
       <!-- Termux -->
       <div id="cm-termux" class="tab-content">
-        <div style="padding: 1.5rem; text-align: center; color: #94a3b8;">
-          <span style="font-size: 2rem; display: block; margin-bottom: 0.5rem;">⏳</span>
-          <strong style="color: #f1f5f9; font-size: 1.05rem;">راهنمای راه‌اندازی Android Termux به زودی اضافه می‌شود...</strong>
-          <p style="margin-top: 0.5rem; font-size: 0.88rem;">دستور موقت بوت‌استرپ دات‌فایلز:</p>
-          <div class="code-box" style="margin-top: 0.5rem;">
-            <div class="code-text" id="cmd-cm-termux">pkg update -y && pkg install -y chezmoi git openssh && chezmoi init --apply mehdichamani</div>
-            <button class="copy-btn" onclick="copyCode('cmd-cm-termux', this)">کپی</button>
-          </div>
+        <div class="terminal-step"><strong>Android Termux Bootstrap Protocol:</strong></div>
+        <div class="code-box">
+          <div class="code-text" id="cmd-cm-termux">pkg update -y && pkg install -y chezmoi git openssh && chezmoi init --apply mehdichamani</div>
+          <button class="copy-btn" onclick="copyCode('cmd-cm-termux', this)">COPY</button>
         </div>
       </div>
 
       <!-- Windows -->
       <div id="cm-win" class="tab-content">
-        <div style="padding: 1.5rem; text-align: center; color: #94a3b8;">
-          <span style="font-size: 2rem; display: block; margin-bottom: 0.5rem;">⏳</span>
-          <strong style="color: #f1f5f9; font-size: 1.05rem;">راهنمای راه‌اندازی Windows به زودی اضافه می‌شود...</strong>
-          <p style="margin-top: 0.5rem; font-size: 0.88rem;">دستور موقت بوت‌استرپ دات‌فایلز:</p>
-          <div class="code-box" style="margin-top: 0.5rem;">
-            <div class="code-text" id="cmd-cm-win">winget install Git.Git twpayne.chezmoi -e --accept-source-agreements --accept-package-agreements ; chezmoi init --apply mehdichamani</div>
-            <button class="copy-btn" onclick="copyCode('cmd-cm-win', this)">کپی</button>
-          </div>
+        <div class="terminal-step"><strong>Windows PowerShell Bootstrap Protocol:</strong></div>
+        <div class="code-box">
+          <div class="code-text" id="cmd-cm-win">winget install Git.Git twpayne.chezmoi -e --accept-source-agreements --accept-package-agreements ; chezmoi init --apply mehdichamani</div>
+          <button class="copy-btn" onclick="copyCode('cmd-cm-win', this)">COPY</button>
         </div>
-      </div>
-    </div>
-
-    <!-- Direct Script Links -->
-    <div class="card">
-      <div class="card-title">
-        <div class="card-title-left">
-          <span class="icon">🔗</span>
-          <span>لینک‌های مستقیم اسکریپت‌ها (Direct Endpoints)</span>
-        </div>
-      </div>
-      <div class="links-grid">
-        <a href="${origin}/send.sh?token=YOUR_TOKEN" target="_blank" class="link-item">
-          <span class="name">/send.sh?token=...</span>
-          <span class="desc">اسکریپت بش آپلود (نیازمند توکن)</span>
-        </a>
-        <a href="${origin}/get.sh" target="_blank" class="link-item">
-          <span class="name">/get.sh</span>
-          <span class="desc">اسکریپت بش دانلود و آنلاک</span>
-        </a>
-        <a href="${origin}/send.ps1?token=YOUR_TOKEN" target="_blank" class="link-item">
-          <span class="name">/send.ps1?token=...</span>
-          <span class="desc">اسکریپت پاورشل آپلود (نیازمند توکن)</span>
-        </a>
-        <a href="${origin}/get.ps1" target="_blank" class="link-item">
-          <span class="name">/get.ps1</span>
-          <span class="desc">اسکریپت پاورشل دانلود و آنلاک</span>
-        </a>
       </div>
     </div>
 
@@ -1229,32 +1222,37 @@ Endpoints:
     <div class="card">
       <div class="card-title">
         <div class="card-title-left">
-          <span class="icon">🛡️</span>
-          <span>مکانیزم امنیتی و ویژگی‌ها</span>
+          <span class="tag-prefix">[04]</span>
+          <span>SECURITY SPECIFICATIONS &amp; ARCHITECTURE</span>
         </div>
       </div>
-      <ul class="feature-list">
-        <li class="feature-item">
-          <span class="check">✔</span>
-          <div><strong>Zero-Knowledge:</strong> رمزنگاری کلاینت با AES-256 قبل از ارسال به سرور.</div>
-        </li>
-        <li class="feature-item">
-          <span class="check">✔</span>
-          <div><strong>پوشش سکرت‌ها و SSH:</strong> همگام‌سازی یکپارچه ~/.ssh و ~/.config/secrets.</div>
-        </li>
-        <li class="feature-item">
-          <span class="check">✔</span>
-          <div><strong>Git-Crypt Unlock:</strong> آنلاک خودکار مخزن با chezmoi-git-crypt.key.</div>
-        </li>
-        <li class="feature-item">
-          <span class="check">✔</span>
-          <div><strong>Anti-Tampering:</strong> حفاظت از عملیات آپلود با توکن امنیتی SYNC_TOKEN.</div>
-        </li>
-      </ul>
+      <div class="feature-list">
+        <div class="feature-item">
+          <span class="bullet">&gt;</span>
+          <div>
+            <strong>ZERO-KNOWLEDGE ENCRYPTION</strong>
+            Client-side AES-256-CBC encryption via OpenSSL/PowerShell prior to cloud transit. Server maintains zero plaintext visibility.
+          </div>
+        </div>
+        <div class="feature-item">
+          <span class="bullet">&gt;</span>
+          <div>
+            <strong>SECRETS VAULT COVERAGE</strong>
+            Full synchronization coverage across ~/.ssh private keys and isolated environment vault (~/.ssh/secrets).
+          </div>
+        </div>
+        <div class="feature-item">
+          <span class="bullet">&gt;</span>
+          <div>
+            <strong>ANTI-TAMPERING AUTHORIZATION</strong>
+            Mutation and upload vectors strictly gated by Cloudflare Worker secret SYNC_TOKEN token validation.
+          </div>
+        </div>
+      </div>
     </div>
 
     <footer>
-      <span>🔒 Warden Worker &bull; Powered by Cloudflare Workers &amp; KV</span>
+      <span>WARDEN SYNC SYSTEM // POWERED BY CLOUDFLARE WORKERS &amp; KV</span>
     </footer>
   </div>
 
@@ -1271,7 +1269,7 @@ Endpoints:
       const text = document.getElementById(elementId).innerText;
       navigator.clipboard.writeText(text).then(() => {
         const origText = btn.innerText;
-        btn.innerText = 'کپی شد! ✓';
+        btn.innerText = 'COPIED';
         btn.classList.add('copied');
         setTimeout(() => {
           btn.innerText = origText;
