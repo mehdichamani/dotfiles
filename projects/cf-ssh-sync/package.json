@@ -1,0 +1,12 @@
+{
+  "name": "cf-ssh-sync",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cloudflare Worker for cf-ssh-sync",
+  "scripts": {
+    "deploy": "wrangler deploy --env-file ~/.ssh/secrets/cf-ssh-sync.env",
+    "dev": "wrangler dev --env-file ~/.ssh/secrets/cf-ssh-sync.env",
+    "tail": "wrangler tail --env-file ~/.ssh/secrets/cf-ssh-sync.env",
+    "w": "wrangler --env-file ~/.ssh/secrets/cf-ssh-sync.env"
+  }
+}

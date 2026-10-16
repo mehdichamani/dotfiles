@@ -1,68 +1,55 @@
 # Cloudflare Worker Vault & SSH Sync (`cf-ssh-sync`)
 
-همگام‌سازی و انتقال امن و رمزنگاری‌شده (Zero-Knowledge AES-256) کلیه دارایی‌های حساس، کلیدها، کانفیگ شبکه و سکرت‌ها در پوشه `~/.ssh/` و `~/.ssh/secrets/` روی ورکر کلودفلر (`https://ssh.ajbv.ir`).
+ورکر سرورلس کلادفلر جهت همگام‌سازی، پشتیبان‌گیری و بازیابی رمزنگاری‌شده (Zero-Knowledge AES-256) کلیه دارایی‌های حساس، کلیدها، کانفیگ‌های شبکه و سکرت‌های پوشه `~/.ssh/` و `~/.ssh/secrets/`.
+
+> 💡 **نکته:** کلیه دستورات و اسکریپت‌های کلاینت (ارسال، دریافت و بازیابی خودکار برای لینوکس، اندروید Termux و ویندوز PowerShell) مستقیماً از طریق وب‌اینترفیس لایو این ورکر در دسترس و قابل مشاهده هستند.
 
 ---
 
-## ⚡ دستورات سریع (Quick Start)
+## ⚙️ معماری و سازوکار ورکر
 
-### ۱. آپلود و پشتیبان‌گیری (نیازمند `MY_TOKEN`):
-- **لینوکس / اندروید Termux:**
-  ```bash
-  curl -fsSL "https://ssh.ajbv.ir/send.sh?token=MY_TOKEN" | bash
-  ```
-- **ویندوز (PowerShell):**
-  ```powershell
-  irm "https://ssh.ajbv.ir/send.ps1?token=MY_TOKEN" | iex
-  ```
-
-### ۲. دریافت و بازیابی (بدون نیاز به توکن):
-- **لینوکس / اندروید Termux:**
-  ```bash
-  curl -fsSL https://ssh.ajbv.ir/get.sh | bash
-  ```
-- **ویندوز (PowerShell):**
-  ```powershell
-  irm https://ssh.ajbv.ir/get.ps1 | iex
-  ```
-
-> اسکریپت `get` به صورت خودکار پوشه `~/.ssh` و زیرپوشه `secrets/` را با پرمیژن‌های امنیتی (`chmod 700 / 600`) بازگردانی و پیکربندی می‌کند.
+- **ذخیره‌سازی در Cloudflare KV:** داده‌های پوشه `~/.ssh/` به صورت آرشیو رمزنگاری‌شده با پسورد مستر در KV ذخیره می‌شوند.
+- **احراز هویت کلاینت:** عملیات آپلود (`send`) از طریق توکن اعتبارسنجی `SYNC_TOKEN` محافظت می‌شود، در حالی که اسکریپت‌های دریافت با امنیت طراحی شده‌اند.
+- **چندسکویی:** اسکریپت‌های بش و پاورشل مستقیماً توسط ورکر به کلاینت‌ها سرو می‌شوند.
 
 ---
 
-## 🔮 راه‌اندازی پس از بازیابی (Bootstrap)
+## 🚀 راهنمای راه‌اندازی و دیپلوی (Deployment)
 
-### 👑 Omarchy Linux
+### ۱. ساخت سریع توکن دسترسی Cloudflare
+برای اینکه رانگلر بدون لاگین سراسری و بدون تداخل با سایر حساب‌ها به اکانت مقصد متصل شود، لینک زیر را در مرورگر باز کرده و توکن را بسازید:
+- 🔗 **[لینک آماده ساخت توکن Cloudflare برای cf-ssh-sync](https://dash.cloudflare.com/profile/api-tokens?accountId=%2A&name=cf-ssh-sync&permissionGroupKeys=%5B%7B%22key%22%3A%22user_details%22%2C%22type%22%3A%22read%22%7D%2C%7B%22key%22%3A%22account_settings%22%2C%22type%22%3A%22read%22%7D%2C%7B%22key%22%3A%22workers_scripts%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22workers_kv_storage%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22workers_routes%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22workers_tail%22%2C%22type%22%3A%22read%22%7D%5D&zoneId=all)**
+
+
+### ۲. تعریف مقادیر سکرت در سیستم
+مقادیر توکن و شناسه اکانت را در والت اختصاصی پروژه ذخیره کنید:
 ```bash
-# ۱. بوت‌استرپ دات‌فایلز
-sudo pacman -S --needed chezmoi fish && chezmoi init mehdichamani && chezmoi apply
-
-# ۲. نصب تمام پکیج‌ها و منو (در fish)
-dotsync install && omarchy plugin add https://github.com/filip-spaldon/omarchy-menu.git --enable
-
-# ۳. دریافت نوت‌ها از گوشی
-sftp s24-home # (داخل کنسول: get -r /sdcard/Notes/ و get -r /sdcard/insync/)
-
-# ۴. پروکسی و ابزارها
-pinstall https://github.com/patterniha/PattN/ && proxy 10808 && mise install
-
-# ۵. هوش مصنوعی
-yay -S antigravity-ide && curl -fsSL https://raw.githubusercontent.com/mehdichamani/PersianAntigravityIDE/main/setup.sh | bash
-
-# ۶. سرویس‌ها و تنظیم SSH سرور (پورت ۲۲۴۵۶ و فایروال)
-systemctl --user enable --now syncthing.service && sudo systemctl enable --now docker.service && sudo usermod -aG docker $USER
-echo "Port 22456" | sudo tee /etc/ssh/sshd_config.d/port.conf && sudo ufw allow 22456/tcp && sudo systemctl enable --now sshd && sudo systemctl restart sshd
+# ~/.ssh/secrets/cf-ssh-sync.env
+CLOUDFLARE_API_TOKEN="توکن_دریافت_شده"
+CLOUDFLARE_ACCOUNT_ID="شناسه_اکانت_کلادفلر"
 ```
 
-### 🐧 سایر سیستم‌ها (Ubuntu, Termux, Windows)
-> ⏳ *راهنمای تفصیلی به‌زودی اضافه می‌شود...*
-
----
-
-## 🚀 دیپلوی (Deployment)
-
+### ۳. ساخت پایگاه داده KV (در صورت راه‌اندازی اولیه)
+اگر بار اول است که ورکر را راه‌اندازی می‌کنید، Namespace مربوط به KV را بسازید:
 ```bash
-cd ~/.local/share/chezmoi/projects/cf-ssh-sync
-npx wrangler secret put SYNC_TOKEN
-npx wrangler deploy
+npm run w -- kv namespace create SSH_KV
+```
+سپس مقدار `id` برگردانده شده را در فایل `wrangler.toml` قرار دهید.
+
+### ۴. تنظیم توکن هماهنگ‌سازی (Secret)
+رمز عبور یا کلید اعتبارسنجی ورکر (`SYNC_TOKEN`) را با دستور زیر در ورکر ثبت کنید:
+```bash
+npm run w -- secret put SYNC_TOKEN
+```
+
+### ۵. دیپلوی نهایی و تست
+```bash
+# دیپلوی ورکر روی کلادفلر
+npm run deploy
+
+# تست و توسعه محلی (در صورت نیاز)
+npm run dev
+
+# مشاهده زنده لاگ‌های ورکر
+npm run tail
 ```
