@@ -59,6 +59,7 @@ hl.unbind("SUPER + L")
 hl.unbind("SUPER + CTRL + L")
 o.bind("SUPER + L", "Lock system", "omarchy-system-lock")
 o.bind("SUPER + CTRL + L", "Toggle workspace layout", "omarchy-hyprland-workspace-layout-toggle")
+o.bind("SUPER + SHIFT + L", "Toggle screensaver", "omarchy-toggle-screensaver")
 
 -- Floating default terminal
 o.bind("SUPER + grave", "Floating Terminal", "setsid uwsm-app -- xdg-terminal-exec --app-id=org.omarchy.terminal --dir=\"$(omarchy-cmd-terminal-cwd)\"")
