@@ -1,5 +1,5 @@
 # See https://git-scm.com/docs/git-config
-{{- $gitEnvPath := joinPath .chezmoi.homeDir ".config" "secrets" "git.env" -}}
+{{- $gitEnvPath := joinPath .chezmoi.homeDir ".ssh" "secrets" "git.env" -}}
 {{- $name := "Your Name" -}}
 {{- $email := "your.email@example.com" -}}
 {{- if stat $gitEnvPath -}}

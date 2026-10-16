@@ -1,4 +1,4 @@
-{{- $secretFile := joinPath .chezmoi.homeDir ".config" "secrets" "wayvnc.env" -}}
+{{- $secretFile := joinPath .chezmoi.homeDir ".ssh" "secrets" "wayvnc.env" -}}
 {{- $password := "changeme" -}}
 {{- if stat $secretFile -}}
 {{-   $content := include $secretFile -}}

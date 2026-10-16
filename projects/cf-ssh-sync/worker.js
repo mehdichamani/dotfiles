@@ -44,10 +44,9 @@ export default {
 set -euo pipefail
 
 SSH_DIR="\${HOME}/.ssh"
-SECRETS_DIR="\${HOME}/.config/secrets"
 
-if [ ! -d "\$SSH_DIR" ] && [ ! -d "\$SECRETS_DIR" ]; then
-  echo "Error: Neither \$SSH_DIR nor \$SECRETS_DIR exists!" >&2
+if [ ! -d "\$SSH_DIR" ]; then
+  echo "Error: \$SSH_DIR does not exist!" >&2
   exit 1
 fi
 
@@ -102,17 +101,9 @@ TEMP_ENC=$(mktemp)
 trap 'rm -rf "$TEMP_DIR" "$TEMP_ENC"' EXIT
 
 # Prepare clean structure in temporary workspace
-if [ -d "\$SSH_DIR" ]; then
-  mkdir -p "\$TEMP_DIR/ssh"
-  cp -a "\$SSH_DIR/." "\$TEMP_DIR/ssh/"
-  echo "✔ Added ~/.ssh contents"
-fi
-
-if [ -d "\$SECRETS_DIR" ]; then
-  mkdir -p "\$TEMP_DIR/secrets"
-  cp -a "\$SECRETS_DIR/." "\$TEMP_DIR/secrets/"
-  echo "✔ Added ~/.config/secrets contents"
-fi
+mkdir -p "\$TEMP_DIR/ssh"
+cp -a "\$SSH_DIR/." "\$TEMP_DIR/ssh/"
+echo "✔ Added ~/.ssh (including keys, config and ~/.ssh/secrets)"
 
 echo "Archiving and encrypting vault data (AES-256-CBC)..."
 tar -C "\$TEMP_DIR" -czf - . | openssl enc -aes-256-cbc -pbkdf2 -salt -pass pass:"\$PASSPHRASE" -out "\$TEMP_ENC"
@@ -144,7 +135,6 @@ fi
 set -euo pipefail
 
 SSH_DIR="\${HOME}/.ssh"
-SECRETS_DIR="\${HOME}/.config/secrets"
 
 # Ensure openssl, tar, curl, and gzip/unzip are installed
 ensure_deps() {
@@ -244,50 +234,26 @@ elif [ ! -d "\$TEMP_EXTRACT/secrets" ]; then
   echo "✔ Restored ~/.ssh (Legacy format)"
 fi
 
-# 2. Restore Secrets if present
-if [ -d "\$TEMP_EXTRACT/secrets" ]; then
-  mkdir -p "\$SECRETS_DIR"
-  cp -a "\$TEMP_EXTRACT/secrets/." "\$SECRETS_DIR/"
-  echo "✔ Restored ~/.config/secrets"
-fi
-
-# 3. Apply Strict Security Permissions
+# 2. Apply Strict Security Permissions
 chmod 700 "\$SSH_DIR" 2>/dev/null || true
 find "\$SSH_DIR" -type f -name "id_*" ! -name "*.pub" -exec chmod 600 {} + 2>/dev/null || true
 find "\$SSH_DIR" -type f -name "*.pub" -exec chmod 644 {} + 2>/dev/null || true
 [ -f "\$SSH_DIR/config" ] && chmod 600 "\$SSH_DIR/config" 2>/dev/null || true
 [ -f "\$SSH_DIR/authorized_keys" ] && chmod 600 "\$SSH_DIR/authorized_keys" 2>/dev/null || true
 
-if [ -d "\$SECRETS_DIR" ]; then
-  chmod 700 "\$SECRETS_DIR" 2>/dev/null || true
-  find "\$SECRETS_DIR" -type f -exec chmod 600 {} + 2>/dev/null || true
+if [ -d "\$SSH_DIR/secrets" ]; then
+  chmod 700 "\$SSH_DIR/secrets" 2>/dev/null || true
+  find "\$SSH_DIR/secrets" -type f -exec chmod 600 {} + 2>/dev/null || true
 fi
 echo "✔ Strict security permissions (700/600) applied."
 
-# 4. Optional fix_permisions.sh execution if present
+# 3. Optional fix_permisions.sh execution if present
 FIX_PERMS="\$SSH_DIR/fix_permisions.sh"
 if [ -f "\$FIX_PERMS" ]; then
   # Strip carriage returns if uploaded from Windows
   tr -d '\r' < "\$FIX_PERMS" > "\$FIX_PERMS.tmp" && mv -f "\$FIX_PERMS.tmp" "\$FIX_PERMS" 2>/dev/null || true
   chmod +x "\$FIX_PERMS"
   bash "\$FIX_PERMS"
-fi
-
-# 5. Automatically unlock Chezmoi Git-Crypt if key and repo exist
-GIT_CRYPT_KEY="\$SECRETS_DIR/chezmoi-git-crypt.key"
-CHEZMOI_REPO="\$HOME/.local/share/chezmoi"
-
-if [ -f "\$GIT_CRYPT_KEY" ] && [ -d "\$CHEZMOI_REPO/.git" ]; then
-  if command -v git-crypt >/dev/null 2>&1; then
-    echo "🔓 Unlocking Chezmoi Git-Crypt repository..."
-    if (cd "\$CHEZMOI_REPO" && git-crypt unlock "\$GIT_CRYPT_KEY"); then
-      echo "✅ Chezmoi repository decrypted with git-crypt."
-    else
-      echo "⚠️ Git-crypt unlock returned non-zero code."
-    fi
-  else
-    echo "ℹ️ git-crypt is not installed. Key saved at \$GIT_CRYPT_KEY for manual unlock."
-  fi
 fi
 
 rm -rf "\$TEMP_FILE" "\$TEMP_EXTRACT"
@@ -314,10 +280,9 @@ echo "🎉 Done! Your environment, SSH keys and secrets vault are ready."
 
       const script = `$ErrorActionPreference = 'Stop'
 $sshDir = Join-Path $HOME ".ssh"
-$secretsDir = Join-Path $HOME ".config\\secrets"
 
-if (-not (Test-Path $sshDir) -and -not (Test-Path $secretsDir)) {
-    Write-Error "Neither $sshDir nor $secretsDir exists!"
+if (-not (Test-Path $sshDir)) {
+    Write-Error "$sshDir does not exist!"
     exit 1
 }
 
@@ -338,17 +303,9 @@ $tempFolder = Join-Path ([System.IO.Path]::GetTempPath()) ("cf_vault_" + [System
 New-Item -ItemType Directory -Path $tempFolder -Force | Out-Null
 
 try {
-    if (Test-Path $sshDir) {
-        $destSsh = Join-Path $tempFolder "ssh"
-        Copy-Item -Path "$sshDir" -Destination $destSsh -Recurse -Force
-        Write-Host "✔ Added ~/.ssh contents" -ForegroundColor Green
-    }
-
-    if (Test-Path $secretsDir) {
-        $destSecrets = Join-Path $tempFolder "secrets"
-        Copy-Item -Path "$secretsDir" -Destination $destSecrets -Recurse -Force
-        Write-Host "✔ Added ~/.config/secrets contents" -ForegroundColor Green
-    }
+    $destSsh = Join-Path $tempFolder "ssh"
+    Copy-Item -Path "$sshDir" -Destination $destSsh -Recurse -Force
+    Write-Host "✔ Added ~/.ssh contents (including keys, config, and secrets)" -ForegroundColor Green
 
     $hasTar = Get-Command tar -ErrorAction SilentlyContinue
     $hasOpenssl = Get-Command openssl -ErrorAction SilentlyContinue
@@ -432,7 +389,6 @@ try {
     if (pathname === '/get.ps1') {
       const script = `$ErrorActionPreference = 'Stop'
 $sshDir = Join-Path $HOME ".ssh"
-$secretsDir = Join-Path $HOME ".config\\secrets"
 
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "  🔑 Downloading & Restoring Vault (Windows)" -ForegroundColor Cyan
@@ -625,37 +581,13 @@ try {
     # 1. Restore SSH
     if (Test-Path (Join-Path $tempExtract "ssh")) {
         if (-not (Test-Path $sshDir)) { New-Item -ItemType Directory -Path $sshDir -Force | Out-Null }
-        Copy-Item -Path (Join-Path $tempExtract "ssh\\*") -Destination $sshDir -Recurse -Force
-        Write-Host "✔ Restored ~/.ssh" -ForegroundColor Green
-    } elseif (-not (Test-Path (Join-Path $tempExtract "secrets"))) {
+        Copy-Item -Path (Join-Path $tempExtract "ssh\*") -Destination $sshDir -Recurse -Force
+        Write-Host "✔ Restored ~/.ssh (including keys, config, and secrets)" -ForegroundColor Green
+    } else {
         # Legacy format fallback
         if (-not (Test-Path $sshDir)) { New-Item -ItemType Directory -Path $sshDir -Force | Out-Null }
         Copy-Item -Path (Join-Path $tempExtract "*") -Destination $sshDir -Recurse -Force
         Write-Host "✔ Restored ~/.ssh (Legacy format)" -ForegroundColor Green
-    }
-
-    # 2. Restore Secrets
-    if (Test-Path (Join-Path $tempExtract "secrets")) {
-        if (-not (Test-Path $secretsDir)) { New-Item -ItemType Directory -Path $secretsDir -Force | Out-Null }
-        Copy-Item -Path (Join-Path $tempExtract "secrets\\*") -Destination $secretsDir -Recurse -Force
-        Write-Host "✔ Restored ~/.config/secrets" -ForegroundColor Green
-    }
-
-    # 3. Unlock git-crypt if key and repo are present
-    $cryptKey = Join-Path $secretsDir "chezmoi-git-crypt.key"
-    $cmRepo = Join-Path $HOME ".local\\share\\chezmoi"
-    if ((Test-Path $cryptKey) -and (Test-Path (Join-Path $cmRepo ".git"))) {
-        $hasGitCrypt = Get-Command git-crypt -ErrorAction SilentlyContinue
-        if ($hasGitCrypt) {
-            Write-Host "🔓 Unlocking Chezmoi Git-Crypt repository..." -ForegroundColor Cyan
-            Push-Location $cmRepo
-            try {
-                & git-crypt unlock $cryptKey
-                Write-Host "✅ Chezmoi repository decrypted with git-crypt." -ForegroundColor Green
-            } finally {
-                Pop-Location
-            }
-        }
     }
 
     Write-Host "🎉 Done! Your SSH environment and secrets vault are ready." -ForegroundColor Green

@@ -11,8 +11,10 @@ chezmoi.key
 projects/winapps/dot_env
 *.iso
 
-# Vaults & external notes
+# Vaults, SSH symlink & external notes
 obsidian-vault
+/.ssh
+.ssh
 
 # Plans and drafts
 plans/*
@@ -23,9 +25,6 @@ plans/*
 **/.env
 .env
 jellyfin.env
-dot_config/secrets/*
-!dot_config/secrets/*.example
-!dot_config/secrets/README.md
 projects/*/.env
 projects/*/dot_env
 

@@ -8,18 +8,14 @@ NEW_FOLDER = "/mnt/ssd/media/new"
 MOVIES_FOLDER = "/mnt/ssd/media/Movies"
 TV_FOLDER = "/mnt/ssd/media/Series"
 
-CONFIG_FILE = Path.home() / ".config" / "secrets" / "jellyfin.env"
-EXAMPLE_FILE = Path.home() / ".config" / "secrets" / "jellyfin.env.example"
+CONFIG_FILE = Path.home() / ".ssh" / "secrets" / "jellyfin.env"
 
 def load_config():
     if not CONFIG_FILE.is_file():
         print(f"\n❌ Error: Configuration file not found at:\n   {CONFIG_FILE}")
         print("\nPlease create this file with your Jellyfin credentials:")
-        if EXAMPLE_FILE.is_file():
-            print(f"   cp {EXAMPLE_FILE} {CONFIG_FILE}")
-        else:
-            print("   JELLYFIN_URL=http://localhost:8096")
-            print("   JELLYFIN_API_KEY=your_api_key_here\n")
+        print("   JELLYFIN_URL=http://localhost:8096")
+        print("   JELLYFIN_API_KEY=your_api_key_here\n")
         exit(1)
 
     url = "http://localhost:8096"
