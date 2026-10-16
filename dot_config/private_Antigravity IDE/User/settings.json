@@ -5,5 +5,7 @@
     ],
     "python.languageServer": "Default",
     "window.autoDetectColorScheme": true,
-    "extensions.ignoreRecommendations": true
+    "extensions.ignoreRecommendations": true,
+    "git.confirmSync": false,
+    "git.autofetch": true
 }
