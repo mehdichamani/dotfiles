@@ -7,6 +7,7 @@ o.launch_on_start(os.getenv("HOME") .. "/.local/share/PattN/PattN")
 
 -- Workspace assignments
 o.window("antigravity-ide", { workspace = "1" })
-o.window("code", { workspace = "1" })
 o.window("firefox", { workspace = "2" })
+o.window("antigravity", { workspace = "3" })
 o.window("md.obsidian.Obsidian", { workspace = "4" })
+o.window("org.remmina.Remmina", { workspace = "5" })

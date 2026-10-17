@@ -44,10 +44,9 @@ o.bind("SUPER + A", "Antigravity IDE", { launch = "withproxy antigravity-ide" })
 
 -- Antigravity 2.0 App (with proxy, replace default ChatGPT webapp)
 hl.unbind("SUPER + SHIFT + A")
-o.bind("SUPER + SHIFT + A", "Antigravity", { launch = "withproxy antigravity" })
+o.bind("SUPER + SHIFT + A", "Antigravity App", { launch = "withproxy /home/unreal/.local/bin/antigravity" })
 
--- Remmina (always open in workspace 5)
-o.window("org.remmina.Remmina", { workspace = "5" })
+-- Remmina
 o.bind("SUPER + R", "Remmina", { launch = "remmina" })
 
 -- Obsidian (replace default Pop window out with Obsidian)
