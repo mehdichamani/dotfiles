@@ -1,0 +1,12 @@
+[Unit]
+Description=Aria2c Download Manager Daemon (Bound to VLAN 500)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/aria2c --conf-path=%h/.config/aria2/aria2.conf
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=default.target

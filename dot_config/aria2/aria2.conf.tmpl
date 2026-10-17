@@ -1,0 +1,38 @@
+{{- $nameFile := joinPath .chezmoi.homeDir ".config" "name" -}}
+{{- $hostName := "" -}}
+{{- if stat $nameFile -}}
+{{-   $hostName = trim (include $nameFile) -}}
+{{- end -}}
+# مسیر پیش‌فرض ذخیره فایل‌ها
+dir={{ .chezmoi.homeDir }}/Downloads
+
+{{ if eq $hostName "work" -}}
+# بایند کردن ارتباطات دانلود به VLAN 500 فقط در سیستم کار (work)
+interface=eno1.500
+{{ else -}}
+# در سایر سیستم‌ها به صورت پیش‌فرض از اینترفیس اصلی سیستم استفاده می‌شود
+{{ end -}}
+
+# ذخیره و بازیابی نشست دانلودها (حفظ وضعیت بعد از ری‌استارت)
+input-file={{ .chezmoi.homeDir }}/.config/aria2/aria2.session
+save-session={{ .chezmoi.homeDir }}/.config/aria2/aria2.session
+save-session-interval=30
+
+# تنظیمات RPC (جهت اتصال افزونه‌های مرورگر مانند aria2-extensions)
+enable-rpc=true
+rpc-allow-origin-all=true
+rpc-listen-all=false
+rpc-listen-port=6800
+
+# تنظیمات دانلود و کانکشن‌ها
+continue=true
+max-concurrent-downloads=5
+max-connection-per-server=16
+split=16
+min-split-size=1M
+piece-length=1M
+disk-cache=64M
+file-allocation=falloc
+
+# متوقف کردن Seeding در تورنت‌ها (در صورت استفاده)
+seed-time=0
