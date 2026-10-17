@@ -42,6 +42,10 @@ hl.unbind("SUPER + SPACE")
 -- Antigravity IDE (with proxy)
 o.bind("SUPER + A", "Antigravity IDE", { launch = "withproxy antigravity-ide" })
 
+-- Antigravity 2.0 App (with proxy, replace default ChatGPT webapp)
+hl.unbind("SUPER + SHIFT + A")
+o.bind("SUPER + SHIFT + A", "Antigravity", { launch = "withproxy antigravity" })
+
 -- Remmina (always open in workspace 5)
 o.window("org.remmina.Remmina", { workspace = "5" })
 o.bind("SUPER + R", "Remmina", { launch = "remmina" })
