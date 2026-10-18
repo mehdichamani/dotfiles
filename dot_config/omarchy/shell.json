@@ -69,16 +69,13 @@
           "id": "omarchy.audio"
         },
         {
-          "id": "omarchy.monitor"
+          "id": "crmne.hyprmoncfg"
         },
         {
           "id": "omarchy.power"
         },
         {
           "id": "mehdichamani.shamsi-clock"
-        },
-        {
-          "id": "crmne.hyprmoncfg"
         }
       ]
     },
