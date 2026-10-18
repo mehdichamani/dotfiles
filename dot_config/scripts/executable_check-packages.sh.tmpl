@@ -5,11 +5,6 @@
 exit 0
 {{- else }}
 
-echo ""
-echo "============================================================"
-echo "  📦 Dotfiles Package Dependencies Verification"
-echo "============================================================"
-
 # 1. Detect OS and Package Manager
 OS_TYPE="unknown"
 OS_NAME="Unknown"
@@ -41,12 +36,13 @@ elif [ "{{ .chezmoi.os }}" = "linux" ]; then
     fi
 fi
 
-echo "🔍 Detected Platform: $OS_NAME"
-echo "🛠️ Detected Package Manager: ${PKG_MGR:-None / Manual}"
+echo -e "\n\033[1;36m== Dotfiles Package & Environment Verification ($OS_NAME) ==\033[0m"
 
 # 2. Define Dependency Checks per Platform
 MISSING_CMDS=()
 MISSING_PKGS=()
+SATISFIED_TOOLS=()
+SATISFIED_FONTS=()
 NEED_FONT_INSTALL=0
 
 check_tool() {
@@ -55,6 +51,7 @@ check_tool() {
     local alt_cmd="$3"
 
     if command -v "$cmd" >/dev/null 2>&1 || { [ -n "$alt_cmd" ] && command -v "$alt_cmd" >/dev/null 2>&1; }; then
+        SATISFIED_TOOLS+=("$cmd")
         return 0
     else
         MISSING_CMDS+=("$cmd")
@@ -74,17 +71,21 @@ check_font() {
     if [ "$OS_TYPE" = "termux" ]; then
         if [ "$font_name" = "JetBrainsMono-Nerd-Font" ]; then
             if [ -f "$HOME/.termux/font.ttf" ]; then
+                SATISFIED_FONTS+=("$font_name")
                 return 0
             fi
         elif [ -f "$HOME/.local/share/fonts/$file_check" ] || [ -f "$HOME/.fonts/$file_check" ]; then
+            SATISFIED_FONTS+=("$font_name")
             return 0
         fi
     elif command -v fc-list >/dev/null 2>&1; then
         if fc-list : family | grep -qi "$pattern"; then
+            SATISFIED_FONTS+=("$font_name")
             return 0
         fi
     elif [ -f "$HOME/.local/share/fonts/$file_check" ] || \
          [ -f "$HOME/.fonts/$file_check" ]; then
+        SATISFIED_FONTS+=("$font_name")
         return 0
     fi
 
@@ -191,9 +192,22 @@ case "$OS_TYPE" in
 esac
 
 # 3. Check status
+if [ ${#SATISFIED_TOOLS[@]} -gt 0 ]; then
+    echo "📦 Verified packages & CLI tools:"
+    for item in "${SATISFIED_TOOLS[@]}"; do
+        echo -e "  \033[1;32m✓\033[0m $item"
+    done
+fi
+
+if [ ${#SATISFIED_FONTS[@]} -gt 0 ]; then
+    echo ""
+    echo "🔤 Verified fonts:"
+    for item in "${SATISFIED_FONTS[@]}"; do
+        echo -e "  \033[1;32m✓\033[0m $item"
+    done
+fi
+
 if [ ${#MISSING_CMDS[@]} -eq 0 ]; then
-    echo "✅ All core dotfiles tools and dependencies are already satisfied!"
-    echo "============================================================"
     exit 0
 fi
 

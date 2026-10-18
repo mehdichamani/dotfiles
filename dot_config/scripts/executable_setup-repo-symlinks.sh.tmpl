@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# setup-repo-symlinks.sh - Manages internal repository symlinks (.ssh & obsidian-vault)
+# Works across Linux (home/work) and Android Termux (s24)
+# ==============================================================================
+{{- if eq .chezmoi.os "windows" }}
+# Skip on Windows
+exit 0
+{{- else }}
+set -e
+
+echo -e "\n🔗 Internal Repository Symlinks:"
+
+IS_TERMUX=0
+if [ -n "$PREFIX" ] && [ -d "$PREFIX" ] && command -v pkg >/dev/null 2>&1; then
+    IS_TERMUX=1
+fi
+
+CHEZMOI_DIR="{{ .chezmoi.sourceDir }}"
+LIVE_SSH_DIR="{{ .chezmoi.homeDir }}/.ssh"
+
+# ------------------------------------------------------------------------------
+# 1. Manage .ssh symlink inside Chezmoi repository
+# ------------------------------------------------------------------------------
+TARGET_SSH_LINK="$CHEZMOI_DIR/.ssh"
+
+if [ -d "$LIVE_SSH_DIR" ]; then
+    if [ -L "$TARGET_SSH_LINK" ] && [ "$(readlink -f "$TARGET_SSH_LINK" 2>/dev/null)" = "$(readlink -f "$LIVE_SSH_DIR" 2>/dev/null)" ]; then
+        echo -e "  \033[1;32m✓\033[0m .ssh symlink verified: $TARGET_SSH_LINK -> $LIVE_SSH_DIR"
+    else
+        # Remove broken or stale link/file if exists
+        rm -rf "$TARGET_SSH_LINK"
+        ln -sf "$LIVE_SSH_DIR" "$TARGET_SSH_LINK"
+        echo -e "  \033[1;32m✓\033[0m Created .ssh symlink: $TARGET_SSH_LINK -> $LIVE_SSH_DIR"
+    fi
+else
+    echo "  ⚠️  Live SSH directory not found at $LIVE_SSH_DIR. Skipped .ssh symlink."
+fi
+
+# ------------------------------------------------------------------------------
+# 2. Manage Notes symlink inside Chezmoi repository
+# ------------------------------------------------------------------------------
+TARGET_NOTES_LINK="$CHEZMOI_DIR/Notes"
+LEGACY_OBSIDIAN_LINK="$CHEZMOI_DIR/obsidian-vault"
+NOTES_DIR=""
+
+# Remove legacy obsidian-vault symlink if present
+if [ -L "$LEGACY_OBSIDIAN_LINK" ] || [ -e "$LEGACY_OBSIDIAN_LINK" ]; then
+    rm -rf "$LEGACY_OBSIDIAN_LINK"
+fi
+
+if [ "$IS_TERMUX" -eq 1 ]; then
+    # Search order for Android storage
+    CANDIDATES=(
+        "/storage/emulated/0/Notes"
+        "/sdcard/Notes"
+        "{{ .chezmoi.homeDir }}/storage/shared/Notes"
+        "{{ .chezmoi.homeDir }}/Notes"
+    )
+    for c in "${CANDIDATES[@]}"; do
+        if [ -d "$c" ]; then
+            NOTES_DIR="$c"
+            break
+        fi
+    done
+else
+    # Standard Linux / macOS path
+    if [ -d "{{ .chezmoi.homeDir }}/Notes" ]; then
+        NOTES_DIR="{{ .chezmoi.homeDir }}/Notes"
+    fi
+fi
+
+# Clean up stale circular link in Notes if present
+if [ -n "$NOTES_DIR" ] && [ -L "$NOTES_DIR/chezmoi-source" ]; then
+    rm -f "$NOTES_DIR/chezmoi-source"
+fi
+
+if [ -n "$NOTES_DIR" ] && [ -d "$NOTES_DIR" ]; then
+    if [ -L "$TARGET_NOTES_LINK" ] && [ "$(readlink -f "$TARGET_NOTES_LINK" 2>/dev/null)" = "$(readlink -f "$NOTES_DIR" 2>/dev/null)" ]; then
+        echo -e "  \033[1;32m✓\033[0m Notes symlink verified: $TARGET_NOTES_LINK -> $NOTES_DIR"
+    else
+        rm -rf "$TARGET_NOTES_LINK"
+        ln -sf "$NOTES_DIR" "$TARGET_NOTES_LINK"
+        echo -e "  \033[1;32m✓\033[0m Created Notes symlink: $TARGET_NOTES_LINK -> $NOTES_DIR"
+    fi
+else
+    echo "  ⚠️  Obsidian Notes directory not found. Skipped Notes symlink."
+fi
+
+{{- end }}

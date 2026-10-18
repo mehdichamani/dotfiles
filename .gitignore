@@ -1,18 +1,14 @@
-# Secrets & sensitive fish configs
-dot_config/fish/secrets.fish
-
 # Keys, certificates and chezmoi age/gpg keys
 *.pem
 *.key
-tls_*.pem
-chezmoi.key
 
 # Docker & Virtualization
 projects/winapps/dot_env
 *.iso
 
 # Vaults, SSH symlink & external notes
-obsidian-vault
+Notes
+/Notes
 /.ssh
 .ssh
 
@@ -24,9 +20,7 @@ plans/*
 *.env
 **/.env
 .env
-jellyfin.env
-projects/*/.env
-projects/*/dot_env
+dot_env
 
 # Cloudflare Wrangler cache & state
 projects/cf-ssh-sync/.wrangler/
