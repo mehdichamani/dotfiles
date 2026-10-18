@@ -15,7 +15,17 @@
           "id": "omarchy-menu-omni"
         },
         {
-          "id": "user.workspaces"
+          "id": "tornikegomareli.spaces",
+          "showIcons": true,
+          "showApps": "all",
+          "perMonitor": true,
+          "persistentWorkspaces": 5,
+          "pillBackground": true,
+          "dimUnfocused": true,
+          "focusedTitle": true,
+          "titleLength": 32,
+          "iconStyle": "color",
+          "labelStyle": "number"
         }
       ],
       "right": [
