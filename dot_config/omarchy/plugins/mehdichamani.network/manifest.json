@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "mehdichamani.network",
+  "name": "Network",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Wi-Fi and Ethernet connection state",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Network",
+    "description": "Wi-Fi and Ethernet connection state",
+    "category": "Network",
+    "allowMultiple": false
+  },
+  "omarchy": {
+    "clonedFrom": "omarchy.network",
+    "capabilities": ["process"]
+  }
+}

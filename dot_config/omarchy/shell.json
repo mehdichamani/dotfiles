@@ -1,0 +1,105 @@
+{
+  "bar": {
+    "centerAnchor": "",
+    "layout": {
+      "center": [
+        {
+          "id": "omarchy.system-update"
+        }
+      ],
+      "left": [
+        {
+          "id": "mehdichamani.menu"
+        },
+        {
+          "id": "omarchy-menu-omni"
+        },
+        {
+          "id": "tornikegomareli.spaces",
+          "showIcons": true,
+          "showApps": "all",
+          "perMonitor": true,
+          "persistentWorkspaces": 5,
+          "pillBackground": true,
+          "dimUnfocused": true,
+          "focusedTitle": true,
+          "titleLength": 32,
+          "iconStyle": "color",
+          "labelStyle": "number"
+        }
+      ],
+      "right": [
+        {
+          "id": "mehdichamani.keyboard-layout"
+        },
+        {
+          "id": "mehdichamani.indicators"
+        },
+        {
+          "id": "mehdichamani.docker"
+        },
+        {
+          "id": "mehdichamani.git-status"
+        },
+        {
+          "id": "mehdichamani.syncthing"
+        },
+        {
+          "id": "mehdichamani.btrfs-backup"
+        },
+        {
+          "id": "mehdichamani.tray"
+        },
+        {
+          "id": "omarchy.tailscale"
+        },
+        {
+          "id": "mehdichamani.wireguard"
+        },
+        {
+          "id": "omarchy.agents"
+        },
+        {
+          "id": "omarchy.bluetooth"
+        },
+        {
+          "id": "mehdichamani.network"
+        },
+        {
+          "id": "omarchy.audio"
+        },
+        {
+          "id": "omarchy.monitor"
+        },
+        {
+          "id": "omarchy.power"
+        },
+        {
+          "id": "mehdichamani.shamsi-clock"
+        }
+      ]
+    },
+    "position": "top",
+    "transparent": false
+  },
+  "idle": {
+    "lock": 300,
+    "screensaver": 150
+  },
+  "plugins": [
+    {
+      "id": "io.github.codesmith28.omalt-tab"
+    },
+    {
+      "id": "unreal.lock"
+    }
+  ],
+  "version": 1,
+  "cloneSourceRestores": [
+    "unreal.lock",
+    "omarchy-menu-omni"
+  ],
+  "disabledPlugins": [
+    "omarchy.menu"
+  ]
+}
