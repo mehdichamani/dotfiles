@@ -89,14 +89,10 @@
   "plugins": [
     {
       "id": "io.github.codesmith28.omalt-tab"
-    },
-    {
-      "id": "unreal.lock"
     }
   ],
   "version": 1,
   "cloneSourceRestores": [
-    "unreal.lock",
     "omarchy-menu-omni"
   ],
   "disabledPlugins": [
