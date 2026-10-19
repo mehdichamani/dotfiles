@@ -235,13 +235,13 @@ setup_mkinitcpio_hooks_dropin() {
 
     local unlock_chain="netconf"
     if [ "$mode" = "tailscale" ]; then
-        unlock_chain="netconf tailscale encryptssh remote-unlock"
+        unlock_chain="netconf tailscale remote-unlock encryptssh"
     elif [ "$mode" = "hybrid" ]; then
         setup_tinyssh_custom_port
-        unlock_chain="netconf tinyssh tailscale encryptssh remote-unlock"
+        unlock_chain="netconf tinyssh tailscale remote-unlock encryptssh"
     else
         setup_tinyssh_custom_port
-        unlock_chain="netconf tinyssh encryptssh remote-unlock"
+        unlock_chain="netconf tinyssh remote-unlock encryptssh"
     fi
 
     cat > "${HOOKS_CONF}" << EOF
@@ -274,7 +274,7 @@ run_hook ()
 {
     (
         # Loop until disk is unlocked to ensure Plymouth displays the status overlay
-        for _i in \$(seq 1 30); do
+        for _i in \$(seq 1 35); do
             [ -e "/dev/mapper/root" ] && break
             [ -f "/.done" ] && break
 
@@ -286,16 +286,16 @@ run_hook ()
             if [ -z "\${my_ip}" ]; then
                 my_ip=\$(/sbin/ip -4 addr show dev ${INTERFACE} 2>/dev/null | grep inet | awk '{print \$2}' | cut -d/ -f1 | head -n1 || true)
             fi
-            [ -z "\${my_ip}" ] && my_ip="[No IP - Link down?]"
+            [ -z "\${my_ip}" ] && my_ip="[Connecting...]"
 
             local ts_status=""
             if [ -f /run/tailscaled.pid ] && kill -0 \$(cat /run/tailscaled.pid 2>/dev/null) 2>/dev/null; then
-                ts_status="Tailscale: ONLINE (${HOSTNAME}-initrd)"
+                ts_status="Tailscale: Online (${HOSTNAME}-initrd)"
             else
                 ts_status="Tailscale: N/A"
             fi
 
-            local msg="• LAN: ssh -p ${SSH_PORT} root@\${my_ip} | \${ts_status}"
+            local msg="SSH: ssh -p ${SSH_PORT} root@\${my_ip}  |  \${ts_status}"
 
             if command -v plymouth >/dev/null 2>&1 && plymouth --ping 2>/dev/null; then
                 plymouth display-message --text="\${msg}" 2>/dev/null || true
@@ -337,8 +337,9 @@ INSIDE_SHELL
         sed -i '/fun display_password_callback(prompt, bullets) {/a \ \ if (prompt) {\n    display_message_callback(prompt);\n  }' "${BUILDROOT}/usr/share/plymouth/themes/omarchy/omarchy.script"
     fi
 
-    # Trigger remote-unlock overlay right before ask-for-password in encryptssh hook
+    # Customize encryptssh prompt and trigger remote-unlock overlay
     if [[ -f "${BUILDROOT}/hooks/encryptssh" ]]; then
+        sed -i 's/--prompt="A password is required to access the \${cryptname} volume"/--prompt="Enter password or remote unlock via SSH (LAN or Tailscale)"/' "${BUILDROOT}/hooks/encryptssh"
         sed -i '/plymouth ask-for-password/i \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ ( [ -x /hooks/remote-unlock ] && /hooks/remote-unlock ) 2>/dev/null || true' "${BUILDROOT}/hooks/encryptssh"
     fi
 
