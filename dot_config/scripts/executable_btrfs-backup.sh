@@ -481,16 +481,16 @@ prune_old_cycles() {
         done
     fi
 
-    # Prune old boot archives
+    # Prune old boot archives and metadata
     if [[ -d "${BOOT_BACKUP_DIR}" ]]; then
         for boot_file in "${BOOT_BACKUP_DIR}"/*; do
             [[ -e "${boot_file}" ]] || continue
             local base
             base=$(basename "${boot_file}")
-            if [[ "${base}" =~ ^(boot|efibootmgr)_([0-9]{8}) ]]; then
+            if [[ "${base}" =~ ^(boot|efibootmgr|blkid|lsblk|sfdisk|fstab)_([0-9]{8}) ]]; then
                 local file_cycle="cycle_${BASH_REMATCH[2]}"
                 if [[ "${file_cycle}" != "${active_cycle_id}" ]]; then
-                    log_info "Pruning old boot archive: ${boot_file}"
+                    log_info "Pruning old boot/metadata file: ${boot_file}"
                     if [[ "${DRY_RUN}" == "false" ]]; then
                         rm -f "${boot_file}"
                     else
@@ -616,17 +616,33 @@ run_backup() {
         fi
     fi
 
-    # 4. Step: Backup Boot Partition and NVRAM Boot Entries
-    log_info "Archiving /boot partition and EFIBOOTMGR metadata..."
+    # 4. Step: Backup Boot Partition, Partition Tables, Disk Metadata, and NVRAM
+    log_info "Archiving /boot partition, partition layout, metadata, and EFIBOOTMGR..."
     local boot_archive="${BOOT_BACKUP_DIR}/boot_${date_day}.tar.zst"
     local efi_archive="${BOOT_BACKUP_DIR}/efibootmgr_${date_day}.txt"
+    local blkid_archive="${BOOT_BACKUP_DIR}/blkid_${date_day}.txt"
+    local lsblk_archive="${BOOT_BACKUP_DIR}/lsblk_${date_day}.txt"
+    local sfdisk_archive="${BOOT_BACKUP_DIR}/sfdisk_${date_day}.txt"
+    local fstab_archive="${BOOT_BACKUP_DIR}/fstab_${date_day}"
 
     if [[ "${DRY_RUN}" == "false" ]]; then
         tar --zstd -cpf "${boot_archive}" -C /boot .
         efibootmgr -v > "${efi_archive}" 2>/dev/null || true
+        blkid > "${blkid_archive}" 2>/dev/null || true
+        lsblk -f > "${lsblk_archive}" 2>/dev/null || true
+        # Backup partition layout of the primary NVMe disk if present
+        local nvme_disk
+        nvme_disk=$(lsblk -no PKNAME "$(findmnt -no SOURCE / 2>/dev/null || echo '/dev/nvme0n1p2')" 2>/dev/null | head -n 1 || echo "")
+        [[ -z "${nvme_disk}" ]] && nvme_disk="nvme0n1"
+        [[ -b "/dev/${nvme_disk}" ]] && sfdisk -d "/dev/${nvme_disk}" > "${sfdisk_archive}" 2>/dev/null || true
+        cp -a /etc/fstab "${fstab_archive}" 2>/dev/null || true
     else
         echo "[DRY-RUN] tar --zstd -cpf ${boot_archive} -C /boot ."
         echo "[DRY-RUN] efibootmgr -v > ${efi_archive}"
+        echo "[DRY-RUN] blkid > ${blkid_archive}"
+        echo "[DRY-RUN] lsblk -f > ${lsblk_archive}"
+        echo "[DRY-RUN] sfdisk -d /dev/... > ${sfdisk_archive}"
+        echo "[DRY-RUN] cp -a /etc/fstab ${fstab_archive}"
     fi
 
     # 5. Step: Clean up old local parent snapshots on the host disk
