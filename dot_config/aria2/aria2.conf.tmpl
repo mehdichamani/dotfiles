@@ -7,8 +7,8 @@
 dir={{ .chezmoi.homeDir }}/Downloads
 
 {{ if eq $hostName "work" -}}
-# بایند کردن ارتباطات دانلود به VLAN 500 فقط در سیستم کار (work)
-interface=eno1.500
+# بایند کردن ارتباطات دانلود به اینترفیس فیبر نوری VLAN 500 در سیستم کار (work)
+interface=eno1
 {{ else -}}
 # در سایر سیستم‌ها به صورت پیش‌فرض از اینترفیس اصلی سیستم استفاده می‌شود
 {{ end -}}
@@ -21,7 +21,7 @@ save-session-interval=30
 # تنظیمات RPC (جهت اتصال افزونه‌های مرورگر و وب‌اینترفیس AriaNg)
 enable-rpc=true
 rpc-allow-origin-all=true
-rpc-listen-all=false
+rpc-listen-all=true
 rpc-listen-port=6800
 {{- $ariaSecretFile := joinPath .chezmoi.homeDir ".ssh" "secrets" "aria2.env" }}
 {{- if stat $ariaSecretFile }}
