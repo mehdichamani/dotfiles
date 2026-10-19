@@ -28,10 +28,10 @@
 -- o.bind("SUPER + H", nil, "voxtype record toggle")
 hl.unbind("SUPER + CTRL + E")
 o.bind("SUPER + PERIOD", "Emojis", "omarchy-shell shell toggle omarchy.emojis")
-o.bind("SUPER + E", "File Manager", "nautilus")
+o.bind("SUPER + E", "File Manager", "strata")
 
--- Float Nautilus file manager on open
-o.window("org.gnome.Nautilus", { tag = "+floating-window" })
+-- Float Strata file manager on open
+o.window("io.github.lgse.Strata", { tag = "+floating-window" })
 
 -- Open Omarchy menu by pressing Super alone
 o.bind("SUPER + SUPER_L", "Omarchy menu", "omarchy-menu toggle", { release = true })
@@ -80,3 +80,12 @@ if p then
   end
   p:close()
 end
+
+-- strata-installer: file-manager start
+hl.unbind("SUPER + SHIFT + F")
+hl.unbind("SUPER + ALT + SHIFT + F")
+o.bind("SUPER + SHIFT + F", "File manager", { launch = "/home/unreal/.local/bin/strata" })
+o.bind("SUPER + ALT + SHIFT + F", "File manager (cwd)",
+  "uwsm-app -- /home/unreal/.local/bin/strata \"$(omarchy-cmd-terminal-cwd)\"")
+-- strata-installer: file-manager end
+
