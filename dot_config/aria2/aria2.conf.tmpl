@@ -18,11 +18,19 @@ input-file={{ .chezmoi.homeDir }}/.config/aria2/aria2.session
 save-session={{ .chezmoi.homeDir }}/.config/aria2/aria2.session
 save-session-interval=30
 
-# تنظیمات RPC (جهت اتصال افزونه‌های مرورگر مانند aria2-extensions)
+# تنظیمات RPC (جهت اتصال افزونه‌های مرورگر و وب‌اینترفیس AriaNg)
 enable-rpc=true
 rpc-allow-origin-all=true
 rpc-listen-all=false
 rpc-listen-port=6800
+{{- $ariaSecretFile := joinPath .chezmoi.homeDir ".ssh" "secrets" "aria2.env" }}
+{{- if stat $ariaSecretFile }}
+{{-   range splitList "\n" (include $ariaSecretFile) }}
+{{-     if hasPrefix "RPC_SECRET=" . }}
+rpc-secret={{ trimPrefix "RPC_SECRET=" . }}
+{{-     end }}
+{{-   end }}
+{{- end }}
 
 # تنظیمات دانلود و کانکشن‌ها
 continue=true

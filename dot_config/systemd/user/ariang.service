@@ -1,0 +1,13 @@
+[Unit]
+Description=AriaNg Web UI for Aria2
+After=network.target aria2.service
+Wants=aria2.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -m http.server 6880 --directory %h/.local/share/ariang --bind 127.0.0.1
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=default.target
