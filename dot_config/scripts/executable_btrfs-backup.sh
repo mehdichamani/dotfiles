@@ -2,7 +2,7 @@
 # ==============================================================================
 # Btrfs Live Backup & 15-Day Incremental Cycle Manager
 # ==============================================================================
-# Docs: ~/Notes/Tech/Linux/Btrfs-Backup.md
+# Docs: ~/Notes/Tech/Linux/Btrfs Backup System/README.md
 # Workspace Source: ~/.local/share/chezmoi/dot_config/scripts/executable_btrfs-backup.sh
 # Target: ~/.config/scripts/btrfs-backup.sh
 #
@@ -19,31 +19,53 @@
 set -euo pipefail
 
 # ------------------------------------------------------------------------------
-# Configuration & Constants
+# User & Home Environment Detection
 # ------------------------------------------------------------------------------
-readonly BACKUP_UUID="33a3cf69-9264-4d71-8d96-16dc1a72b39a"
-readonly BACKUP_MOUNT="/mnt/tuf_backup"
-readonly SNAPSHOT_DIR="${BACKUP_MOUNT}/snapshots"
-readonly BOOT_BACKUP_DIR="${BACKUP_MOUNT}/boot_backups"
-readonly LOCAL_SNAP_DIR="/.snapshots"
-readonly STATE_FILE="${BACKUP_MOUNT}/backup_state.json"
-# Ensure state directory is in the real user home even when executed via sudo/root
 if [[ -n "${SUDO_USER:-}" ]]; then
-    readonly USER_HOME=$(getent passwd "${SUDO_USER}" | cut -d: -f6)
+    USER_HOME=$(getent passwd "${SUDO_USER}" | cut -d: -f6)
 elif [[ $EUID -eq 0 && "${HOME:-}" == "/root" ]]; then
-    readonly USER_HOME="$(getent passwd 1000 | cut -d: -f6)"
+    USER_HOME="$(getent passwd 1000 | cut -d: -f6)"
 else
-    readonly USER_HOME="${HOME:-$(getent passwd 1000 | cut -d: -f6)}"
+    USER_HOME="${HOME:-$(getent passwd 1000 | cut -d: -f6)}"
 fi
-readonly STATUS_STATE_DIR="${USER_HOME}/.local/state/btrfs-backup"
-readonly STATUS_JSON="${STATUS_STATE_DIR}/status.json"
-readonly LOG_FILE="/var/log/btrfs-backup.log"
-readonly MAX_CYCLE_DAYS=15
-readonly COOLDOWN_SECONDS=86400  # 24 hours
 
-# Source subvolumes
-readonly ROOT_MOUNT="/"
-readonly HOME_MOUNT="/home"
+# ------------------------------------------------------------------------------
+# Load Central Configuration & Secrets (~/.ssh/secrets/btrfs-backup.env)
+# ------------------------------------------------------------------------------
+ENV_FILE="${USER_HOME}/.ssh/secrets/btrfs-backup.env"
+if [[ -f "${ENV_FILE}" ]]; then
+    # shellcheck source=/dev/null
+    source "${ENV_FILE}"
+fi
+
+# Fallback defaults if not set in .env
+BACKUP_UUID="${BACKUP_UUID:-33a3cf69-9264-4d71-8d96-16dc1a72b39a}"
+BACKUP_MOUNT_PREFERRED="${BACKUP_MOUNT_PREFERRED:-/mnt/tuf_backup}"
+BACKUP_LABEL="${BACKUP_LABEL:-TUF_Backup}"
+MAX_CYCLE_DAYS=${MAX_CYCLE_DAYS:-15}
+COOLDOWN_SECONDS=${COOLDOWN_SECONDS:-86400}  # 24 hours
+ROOT_MOUNT="${ROOT_MOUNT:-/}"
+HOME_MOUNT="${HOME_MOUNT:-/home}"
+LOCAL_SNAP_DIR="${LOCAL_SNAP_DIR:-/.snapshots}"
+LOG_FILE="${LOG_FILE:-/var/log/btrfs-backup.log}"
+
+STATUS_STATE_DIR="${USER_HOME}/.local/state/btrfs-backup"
+STATUS_JSON="${STATUS_STATE_DIR}/status.json"
+
+# Helper to find current active backup mount or preferred path
+get_active_backup_mount() {
+    local dev_part
+    dev_part=$(blkid -U "${BACKUP_UUID}" 2>/dev/null || true)
+    local active=""
+    if [[ -n "${dev_part}" ]]; then
+        active=$(findmnt -rn -t btrfs -S "${dev_part}" -o TARGET 2>/dev/null | head -n 1 || true)
+    fi
+    if [[ -n "${active}" && -d "${active}" ]]; then
+        echo "${active}"
+    else
+        echo "${BACKUP_MOUNT_PREFERRED}"
+    fi
+}
 
 # Flags
 FORCE_RUN=false
@@ -175,6 +197,7 @@ update_status_json() {
     # Detect current systemd timer schedule dynamically
     local timer_sched="Unknown"
     local timer_is_active="false"
+    local next_backup_ts="null"
     if command -v systemctl >/dev/null 2>&1; then
         local raw_cal
         raw_cal=$(systemctl cat btrfs-backup.timer 2>/dev/null | grep -E "^\s*OnCalendar\s*=" | tail -n 1 | cut -d= -f2- | xargs || true)
@@ -183,7 +206,17 @@ update_status_json() {
         fi
         if systemctl is-active --quiet btrfs-backup.timer 2>/dev/null; then
             timer_is_active="true"
+            local next_str
+            next_str=$(systemctl show btrfs-backup.timer -p NextElapseUSecRealtime --value 2>/dev/null || echo "")
+            if [[ -n "${next_str}" && "${next_str}" != "n/a" ]]; then
+                next_backup_ts=$(date -d "${next_str}" +%s 2>/dev/null || echo "null")
+            fi
         fi
+    fi
+
+    # Fallback next backup estimation based on cooldown and last success if timer is inactive or not elapsed
+    if [[ "${next_backup_ts}" == "null" ]] && [[ "${last_ts}" != "null" && "${last_ts}" -gt 0 ]]; then
+        next_backup_ts=$(( last_ts + COOLDOWN_SECONDS ))
     fi
 
     local json_payload
@@ -204,6 +237,7 @@ update_status_json() {
   "storage_used_human": "${storage_used_h:-0B}",
   "storage_avail_human": "${storage_avail_h:-0B}",
   "last_success_timestamp": ${last_ts:-null},
+  "next_backup_timestamp": ${next_backup_ts:-null},
   "timer_schedule": "${timer_sched}",
   "timer_active": ${timer_is_active},
   "updated_at": "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
@@ -280,9 +314,9 @@ safe_eject_drive() {
         done
     done
 
-    # Ensure /mnt/tuf_backup specifically is unmounted
-    while findmnt -rn "${BACKUP_MOUNT}" >/dev/null 2>&1; do
-        umount "${BACKUP_MOUNT}" 2>/dev/null || umount -l "${BACKUP_MOUNT}" 2>/dev/null || break
+    # Ensure preferred mountpoint specifically is unmounted
+    while findmnt -rn "${BACKUP_MOUNT_PREFERRED}" >/dev/null 2>&1; do
+        umount "${BACKUP_MOUNT_PREFERRED}" 2>/dev/null || umount -l "${BACKUP_MOUNT_PREFERRED}" 2>/dev/null || break
     done
 
     # Sync again
@@ -296,6 +330,19 @@ safe_eject_drive() {
 # ------------------------------------------------------------------------------
 # Mount Verification & Preparation
 # ------------------------------------------------------------------------------
+ACTIVE_BACKUP_MOUNT=""
+SNAPSHOT_DIR=""
+BOOT_BACKUP_DIR=""
+STATE_FILE=""
+
+setup_target_paths() {
+    local target_mount="$1"
+    ACTIVE_BACKUP_MOUNT="${target_mount}"
+    SNAPSHOT_DIR="${ACTIVE_BACKUP_MOUNT}/snapshots"
+    BOOT_BACKUP_DIR="${ACTIVE_BACKUP_MOUNT}/boot_backups"
+    STATE_FILE="${ACTIVE_BACKUP_MOUNT}/backup_state.json"
+}
+
 ensure_backup_mounted() {
     local dev_part
     dev_part=$(blkid -U "${BACKUP_UUID}" 2>/dev/null || true)
@@ -311,22 +358,17 @@ ensure_backup_mounted() {
 
     if [[ -n "${current_mount}" && -d "${current_mount}" ]]; then
         log_info "Backup drive is already mounted at: ${current_mount}"
-        if [[ "${current_mount}" != "${BACKUP_MOUNT}" ]]; then
-            # If mounted elsewhere, ensure BACKUP_MOUNT is available or create a symlink / bind mount
-            mkdir -p "${BACKUP_MOUNT}"
-            if ! findmnt -rn "${BACKUP_MOUNT}" >/dev/null 2>&1; then
-                mount --bind "${current_mount}" "${BACKUP_MOUNT}" 2>/dev/null || true
-            fi
-        fi
+        setup_target_paths "${current_mount}"
     else
-        log_info "Mounting backup partition (${dev_part}) to ${BACKUP_MOUNT}..."
-        mkdir -p "${BACKUP_MOUNT}"
-        mount -t btrfs -o compress=zstd:3 "${dev_part}" "${BACKUP_MOUNT}" || {
-            log_error "Failed to mount ${BACKUP_MOUNT} on ${dev_part}."
+        log_info "Mounting backup partition (${dev_part}) to ${BACKUP_MOUNT_PREFERRED}..."
+        mkdir -p "${BACKUP_MOUNT_PREFERRED}"
+        mount -t btrfs -o compress=zstd:3 "${dev_part}" "${BACKUP_MOUNT_PREFERRED}" || {
+            log_error "Failed to mount ${BACKUP_MOUNT_PREFERRED} on ${dev_part}."
             notify_desktop "Btrfs Backup Failed" "Failed to mount backup partition on external SSD." "critical" "dialog-error"
             update_status_json "error" "Failed to mount backup partition." "unknown" 0 "unknown"
             exit 2
         }
+        setup_target_paths "${BACKUP_MOUNT_PREFERRED}"
     fi
 
     # Ensure required destination directories exist
@@ -337,10 +379,11 @@ ensure_backup_mounted() {
 
 # Safely unmount backup repository partition
 unmount_backup_repo() {
-    if findmnt -rn "${BACKUP_MOUNT}" >/dev/null 2>&1; then
+    local target="${ACTIVE_BACKUP_MOUNT:-$(get_active_backup_mount)}"
+    if [[ -n "${target}" ]] && findmnt -rn "${target}" >/dev/null 2>&1; then
         sync
-        log_info "Unmounting ${BACKUP_MOUNT}..."
-        umount "${BACKUP_MOUNT}" 2>/dev/null || umount -l "${BACKUP_MOUNT}" 2>/dev/null || true
+        log_info "Unmounting ${target}..."
+        umount "${target}" 2>/dev/null || umount -l "${target}" 2>/dev/null || true
     fi
 }
 
@@ -365,16 +408,16 @@ probe_and_update_state() {
     local current_msg="Drive connected and ready."
     local backup_type="incremental"
 
-    if [[ -f "${BACKUP_MOUNT}/backup_state.json" ]] && command -v jq >/dev/null 2>&1; then
+    if [[ -f "${ACTIVE_BACKUP_MOUNT}/backup_state.json" ]] && command -v jq >/dev/null 2>&1; then
         if [[ "${CYCLE_COUNT}" -eq 1 ]]; then
             backup_type="full"
         else
             backup_type="incremental"
         fi
-    elif [[ -f "${BACKUP_MOUNT}/status.json" ]] && command -v jq >/dev/null 2>&1; then
-        current_status=$(jq -r '.status // "idle"' "${BACKUP_MOUNT}/status.json" 2>/dev/null || echo "idle")
-        backup_type=$(jq -r '.last_backup_type // "incremental"' "${BACKUP_MOUNT}/status.json" 2>/dev/null || echo "incremental")
-        current_msg=$(jq -r '.message // "Drive connected."' "${BACKUP_MOUNT}/status.json" 2>/dev/null || echo "Drive connected.")
+    elif [[ -f "${ACTIVE_BACKUP_MOUNT}/status.json" ]] && command -v jq >/dev/null 2>&1; then
+        current_status=$(jq -r '.status // "idle"' "${ACTIVE_BACKUP_MOUNT}/status.json" 2>/dev/null || echo "idle")
+        backup_type=$(jq -r '.last_backup_type // "incremental"' "${ACTIVE_BACKUP_MOUNT}/status.json" 2>/dev/null || echo "incremental")
+        current_msg=$(jq -r '.message // "Drive connected."' "${ACTIVE_BACKUP_MOUNT}/status.json" 2>/dev/null || echo "Drive connected.")
     fi
 
     # Record state into persistent local state file

@@ -16,6 +16,7 @@ Panel {
   property var backupData: Helper.parseStatusOutput("")
   property bool isRefreshing: false
   property string actionStatusMsg: ""
+  property int currentTimeSeconds: Math.floor(Date.now() / 1000)
 
   readonly property int barSize: bar ? bar.barSize : Style.bar.sizeHorizontal
   readonly property color foreground: bar ? bar.foreground : Color.foreground
@@ -25,13 +26,12 @@ Panel {
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
   readonly property bool isMounted: backupData ? (backupData.backup_disk_mounted === true) : false
+  readonly property bool isConnected: backupData ? (backupData.backup_disk_connected === true || backupData.backup_disk_mounted === true) : false
   readonly property bool isEjected: Helper.isEjected(backupData)
   readonly property bool isRunning: backupData ? (backupData.status === "running") : false
   readonly property bool isError: backupData ? (backupData.status === "error") : false
   readonly property int cycleDay: backupData ? (backupData.cycle_day || 0) : 0
   readonly property int totalSnaps: backupData ? (backupData.total_snapshots || 0) : 0
-
-  readonly property bool isConnected: backupData ? (backupData.backup_disk_connected === true || backupData.backup_disk_mounted === true) : false
 
   function refresh() {
     if (!statusProc.running) {
@@ -75,7 +75,8 @@ Panel {
   }
 
   function triggerRemount() {
-    runCmd("sh -c 'DEV=$(blkid -U 33a3cf69-9264-4d71-8d96-16dc1a72b39a 2>/dev/null); if [ -n \"$DEV\" ]; then sudo mount -a 2>/dev/null || udisksctl mount -b \"$DEV\" 2>/dev/null; notify-send -a \"Btrfs Backup\" -u normal -i drive-harddisk \"Drive Remounted\" \"Backup SSD partition re-attached.\"; else notify-send -a \"Btrfs Backup\" -u normal -i dialog-warning \"Drive Not Found\" \"External backup SSD is not plugged in.\"; fi'")
+    var uuid = (root.backupData && root.backupData.backup_disk_uuid) ? root.backupData.backup_disk_uuid : "33a3cf69-9264-4d71-8d96-16dc1a72b39a"
+    runCmd("sh -c 'DEV=$(blkid -U \"" + uuid + "\" 2>/dev/null); if [ -n \"$DEV\" ]; then sudo mount -a 2>/dev/null || udisksctl mount -b \"$DEV\" 2>/dev/null; notify-send -a \"Btrfs Backup\" -u normal -i drive-harddisk \"Drive Remounted\" \"Backup SSD partition re-attached.\"; else notify-send -a \"Btrfs Backup\" -u normal -i dialog-warning \"Drive Not Found\" \"External backup SSD is not plugged in.\"; fi'")
   }
 
   function openLogs() {
@@ -86,11 +87,20 @@ Panel {
     runCmd("omarchy-launch-floating-terminal-with-presentation \"sudo $HOME/.config/scripts/btrfs-backup.sh --edit-schedule\"")
   }
 
-  function openRepositoryFolder() {
-    runCmd("sh -c 'DEV=$(blkid -U 33a3cf69-9264-4d71-8d96-16dc1a72b39a 2>/dev/null); if [ -n \"$DEV\" ]; then TARGET=$(findmnt -rn -t btrfs -S \"$DEV\" -o TARGET 2>/dev/null | head -n 1); if [ -z \"$TARGET\" ]; then udisksctl mount -b \"$DEV\" >/dev/null 2>&1; TARGET=$(findmnt -rn -t btrfs -S \"$DEV\" -o TARGET 2>/dev/null | head -n 1); fi; if [ -n \"$TARGET\" ]; then xdg-open \"$TARGET\"; fi; fi'")
+  function triggerToggleTimer() {
+    if (root.backupData && root.backupData.timer_active) {
+      runCmd("sudo systemctl stop btrfs-backup.timer && sudo systemctl disable btrfs-backup.timer && notify-send -a 'Btrfs Backup' -u normal -i time-symbolic 'Timer Disabled' 'Daily backup timer paused.'")
+    } else {
+      runCmd("sudo systemctl enable --now btrfs-backup.timer 2>/dev/null || omarchy-launch-floating-terminal-with-presentation \"sudo $HOME/.config/scripts/btrfs-backup.sh --install-systemd\"")
+    }
   }
 
-  // Background status poller (reads persistent cache without waking or mounting the disk)
+  function openRepositoryFolder() {
+    var uuid = (root.backupData && root.backupData.backup_disk_uuid) ? root.backupData.backup_disk_uuid : "33a3cf69-9264-4d71-8d96-16dc1a72b39a"
+    runCmd("sh -c 'DEV=$(blkid -U \"" + uuid + "\" 2>/dev/null); if [ -n \"$DEV\" ]; then TARGET=$(findmnt -rn -t btrfs -S \"$DEV\" -o TARGET 2>/dev/null | head -n 1); if [ -z \"$TARGET\" ]; then udisksctl mount -b \"$DEV\" >/dev/null 2>&1; TARGET=$(findmnt -rn -t btrfs -S \"$DEV\" -o TARGET 2>/dev/null | head -n 1); fi; if [ -n \"$TARGET\" ]; then xdg-open \"$TARGET\"; fi; fi'")
+  }
+
+  // Background status poller
   Process {
     id: statusProc
     command: ["sh", "-c", "$HOME/.config/scripts/btrfs-backup.sh --status 2>/dev/null || cat ~/.local/state/btrfs-backup/status.json 2>/dev/null || true"]
@@ -109,7 +119,6 @@ Panel {
     }
   }
 
-  // Action process fallback
   Process {
     id: actionProc
     running: false
@@ -131,11 +140,20 @@ Panel {
     onTriggered: root.refresh()
   }
 
+  // 1-second ticker for live countdown rendering
+  Timer {
+    id: secondTicker
+    interval: 1000
+    running: root.opened
+    repeat: true
+    onTriggered: root.currentTimeSeconds = Math.floor(Date.now() / 1000)
+  }
+
   implicitWidth: button.implicitWidth
   implicitHeight: root.barSize
 
   // ---------------------------------------------------------------------------
-  // TopBar Button
+  // TopBar Button (Nerd Font, zero emoji)
   // ---------------------------------------------------------------------------
   WidgetButton {
     id: button
@@ -156,7 +174,7 @@ Panel {
   }
 
   // ---------------------------------------------------------------------------
-  // Popup Drawer Panel
+  // Popup Drawer Panel (Overhauled Architecture)
   // ---------------------------------------------------------------------------
   KeyboardPanel {
     id: panel
@@ -165,8 +183,8 @@ Panel {
     bar: root.bar
     open: root.opened
     focusTarget: keyCatcher
-    contentWidth: panel.fittedContentWidth(Style.space(400))
-    contentHeight: panel.fittedContentHeight(panelColumn.implicitHeight, Style.space(560))
+    contentWidth: panel.fittedContentWidth(Style.space(420))
+    contentHeight: panel.fittedContentHeight(panelColumn.implicitHeight, Style.space(620))
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -194,7 +212,7 @@ Panel {
           Item {
             id: headerItem
             width: parent.width
-            implicitHeight: headerRow.implicitHeight + Style.space(6)
+            implicitHeight: headerRow.implicitHeight + Style.space(4)
 
             RowLayout {
               id: headerRow
@@ -204,10 +222,10 @@ Panel {
               // Icon & Title Info
               RowLayout {
                 Layout.fillWidth: true
-                spacing: Style.space(8)
+                spacing: Style.space(10)
 
                 Text {
-                  text: root.isRunning ? "󰑐" : "󰁯"
+                  text: root.isRunning ? "󰑐" : (root.isConnected ? "󰁯" : "󱊞")
                   color: root.isRunning ? root.urgent : (root.isConnected ? root.accent : root.dim)
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.display
@@ -228,12 +246,12 @@ Panel {
 
                   Text {
                     text: {
-                      if (root.isRunning) return "Transferring snapshots..."
-                      if (root.isError) return "Backup error: " + (root.backupData ? root.backupData.message : "")
-                      if (root.isEjected) return "Drive safely ejected (Unmounted)"
-                      if (!root.isConnected) return "External SSD absent / disconnected"
-                      if (!root.isMounted) return "Cycle Day " + root.cycleDay + "/15 · Standby (Unmounted)"
-                      return "Cycle Day " + root.cycleDay + "/15 · " + (root.backupData ? root.backupData.storage_avail_human : "0B") + " Free"
+                      if (root.isRunning) return "Active data transfer in progress"
+                      if (root.isError) return "Error: " + (root.backupData ? root.backupData.message : "")
+                      if (root.isEjected) return "Drive safely unmounted (Ready to remove)"
+                      if (!root.isConnected) return "External drive absent / disconnected"
+                      if (!root.isMounted) return "Drive connected · Unmounted standby"
+                      return "Retention Day " + root.cycleDay + " of 15 · " + (root.backupData ? root.backupData.storage_avail_human : "0B") + " free"
                     }
                     color: root.isRunning ? root.urgent : (root.isEjected ? root.dim : (root.isConnected ? root.accent : root.dim))
                     font.family: root.fontFamily
@@ -256,6 +274,14 @@ Panel {
                 }
 
                 PanelActionButton {
+                  iconText: "󰔛"
+                  tooltipText: "Edit Systemd Timer Schedule"
+                  foreground: root.foreground
+                  fontFamily: root.fontFamily
+                  onClicked: root.triggerEditSchedule()
+                }
+
+                PanelActionButton {
                   iconText: "󰈙"
                   tooltipText: "View Live Logs"
                   foreground: root.foreground
@@ -266,7 +292,165 @@ Panel {
             }
           }
 
-          // 2. Storage Progress Card
+          // 2. Hardware Connection & Mount Status Card (NEW)
+          Rectangle {
+            width: parent.width
+            implicitHeight: hwRow.implicitHeight + Style.space(16)
+            radius: Style.cornerRadius
+            color: Style.hoverFillFor(root.foreground, root.accent)
+            border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
+            border.width: 1
+
+            RowLayout {
+              id: hwRow
+              anchors.fill: parent
+              anchors.margins: Style.space(10)
+              spacing: Style.space(8)
+
+              // Connection Pill
+              Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: Style.space(32)
+                radius: Style.space(6)
+                color: root.isConnected ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.14) : Qt.darker(root.foreground, 3.5)
+                border.color: root.isConnected ? root.accent : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.1)
+                border.width: 1
+
+                RowLayout {
+                  anchors.centerIn: parent
+                  spacing: Style.space(6)
+                  Text {
+                    text: root.isConnected ? "󱊞" : "󰚃"
+                    color: root.isConnected ? root.accent : root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.bodySmall
+                  }
+                  Text {
+                    text: root.isConnected ? "Physical: Attached" : "Physical: Absent"
+                    color: root.isConnected ? root.foreground : root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                    font.bold: root.isConnected
+                  }
+                }
+              }
+
+              // Mount Status Pill
+              Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: Style.space(32)
+                radius: Style.space(6)
+                color: root.isMounted ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.14) : Qt.darker(root.foreground, 3.5)
+                border.color: root.isMounted ? root.accent : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.1)
+                border.width: 1
+
+                RowLayout {
+                  anchors.centerIn: parent
+                  spacing: Style.space(6)
+                  Text {
+                    text: root.isMounted ? "󰋊" : "󱊪"
+                    color: root.isMounted ? root.accent : (root.isEjected ? root.urgent : root.dim)
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.bodySmall
+                  }
+                  Text {
+                    text: root.isMounted ? "Mounted (Active)" : (root.isEjected ? "Safely Ejected" : "Unmounted")
+                    color: root.isMounted ? root.foreground : root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                    font.bold: root.isMounted
+                  }
+                }
+              }
+            }
+          }
+
+          // 3. Live Countdown & Schedule Hero Banner (NEW)
+          Rectangle {
+            width: parent.width
+            implicitHeight: countdownCol.implicitHeight + Style.space(16)
+            radius: Style.cornerRadius
+            color: Style.hoverFillFor(root.foreground, root.accent)
+            border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
+            border.width: 1
+
+            ColumnLayout {
+              id: countdownCol
+              anchors.fill: parent
+              anchors.margins: Style.space(10)
+              spacing: Style.space(6)
+
+              RowLayout {
+                Layout.fillWidth: true
+                Text {
+                  text: "󰔛 Next Scheduled Run"
+                  color: root.dim
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                }
+                Item { Layout.fillWidth: true }
+                Text {
+                  text: Helper.formatSchedule(root.backupData)
+                  color: (root.backupData && root.backupData.timer_active) ? root.accent : root.dim
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                }
+              }
+
+              RowLayout {
+                Layout.fillWidth: true
+                spacing: Style.space(8)
+
+                Text {
+                  text: "󱑊"
+                  color: (root.backupData && root.backupData.next_backup_timestamp) ? root.accent : root.dim
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.title
+                  Layout.alignment: Qt.AlignVCenter
+                }
+
+                ColumnLayout {
+                  Layout.fillWidth: true
+                  spacing: 1
+
+                  Text {
+                    // Reactive countdown driven by currentTimeSeconds
+                    text: {
+                      var dummy = root.currentTimeSeconds
+                      if (!root.backupData || !root.backupData.next_backup_timestamp) return "Timer Not Set"
+                      return Helper.formatCountdown(root.backupData.next_backup_timestamp)
+                    }
+                    color: root.foreground
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.title
+                    font.bold: true
+                  }
+
+                  Text {
+                    text: {
+                      if (!root.backupData || !root.backupData.next_backup_timestamp) return "Enable timer or run manual backup"
+                      return "Estimated: " + Helper.formatDateTime(root.backupData.next_backup_timestamp)
+                    }
+                    color: root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                  }
+                }
+
+                // Toggle Timer Action
+                PanelActionButton {
+                  iconText: (root.backupData && root.backupData.timer_active) ? "󰓛" : "󰐥"
+                  tooltipText: (root.backupData && root.backupData.timer_active) ? "Pause Daily Timer" : "Enable Daily Timer"
+                  foreground: (root.backupData && root.backupData.timer_active) ? root.accent : root.dim
+                  fontFamily: root.fontFamily
+                  onClicked: root.triggerToggleTimer()
+                }
+              }
+            }
+          }
+
+          // 4. Storage Progress Card
           Rectangle {
             width: parent.width
             implicitHeight: storageCol.implicitHeight + Style.space(16)
@@ -284,7 +468,7 @@ Panel {
               RowLayout {
                 Layout.fillWidth: true
                 Text {
-                  text: "TUF_Backup Repository"
+                  text: "󰋊 TUF_Backup Repository"
                   color: root.foreground
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.bodySmall
@@ -317,7 +501,7 @@ Panel {
               RowLayout {
                 Layout.fillWidth: true
                 Text {
-                  text: root.totalSnaps + " Snapshots stored"
+                  text: "󰁯 " + root.totalSnaps + " snapshots stored"
                   color: root.dim
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.caption
@@ -333,7 +517,7 @@ Panel {
             }
           }
 
-          // 3. 15-Day Cycle Visualizer Card
+          // 5. 15-Day Cycle Retention Visualizer
           Rectangle {
             width: parent.width
             implicitHeight: cycleCol.implicitHeight + Style.space(16)
@@ -351,7 +535,7 @@ Panel {
               RowLayout {
                 Layout.fillWidth: true
                 Text {
-                  text: "15-Day Retention Cycle"
+                  text: "󱑊 15-Day Retention Cycle"
                   color: root.foreground
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.bodySmall
@@ -399,7 +583,7 @@ Panel {
               }
 
               Text {
-                text: "F = Full Base Backup · Days 2-15 = Fast Incremental Diffs"
+                text: "F = Full Base Backup · Days 2-15 = Incremental Snapshots"
                 color: root.dim
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.caption
@@ -407,78 +591,7 @@ Panel {
             }
           }
 
-          // 4. Details / Metadata Card
-          Rectangle {
-            width: parent.width
-            implicitHeight: metaCol.implicitHeight + Style.space(16)
-            radius: Style.cornerRadius
-            color: Style.hoverFillFor(root.foreground, root.accent)
-            border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
-            border.width: 1
-
-            ColumnLayout {
-              id: metaCol
-              anchors.fill: parent
-              anchors.margins: Style.space(10)
-              spacing: Style.space(6)
-
-              // Last Backup
-              RowLayout {
-                Layout.fillWidth: true
-                Text {
-                  text: "󱑊 Last Backup"
-                  color: root.dim
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.caption
-                }
-                Item { Layout.fillWidth: true }
-                Text {
-                  text: Helper.formatDateTime(root.backupData.last_success_timestamp) + " (" + Helper.formatRelativeTime(root.backupData.last_success_timestamp) + ")"
-                  color: root.foreground
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.caption
-                }
-              }
-
-              // Timer Schedule
-              RowLayout {
-                Layout.fillWidth: true
-                Text {
-                  text: "󰔛 Timer Schedule"
-                  color: root.dim
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.caption
-                }
-                Item { Layout.fillWidth: true }
-                Text {
-                  text: Helper.formatSchedule(root.backupData)
-                  color: root.accent
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.caption
-                }
-              }
-
-              // Compression & Protection
-              RowLayout {
-                Layout.fillWidth: true
-                Text {
-                  text: "󰗊 Target Subvols"
-                  color: root.dim
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.caption
-                }
-                Item { Layout.fillWidth: true }
-                Text {
-                  text: "/ (@), /home (@home), /boot"
-                  color: root.foreground
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.caption
-                }
-              }
-            }
-          }
-
-          // 5. Interactive Action Buttons
+          // 6. Interactive Actions Bottom Bar
           RowLayout {
             width: parent.width
             spacing: Style.space(8)
@@ -498,7 +611,7 @@ Panel {
             Button {
               Layout.fillWidth: true
               implicitHeight: Style.space(36)
-              text: root.isMounted ? "⏏  Safe Eject" : "󰑐  Mount Drive"
+              text: root.isMounted ? "󰚃  Safe Eject" : "󱊞  Mount Drive"
               fontFamily: root.fontFamily
               fontSize: Style.font.bodySmall
               enabled: (root.isConnected || root.isMounted) && !root.isRunning
