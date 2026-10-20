@@ -50,19 +50,19 @@ if [ -L "$LEGACY_OBSIDIAN_LINK" ] || [ -e "$LEGACY_OBSIDIAN_LINK" ]; then
 fi
 
 if [ "$IS_TERMUX" -eq 1 ]; then
-    # Search order for Android storage
-    CANDIDATES=(
-        "/storage/emulated/0/Notes"
-        "/sdcard/Notes"
-        "{{ .chezmoi.homeDir }}/storage/shared/Notes"
-        "{{ .chezmoi.homeDir }}/Notes"
-    )
-    for c in "${CANDIDATES[@]}"; do
-        if [ -d "$c" ]; then
-            NOTES_DIR="$c"
-            break
+    # Ensure standard ~/Notes symlink exists in Termux home
+    ANDROID_STORAGE_NOTES="/storage/emulated/0/Notes"
+    if [ ! -d "$ANDROID_STORAGE_NOTES" ] && [ -d "/sdcard/Notes" ]; then
+        ANDROID_STORAGE_NOTES="/sdcard/Notes"
+    fi
+
+    if [ -d "$ANDROID_STORAGE_NOTES" ]; then
+        if [ ! -e "{{ .chezmoi.homeDir }}/Notes" ]; then
+            ln -sf "$ANDROID_STORAGE_NOTES" "{{ .chezmoi.homeDir }}/Notes"
+            echo -e "  \033[1;32m✓\033[0m Created Android Termux ~/Notes -> $ANDROID_STORAGE_NOTES"
         fi
-    done
+        NOTES_DIR="{{ .chezmoi.homeDir }}/Notes"
+    fi
 else
     # Standard Linux / macOS path
     if [ -d "{{ .chezmoi.homeDir }}/Notes" ]; then
@@ -85,6 +85,29 @@ if [ -n "$NOTES_DIR" ] && [ -d "$NOTES_DIR" ]; then
     fi
 else
     echo "  ⚠️  Obsidian Notes directory not found. Skipped Notes symlink."
+fi
+
+# ------------------------------------------------------------------------------
+# 3. Manage obsidian-tech-notes skill symlink inside Chezmoi repository
+# ------------------------------------------------------------------------------
+SKILL_SOURCE="$TARGET_NOTES_LINK/.agents/skills/obsidian-tech-notes"
+TARGET_SKILL_LINK="$CHEZMOI_DIR/.agents/skills/obsidian-tech-notes"
+
+if [ -d "$SKILL_SOURCE" ]; then
+    mkdir -p "$CHEZMOI_DIR/.agents/skills"
+    # If it's a directory (not a symlink), remove old duplicate
+    if [ -d "$TARGET_SKILL_LINK" ] && [ ! -L "$TARGET_SKILL_LINK" ]; then
+        rm -rf "$TARGET_SKILL_LINK"
+    fi
+
+    if [ -L "$TARGET_SKILL_LINK" ] && [ "$(readlink -f "$TARGET_SKILL_LINK" 2>/dev/null)" = "$(readlink -f "$SKILL_SOURCE" 2>/dev/null)" ]; then
+        echo -e "  \033[1;32m✓\033[0m Skill symlink verified: $TARGET_SKILL_LINK -> $SKILL_SOURCE"
+    else
+        rm -rf "$TARGET_SKILL_LINK"
+        # Relative symlink inside repo: ../../Notes/.agents/skills/obsidian-tech-notes
+        ln -sf "../../Notes/.agents/skills/obsidian-tech-notes" "$TARGET_SKILL_LINK"
+        echo -e "  \033[1;32m✓\033[0m Created skill symlink: $TARGET_SKILL_LINK -> ../../Notes/.agents/skills/obsidian-tech-notes"
+    fi
 fi
 
 {{- end }}
