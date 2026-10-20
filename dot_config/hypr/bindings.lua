@@ -49,9 +49,18 @@ o.bind("SUPER + SHIFT + A", "Antigravity App", { launch = "withproxy /home/unrea
 -- Remmina
 o.bind("SUPER + R", "Remmina", { launch = "remmina" })
 
--- Obsidian (replace default Pop window out with Obsidian)
-hl.unbind("SUPER + O")
-o.bind("SUPER + O", "Obsidian", "obsidian")
+-- Obsidian (SUPER + N)
+hl.unbind("SUPER + N")
+o.bind("SUPER + N", "Obsidian", "obsidian")
+
+-- Telegram (SUPER + SHIFT + T)
+hl.unbind("SUPER + SHIFT + T")
+o.bind("SUPER + SHIFT + T", "Telegram", { launch = "Telegram" })
+
+-- LocalSend (SUPER + SHIFT + S, float with current/remembered size)
+hl.unbind("SUPER + SHIFT + S")
+o.bind("SUPER + SHIFT + S", "LocalSend", { launch = "localsend" })
+o.window("org.localsend.localsend_app", { float = true })
 
 -- Clipboard manager (replace default Universal paste with Clipboard manager history)
 hl.unbind("SUPER + V")

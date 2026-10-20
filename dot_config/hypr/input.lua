@@ -61,7 +61,7 @@ hl.config({
     -- US and Persian (Windows-style)
     kb_layout = "us,ir",
     kb_variant = ",winkeys",
-    kb_options = "grp:alt_shift_toggle,grp:win_space_toggle",
+    kb_options = "grp:alt_shift_toggle,grp:lalt_lshift_toggle,grp:ralt_rshift_toggle,grp:win_space_toggle,lv3:ralt_alt",
 
     -- Mouse sensitivity (-1.0 to 1.0, default: 0.0)
     sensitivity = -0.97,
