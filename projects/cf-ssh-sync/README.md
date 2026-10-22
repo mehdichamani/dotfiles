@@ -16,15 +16,13 @@
 
 ## 🚀 راهنمای راه‌اندازی و دیپلوی (Deployment)
 
-### ۱. ساخت سریع توکن دسترسی Cloudflare
-برای اینکه رانگلر بدون لاگین سراسری و بدون تداخل با سایر حساب‌ها به اکانت مقصد متصل شود، لینک زیر را در مرورگر باز کرده و توکن را بسازید:
-- 🔗 **[لینک آماده ساخت توکن Cloudflare برای cf-ssh-sync](https://dash.cloudflare.com/profile/api-tokens?accountId=%2A&name=cf-ssh-sync&permissionGroupKeys=%5B%7B%22key%22%3A%22user_details%22%2C%22type%22%3A%22read%22%7D%2C%7B%22key%22%3A%22account_settings%22%2C%22type%22%3A%22read%22%7D%2C%7B%22key%22%3A%22workers_scripts%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22workers_kv_storage%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22workers_routes%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22workers_tail%22%2C%22type%22%3A%22read%22%7D%5D&zoneId=all)**
-
+### ۱. دریافت توکن دسترسی Cloudflare
+جهت ساخت و دریافت توکن API کلادفلر با دسترسی‌های کامل و استاندارد رانگلر، به مستندات [Cloudflare Wrangler Token](../../Notes/Tech/Security/Cloudflare%20Wrangler%20Token.md) (مسیر `~/Notes/Tech/Security/Cloudflare Wrangler Token.md`) مراجعه کنید.
 
 ### ۲. تعریف مقادیر سکرت در سیستم
-مقادیر توکن و شناسه اکانت را در والت اختصاصی پروژه ذخیره کنید:
+مقادیر توکن و شناسه اکانت را در فایل والت `wrangler-main.env` ذخیره کنید:
 ```bash
-# ~/.ssh/secrets/cf-ssh-sync.env
+# ~/.ssh/secrets/wrangler-main.env
 CLOUDFLARE_API_TOKEN="توکن_دریافت_شده"
 CLOUDFLARE_ACCOUNT_ID="شناسه_اکانت_کلادفلر"
 ```
