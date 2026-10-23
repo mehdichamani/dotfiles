@@ -60,6 +60,9 @@
           "id": "omarchy.agents"
         },
         {
+          "id": "mehdichamani.antigravity"
+        },
+        {
           "id": "omarchy.bluetooth"
         },
         {
@@ -76,6 +79,9 @@
         },
         {
           "id": "mehdichamani.shamsi-clock"
+        },
+        {
+          "id": "omatunes"
         }
       ]
     },

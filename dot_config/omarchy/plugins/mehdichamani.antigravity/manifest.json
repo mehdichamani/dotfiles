@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "mehdichamani.antigravity",
+  "name": "Antigravity Gemini Quota",
+  "version": "1.0.0",
+  "author": "Mehdi Chamani",
+  "description": "Live Google Antigravity Gemini quota indicator for Omarchy",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Antigravity Gemini",
+    "description": "Live Google Antigravity Gemini quota indicator",
+    "category": "Status",
+    "allowMultiple": false
+  }
+}
