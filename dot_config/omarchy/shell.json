@@ -30,10 +30,13 @@
       ],
       "right": [
         {
-          "id": "mehdichamani.keyboard-layout"
+          "id": "mehdichamani.indicators"
         },
         {
-          "id": "mehdichamani.indicators"
+          "id": "mehdichamani.tray"
+        },
+        {
+          "id": "mehdichamani.keyboard-layout"
         },
         {
           "id": "mehdichamani.docker"
@@ -46,9 +49,6 @@
         },
         {
           "id": "mehdichamani.btrfs-backup"
-        },
-        {
-          "id": "mehdichamani.tray"
         },
         {
           "id": "omarchy.tailscale"
@@ -78,10 +78,10 @@
           "id": "omarchy.power"
         },
         {
-          "id": "mehdichamani.shamsi-clock"
+          "id": "omatunes"
         },
         {
-          "id": "omatunes"
+          "id": "mehdichamani.shamsi-clock"
         }
       ]
     },

@@ -136,21 +136,10 @@ BarWidget {
       renderType: Text.NativeRendering
     }
 
-    // Row 2: Wednesday August 26 (Middle)
+    // Row 2: جمعه 1 آبان (23 October)
     Text {
       Layout.alignment: Qt.AlignHCenter
-      text: Qt.formatDateTime(root.currentDate, "dddd MMMM d")
-      color: root.dimColor
-      font.family: root.barFontFamily
-      font.pixelSize: 10
-      font.weight: Font.Normal
-      renderType: Text.NativeRendering
-    }
-
-    // Row 3: چهارشنبه 4 شهریور (Bottom)
-    Text {
-      Layout.alignment: Qt.AlignHCenter
-      text: root.getShamsiString(root.currentDate)
+      text: root.getShamsiString(root.currentDate) + " (" + Qt.formatDateTime(root.currentDate, "d MMMM") + ")"
       color: root.dimColor
       font.family: root.persianFontFamily
       font.pixelSize: 11
