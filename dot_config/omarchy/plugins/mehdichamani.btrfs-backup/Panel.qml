@@ -312,8 +312,8 @@ Panel {
                 Layout.fillWidth: true
                 implicitHeight: Style.space(32)
                 radius: Style.space(6)
-                color: root.isConnected ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.14) : Qt.darker(root.foreground, 3.5)
-                border.color: root.isConnected ? root.accent : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.1)
+                color: root.isConnected ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.14) : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.05)
+                border.color: root.isConnected ? root.accent : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.12)
                 border.width: 1
 
                 RowLayout {
@@ -340,8 +340,8 @@ Panel {
                 Layout.fillWidth: true
                 implicitHeight: Style.space(32)
                 radius: Style.space(6)
-                color: root.isMounted ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.14) : Qt.darker(root.foreground, 3.5)
-                border.color: root.isMounted ? root.accent : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.1)
+                color: root.isMounted ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.14) : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.05)
+                border.color: root.isMounted ? root.accent : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.12)
                 border.width: 1
 
                 RowLayout {
@@ -488,7 +488,7 @@ Panel {
                 Layout.fillWidth: true
                 implicitHeight: Style.space(8)
                 radius: Style.space(4)
-                color: Qt.darker(root.foreground, 3.5)
+                color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
 
                 Rectangle {
                   height: parent.height
@@ -567,7 +567,7 @@ Panel {
                       var day = index + 1
                       if (day === 1 && root.cycleDay >= 1) return root.accent
                       if (day <= root.cycleDay) return Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.6)
-                      return Qt.darker(root.foreground, 3.2)
+                      return Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
                     }
 
                     Text {
