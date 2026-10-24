@@ -46,6 +46,18 @@ function sc --description "Control and mirror Android device via scrcpy"
         set i (math $i + 1)
     end
 
+    if not type -q adb
+        echo -e "\033[1;31m✘ adb is not installed or not in PATH.\033[0m" >&2
+        return 1
+    end
+
+    set -l connected_devices (adb devices 2>/dev/null | string match -r '^[^\s]+\s+device$')
+    if test (count $connected_devices) -eq 0
+        echo -e "\033[1;31m✘ No Android device connected via adb.\033[0m" >&2
+        echo -e "\033[0;90m💡 Connect your device via USB/Wi-Fi or enable USB debugging.\033[0m" >&2
+        return 1
+    end
+
     switch $mode
         case apps
             if not type -q fzf
