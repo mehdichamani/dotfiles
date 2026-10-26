@@ -59,35 +59,28 @@ detect_profile() {
             PROFILE="home"
             INTERFACE="eth0"
             DRIVER_MODULE="r8169"
-            STATIC_IP="192.168.0.100"
-            GATEWAY="192.168.0.1"
-            NETMASK="255.255.255.0"
             HOSTNAME="homeomarchy"
-            KERNEL_NET_CMD="ip=${STATIC_IP}::${GATEWAY}:${NETMASK}:${HOSTNAME}:${INTERFACE}:none netconf_timeout=30"
+            KERNEL_NET_CMD="ip=::::${HOSTNAME}:${INTERFACE}:dhcp netconf_timeout=30"
             ;;
         work|Work*|workomarchy|WorkOmarchy)
             PROFILE="work"
             INTERFACE="eth0"
             DRIVER_MODULE="e1000e"
-            STATIC_IP="192.168.1.100"
-            GATEWAY="192.168.1.1"
-            NETMASK="255.255.255.0"
             HOSTNAME="workomarchy"
-            KERNEL_NET_CMD="ip=${STATIC_IP}::${GATEWAY}:${NETMASK}:${HOSTNAME}:${INTERFACE}:none netconf_timeout=30"
+            KERNEL_NET_CMD="ip=::::${HOSTNAME}:${INTERFACE}:dhcp netconf_timeout=30"
             ;;
         *)
             PROFILE="custom"
             HOSTNAME="omarchy"
             INTERFACE="eth0"
             DRIVER_MODULE="r8169"
-            STATIC_IP="192.168.0.100"
-            KERNEL_NET_CMD="ip=:::::eth0:dhcp netconf_timeout=45"
+            KERNEL_NET_CMD="ip=::::${HOSTNAME}:${INTERFACE}:dhcp netconf_timeout=45"
             ;;
     esac
 }
 
 show_banner() {
-    clear
+    clear 2>/dev/null || true
     printf "${GREEN}"
     cat << 'EOF'
   ___  __  __   _   ___  ___ _  ___   __
@@ -101,7 +94,7 @@ EOF
     printf "${WHITE}▸ Detected Profile:  ${YELLOW}%s${NC}\n" "${PROFILE}"
     printf "${WHITE}▸ Network Interface: ${YELLOW}%s${NC} (Kernel early-boot name)\n" "${INTERFACE}"
     printf "${WHITE}▸ Ethernet Driver:   ${YELLOW}%s${NC}\n" "${DRIVER_MODULE}"
-    printf "${WHITE}▸ Target Static IP:  ${YELLOW}%s${NC}\n" "${STATIC_IP}"
+    printf "${WHITE}▸ IP Assignment:     ${YELLOW}DHCP (Auto IP & DNS)${NC}\n"
     printf "${WHITE}▸ TinySSH Port:      ${YELLOW}%s${NC}\n" "${SSH_PORT}"
     printf "================================================================\n\n"
 }
@@ -248,11 +241,16 @@ setup_mkinitcpio_hooks_dropin() {
 # Omarchy Early-Boot Remote Unlock Hooks Drop-in
 _earlyboot_hooks=()
 for _h in "\${HOOKS[@]}"; do
-  if [[ "\$_h" == "encrypt" ]]; then
-    _earlyboot_hooks+=(${unlock_chain})
-  else
-    _earlyboot_hooks+=("\$_h")
-  fi
+  # Skip hooks that will be re-added as part of unlock_chain
+  case "\$_h" in
+    netconf|tinyssh|tailscale|remote-unlock) continue ;;
+    encrypt|encryptssh)
+      _earlyboot_hooks+=(${unlock_chain})
+      ;;
+    *)
+      _earlyboot_hooks+=("\$_h")
+      ;;
+  esac
 done
 HOOKS=("\${_earlyboot_hooks[@]}")
 unset _earlyboot_hooks _h
