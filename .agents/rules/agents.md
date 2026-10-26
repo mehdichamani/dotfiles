@@ -41,6 +41,15 @@ trigger: always_on
     - شل Bash: `dot_bashrc` (یکپارچه، سبک و مینیمال شامل aliasها و متغیرها).
   - **مدیر دات‌فایل‌ها (Dotfile Manager):** `chezmoi` (مخزن سورس: `~/.local/share/chezmoi` / مقصد کانفیگ: `~/.config/chezmoi`).
   - **مدیریت ابزارها و محیط‌ها:** `mise` (`dot_config/mise/`)، `direnv`، محیط مجازی پایتون سیستم (`~/.venv`).
+  - **فایروال پیش‌فرض (Firewall):** فایروال پیش‌فرض سیستم در محیط‌های Omarchy (`home` و `work`) ابزار **`ufw`** است.
+  - **سیاست دسترسی روت و Sudo (Sudo Policy):**
+    - دسترسی `sudo` به صورت پیش‌فرض برای اجرای خودکار ایجنت‌ها **غیرفعال** است.
+    - در صورتی که ایجنت برای انجام تسک سیستمی نیاز به دسترسی روت داشته باشد، نباید مکرراً تلاش به اجرای دستورات ناموفق با پسورد کند؛ بلکه باید صراحتاً از کاربر درخواست کند تا با اجرای دستور زیر به آن دسترسی موقت اعطا نماید:
+      ```bash
+      omarchy sudo passwordless 30
+      ```
+      *(این دستور از طریق فایل `/etc/sudoers.d/99-omarchy-nopasswd-$USER` و تایمر انقضای Systemd دسترسی NOPASSWD را به مدت مشخص فعال و سپس به صورت خودکار باطل می‌کند).*
+    - این قانون منحصراً مختص سیستم‌های با توزیع Omarchy (`home` و `work`) است.
   - **ترمینال‌ها:** **WezTerm** (`dot_wezterm.lua` - ترمینال اصلی و ترجیحی)، Kitty، Ghostty، Alacritty، Foot.
   - **اسکریپت‌های شخصی:** `dot_config/scripts/` (`proxy.sh`, `pinstall.sh`, `ffm.py`, `mkvOrganizer.py`, `with-proxy.sh`).
   - **مدیریت پروکسی:** وضعیت پایدار در `~/.config/proxy_state` ذخیره شده و از طریق `dot_config/scripts/proxy.sh` مدیریت می‌شود.
