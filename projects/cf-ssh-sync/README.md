@@ -19,12 +19,17 @@
 ### ۱. دریافت توکن دسترسی Cloudflare
 جهت ساخت و دریافت توکن API کلادفلر با دسترسی‌های کامل و استاندارد رانگلر، به مستندات [Cloudflare Wrangler Token](../../Notes/Tech/Security/Cloudflare%20Wrangler%20Token.md) (مسیر `~/Notes/Tech/Security/Cloudflare Wrangler Token.md`) مراجعه کنید.
 
-### ۲. تعریف مقادیر سکرت در سیستم
-مقادیر توکن و شناسه اکانت را در فایل والت `wrangler-main.env` ذخیره کنید:
+### ۲. تعریف مقادیر سکرت در سیستم و اتصال `.env`
+مقادیر توکن و شناسه اکانت را در والت امن سیستم در فایل `wrangler-main.env` ذخیره کنید:
 ```bash
 # ~/.ssh/secrets/wrangler-main.env
 CLOUDFLARE_API_TOKEN="توکن_دریافت_شده"
 CLOUDFLARE_ACCOUNT_ID="شناسه_اکانت_کلادفلر"
+```
+
+سپس در پوشه پروژه روی سیستم واقعی (`~/projects/cf-ssh-sync`)، سیم‌لینک فایل `.env` را به والت ایجاد کنید (همیشه باید از این سیم‌لینک استفاده شود تا رانگلر سکرت‌ها را بخواند و فایلی وارد مخزن گیت نشود؛ این فایل در `.gitignore` نادیده گرفته شده است):
+```bash
+ln -sf ~/.ssh/secrets/wrangler-main.env ~/projects/cf-ssh-sync/.env
 ```
 
 ### ۳. ساخت پایگاه داده KV (در صورت راه‌اندازی اولیه)
