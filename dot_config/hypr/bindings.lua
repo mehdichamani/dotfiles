@@ -80,7 +80,7 @@ o.bind("SUPER + grave", "Floating Terminal", "setsid uwsm-app -- xdg-terminal-ex
 hl.unbind("SUPER + ALT + RETURN")
 o.bind("SUPER + ALT + RETURN", "WezTerm", "setsid uwsm-app -- wezterm start --cwd \"$(omarchy-cmd-terminal-cwd)\"")
 
--- Auto-load keybindings from installed Omarchy plugins
+-- Auto-load keybindings from installed Omarchy plugins (including omalt-tab: io.github.codesmith28.omalt-tab)
 local plugins_dir = os.getenv("HOME") .. "/.config/omarchy/plugins"
 local p = io.popen("find " .. plugins_dir .. " -maxdepth 3 -name 'bindings.lua' 2>/dev/null")
 if p then
