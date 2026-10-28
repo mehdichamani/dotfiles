@@ -14,6 +14,7 @@ Panel {
   manageIpc: true
 
   property var dockerData: ({ containers: [], projects: [], standalone: [], totalRunning: 0, totalCount: 0 })
+  property var winappsState: ({ state: "stopped", remaining: 1800 })
   property bool dockerAvailable: true
   property bool isRefreshing: false
   property var expandedProjects: ({})
@@ -42,6 +43,9 @@ Panel {
       root.isRefreshing = true
       dockerProc.running = true
     }
+    if (!winappsStateProc.running) {
+      winappsStateProc.running = true
+    }
   }
 
   function runCmd(cmd) {
@@ -62,7 +66,30 @@ Panel {
   function restartProject(name) { runCmd("docker compose -p " + name + " restart") }
   function openLogs(id) { runCmd("omarchy-launch-floating-terminal-with-presentation \"docker logs -f --tail 100 " + id + "\"") }
   function openExec(id) { runCmd("omarchy-launch-floating-terminal-with-presentation \"docker exec -it " + id + " sh || docker exec -it " + id + " bash\"") }
-  function openTui() { runCmd("omarchy-launch-floating-terminal-with-presentation lazydocker || wezterm start -- lazydocker") }
+  function resetWinappsIdle() { runCmd("echo reset > /tmp/winapps_daemon.cmd") }
+  function cancelWinappsIdle() { runCmd("echo cancel > /tmp/winapps_daemon.cmd") }
+
+  // Background WinApps state reader
+  Process {
+    id: winappsStateProc
+    command: ["sh", "-c", "cat /tmp/winapps_state.json 2>/dev/null || echo '{}'"]
+    running: false
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        try {
+          var t = String(text || "").trim()
+          if (t && t !== "{}") {
+            root.winappsState = JSON.parse(t)
+          } else {
+            root.winappsState = { state: "stopped", remaining: 1800 }
+          }
+        } catch(e) {
+          root.winappsState = { state: "stopped", remaining: 1800 }
+        }
+      }
+    }
+  }
 
   // Background Docker poller
   Process {
@@ -325,6 +352,25 @@ Panel {
                       Layout.fillWidth: true
                     }
 
+                    // WinApps Idle Status Badge (if applicable)
+                    Rectangle {
+                      visible: projCol.proj.name === "winapps" && root.winappsState.state === "idle"
+                      implicitWidth: winappsIdleText.implicitWidth + Style.space(8)
+                      implicitHeight: Style.space(18)
+                      radius: Style.cornerRadius
+                      color: Qt.rgba(0.9, 0.7, 0.2, 0.25)
+
+                      Text {
+                        id: winappsIdleText
+                        anchors.centerIn: parent
+                        text: "⏳ " + Math.ceil(root.winappsState.remaining / 60) + "m"
+                        color: "#EBCB8B"
+                        font.family: root.fontFamily
+                        font.pixelSize: Style.font.caption
+                        font.bold: true
+                      }
+                    }
+
                     // Project Status Badge
                     Rectangle {
                       implicitWidth: projStatusText.implicitWidth + Style.space(8)
@@ -341,6 +387,16 @@ Panel {
                         font.pixelSize: Style.font.caption
                         font.bold: true
                       }
+                    }
+
+                    // WinApps Reset Timer Action
+                    PanelActionButton {
+                      visible: projCol.proj.name === "winapps" && root.winappsState.state === "idle"
+                      iconText: "󱫌"
+                      tooltipText: "Reset Idle Timer (+30m)"
+                      foreground: "#EBCB8B"
+                      fontFamily: root.fontFamily
+                      onClicked: root.resetWinappsIdle()
                     }
 
                     // Bulk Project Controls

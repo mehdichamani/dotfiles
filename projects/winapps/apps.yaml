@@ -1,0 +1,26 @@
+# ==============================================================================
+# WinApps Applications Manifest (YAML Format)
+# ==============================================================================
+# شما می‌توانید هر برنامه جدید ویندوزی را با اضافه کردن به این لیست در دسکتاپ لینوکس ادغام کنید.
+# پس از ویرایش این فایل، دستور زیر را در ترمینال اجرا کنید:
+#   ~/projects/winapps/setup.fish install-launchers
+# ==============================================================================
+
+apps:
+  - id: "winapps-word"
+    name: "Microsoft Word"
+    target: "||WINWORD"
+    categories: "Office;WordProcessor;"
+    icon: "x-office-document"
+
+  - id: "winapps-excel"
+    name: "Microsoft Excel"
+    target: "||EXCEL"
+    categories: "Office;Spreadsheet;"
+    icon: "x-office-spreadsheet"
+
+  - id: "winapps-ivms4200"
+    name: "iVMS-4200"
+    target: 'C:\Program Files\iVMS-4200 Station\iVMS-4200\iVMS-4200.Framework\iVMS-4200.exe'
+    categories: "Video;Network;"
+    icon: "camera-video"
