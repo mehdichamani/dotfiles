@@ -15,6 +15,13 @@ fi
 export EDITOR="nvim"
 export VISUAL="nvim"
 
+# pnpm
+export PNPM_HOME="$HOME/.local/share/pnpm"
+case ":$PATH:" in
+  *":$PNPM_HOME/bin:"*) ;;
+  *) export PATH="$PNPM_HOME/bin:$PNPM_HOME:$PATH" ;;
+esac
+
 # Interactive settings & Aliases
 if [[ $- == *i* ]]; then
     # Lightweight colored prompt

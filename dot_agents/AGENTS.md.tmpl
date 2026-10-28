@@ -1,13 +1,10 @@
-## Repository-Relative Markdown Links Rule
-
-When creating, editing, or linking files inside repository documentation (e.g. `README.md`, guides, markdown docs):
-- Always use repository-relative markdown paths (e.g., `README.fa.md`, `DEPLOYMENT.md`, `./docs/guide.md`) for all internal links, anchors, and images.
-- Never use absolute local filesystem paths or `file:///` URLs in repository markdown files, ensuring all links remain fully functional on GitHub and remote repositories.
-
-## Default Shell Rule (Fish Shell)
-
-- Always use `fish` as the default and primary shell for running commands, crafting shell scripts, aliases, and functions, unless explicitly requested otherwise or when executing strict POSIX-only system scripts.
-- When generating command line invocations or interactive shell commands, structure them using Fish syntax and conventions.
+- **Repo Markdown Links**: Always use repo-relative paths (e.g. `README.md`, `./docs/guide.md`). Never use absolute paths or `file:///` URLs.
+- **Default Tools & Environment**:
+  - **Shell**: Always use `fish` syntax and commands by default (fallback to POSIX/bash only when strictly required).
+  - **Toolchains & Versions**: Managed by `mise`. Use mise-tracked tools:
+    - **JS/TS**: Prefer `pnpm` (or `bun` when appropriate), Node LTS.
+    - **Python**: Prefer `uv` (`uv run`, uv venv/deps) over pip/virtualenv.
+    - **CLI/Cloud**: `agy`, `wrangler`, `codex`, `opencode`.
 
 
 {{- if eq .chezmoi.os "android" }}

@@ -3,6 +3,15 @@ test -d /usr/share/omarchy; and set -gx OMARCHY_PATH /usr/share/omarchy
 set -gx EDITOR nvim 
 set -gx VISUAL nvim
 
+# pnpm
+set -gx PNPM_HOME "$HOME/.local/share/pnpm"
+if not contains "$PNPM_HOME" $PATH
+    fish_add_path "$PNPM_HOME"
+end
+if not contains "$PNPM_HOME/bin" $PATH
+    fish_add_path "$PNPM_HOME/bin"
+end
+
 
 # Disable the greeting
 set -g fish_greeting
