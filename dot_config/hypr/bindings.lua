@@ -66,11 +66,12 @@ o.window("org.localsend.localsend_app", { float = true })
 hl.unbind("SUPER + V")
 o.bind("SUPER + V", "Clipboard manager", "omarchy-shell shell toggle omarchy.clipboard")
 
--- Swap Lock system (SUPER + CTRL + L -> SUPER + L) and Toggle workspace layout (SUPER + L -> SUPER + CTRL + L)
+-- Lock system (SUPER + L), Toggle workspace layout (SUPER + H), Show screensaver (SUPER + CTRL + L), Toggle screensaver on/off (SUPER + SHIFT + L)
 hl.unbind("SUPER + L")
 hl.unbind("SUPER + CTRL + L")
 o.bind("SUPER + L", "Lock system", "omarchy-system-lock")
-o.bind("SUPER + CTRL + L", "Toggle workspace layout", "omarchy-hyprland-workspace-layout-toggle")
+o.bind("SUPER + H", "Toggle workspace layout", "omarchy-hyprland-workspace-layout-toggle")
+o.bind("SUPER + CTRL + L", "Show screensaver", "omarchy launch screensaver")
 o.bind("SUPER + SHIFT + L", "Toggle screensaver", "omarchy-toggle-screensaver")
 
 -- Floating default terminal
