@@ -28,6 +28,7 @@ services:
     restart: "no"
     volumes:
       - data:/storage
-      - ${HOME}:/shared
+      - ${HOME}:/shared/Home
+      - /run/media/unreal/TUF_Data/Programs:/shared/TUF_Programs:ro
       - ./oem:/oem
       - ${HOME}/Downloads/tiny11core_25H2_Nov25.iso:/custom.iso

@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background rounded square gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a192f"/>
+      <stop offset="100%" stop-color="#07111e"/>
+    </linearGradient>
+
+    <!-- Docker Whale subtle gradient -->
+    <linearGradient id="whaleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2496ed"/>
+      <stop offset="100%" stop-color="#0db7ed"/>
+    </linearGradient>
+
+    <!-- Windows Tiles Gradient -->
+    <linearGradient id="winGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00a4ef"/>
+      <stop offset="100%" stop-color="#0078d4"/>
+    </linearGradient>
+
+    <!-- Soft Drop Shadow -->
+    <filter id="dropShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
+    <filter id="tileGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0078d4" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <!-- Background App Icon Plate -->
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="url(#bgGrad)" stroke="#1e3a5f" stroke-width="4" filter="url(#dropShadow)"/>
+
+  <!-- Windows Logo (The 4 Cargo Containers shifted left to align with Docker back) -->
+  <g id="windows-containers" filter="url(#tileGlow)">
+    <!-- Top-Left -->
+    <rect x="115" y="98" width="90" height="90" rx="10" fill="url(#winGrad)"/>
+    <!-- Top-Right -->
+    <rect x="217" y="98" width="90" height="90" rx="10" fill="url(#winGrad)"/>
+    <!-- Bottom-Left -->
+    <rect x="115" y="200" width="90" height="90" rx="10" fill="url(#winGrad)"/>
+    <!-- Bottom-Right -->
+    <rect x="217" y="200" width="90" height="90" rx="10" fill="url(#winGrad)"/>
+  </g>
+
+  <!-- Docker Whale Body (Carrying Windows) -->
+  <g id="docker-whale" transform="translate(48, 126) scale(0.62)" filter="url(#dropShadow)">
+    <path fill="url(#whaleGrad)" d="M661.56,218.08c-16.49-11.1-59.81-15.84-91.3-7.35-1.69-31.37-17.88-57.81-47.47-80.88l-10.95-7.35-7.3,11.03c-14.35,21.78-20.4,50.81-18.26,77.2,1.69,16.26,7.34,34.53,18.26,47.79-40.99,23.78-78.78,18.38-246.12,18.38H.06c-.75,37.79,5.32,110.47,51.54,169.64,5.11,6.54,10.7,12.86,16.78,18.95,37.58,37.63,94.36,65.23,179.26,65.3,129.53.12,240.5-69.9,308.01-239.18,22.21.36,80.85,3.98,109.55-51.47.7-.93,7.3-14.7,7.3-14.7l-10.94-7.35Z"/>
+  </g>
+</svg>

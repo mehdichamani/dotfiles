@@ -20,8 +20,9 @@ from pathlib import Path
 IDLE_TIMEOUT_SECONDS = 1800  # 30 minutes
 WARN_TIMEOUT_SECONDS = 300   # 5 minutes remaining (at 25m)
 STATE_FILE = Path("/tmp/winapps_state.json")
-CMD_PIPE = Path("/tmp/winapps_daemon.cmd")
+CMD_SOCK = Path("/tmp/winapps_daemon.sock")
 PROJECT_DIR = Path(__file__).resolve().parent
+ICON_PATH = PROJECT_DIR / "winapps.png"
 
 # Target window classes / titles for RemoteApp and FreeRDP
 WINDOW_TARGETS = ("xfreerdp", "xfreerdp3", "wlfreerdp", "freerdp", "rail:")
@@ -34,17 +35,19 @@ class WinAppsDaemon:
         self.state = "stopped"  # "active", "idle", "disabled", "stopped"
         self.remaining_seconds = IDLE_TIMEOUT_SECONDS
         self.warn_sent = False
+        self.had_active_windows = False
         self.lock = threading.RLock()
 
-        # Clean old pipes
-        if CMD_PIPE.exists():
-            CMD_PIPE.unlink()
-        try:
-            os.mkfifo(str(CMD_PIPE))
-        except Exception:
-            pass
+        # Clean old socket if exists
+        if CMD_SOCK.exists():
+            try:
+                CMD_SOCK.unlink()
+            except Exception:
+                pass
 
-    def send_notification(self, title: str, body: str, urgency: str = "normal", icon: str = "dialog-information"):
+    def send_notification(self, title: str, body: str, urgency: str = "normal", icon: str = None):
+        if icon is None:
+            icon = str(ICON_PATH) if ICON_PATH.exists() else "winapps"
         try:
             subprocess.run(
                 [
@@ -90,10 +93,9 @@ class WinAppsDaemon:
     def stop_container(self):
         print("[INFO] 30m idle timeout reached. Stopping Windows VM container...")
         self.send_notification(
-            "ماشین مجازی ویندوز خاموش شد",
-            "کانتینر به دلیل ۳۰ دقیقه عدم استفاده جهت آزادسازی رم و پردازنده خاموش شد.",
+            "Windows VM Stopped",
+            "Container stopped due to 30 minutes of inactivity to release resources.",
             urgency="normal",
-            icon="system-shutdown",
         )
         subprocess.run(
             ["docker", "compose", "-f", str(PROJECT_DIR / "compose.yml"), "stop"],
@@ -126,12 +128,14 @@ class WinAppsDaemon:
                 if self.state != "stopped":
                     self.state = "stopped"
                     self.remaining_seconds = IDLE_TIMEOUT_SECONDS
+                    self.had_active_windows = False
                     self.write_state()
                 continue
 
             with self.lock:
                 if len(self.open_windows) > 0:
                     # Windows are currently open
+                    self.had_active_windows = True
                     if self.state != "active":
                         self.state = "active"
                         self.remaining_seconds = IDLE_TIMEOUT_SECONDS
@@ -143,17 +147,19 @@ class WinAppsDaemon:
                         continue
 
                     if self.state != "idle":
+                        prev_state = self.state
                         # Transition to idle
                         self.state = "idle"
                         self.remaining_seconds = IDLE_TIMEOUT_SECONDS
                         self.warn_sent = False
                         self.write_state()
-                        self.send_notification(
-                            "پنجره‌های ویندوز بسته شدند",
-                            "شمارش معکوس ۳۰ دقیقه آغاز شد؛ در صورت عدم استفاده کانتینر خاموش خواهد شد.",
-                            urgency="normal",
-                            icon="preferences-system-time",
-                        )
+                        # Only notify if windows were actually open before and just closed
+                        if self.had_active_windows or prev_state == "active":
+                            self.send_notification(
+                                "Windows Apps Closed",
+                                "30-minute idle countdown started. Container will stop when timer expires.",
+                                urgency="normal",
+                            )
 
                     if self.remaining_seconds > 0:
                         self.remaining_seconds -= 1
@@ -162,10 +168,9 @@ class WinAppsDaemon:
                         if self.remaining_seconds == WARN_TIMEOUT_SECONDS and not self.warn_sent:
                             self.warn_sent = True
                             self.send_notification(
-                                "یادآوری خاموشی ماشین مجازی",
-                                "تنها ۵ دقیقه تا توقف کانتینر ویندوز باقی مانده است.",
+                                "Windows VM Shutdown Warning",
+                                "Only 5 minutes remaining before Windows container stops due to inactivity.",
                                 urgency="critical",
-                                icon="dialog-warning",
                             )
 
                         if self.remaining_seconds % 5 == 0:
@@ -183,34 +188,56 @@ class WinAppsDaemon:
                 self.warn_sent = False
                 if self.state == "idle":
                     self.send_notification(
-                        "تایمر ریست شد",
-                        "مهلت خاموشی مجدداً روی ۳۰ دقیقه تنظیم گردید.",
-                        icon="view-refresh",
+                        "Idle Timer Reset",
+                        "Shutdown timeout reset to 30 minutes.",
                     )
                 self.write_state()
             elif cmd == "cancel":
                 self.state = "disabled"
                 self.send_notification(
-                    "خاموشی خودکار لغو شد",
-                    "کانتینر تا زمان خاموش کردن دستی روشن خواهد ماند.",
-                    icon="dialog-information",
+                    "Auto-Shutdown Cancelled",
+                    "Windows VM container will remain running indefinitely.",
                 )
                 self.write_state()
             elif cmd == "stop":
                 self.stop_container()
 
-    def pipe_listener_loop(self):
-        """Listens for manual reset / cancel commands via named pipe."""
+    def command_listener_loop(self):
+        """Listens for manual reset / cancel commands via UNIX domain socket."""
         while self.running:
+            server_sock = None
             try:
-                if not CMD_PIPE.exists():
-                    os.mkfifo(str(CMD_PIPE))
-                with open(CMD_PIPE, "r") as fifo:
-                    for line in fifo:
-                        if line:
-                            self.handle_command(line)
-            except Exception:
+                if CMD_SOCK.exists():
+                    CMD_SOCK.unlink()
+                server_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                server_sock.bind(str(CMD_SOCK))
+                server_sock.listen(5)
+                server_sock.settimeout(1.0)
+
+                while self.running:
+                    try:
+                        conn, _ = server_sock.accept()
+                        with conn:
+                            data = conn.recv(1024).decode("utf-8", errors="ignore")
+                            if data:
+                                self.handle_command(data)
+                    except socket.timeout:
+                        continue
+                    except Exception:
+                        pass
+            except Exception as e:
                 time.sleep(1)
+            finally:
+                if server_sock:
+                    try:
+                        server_sock.close()
+                    except Exception:
+                        pass
+                if CMD_SOCK.exists():
+                    try:
+                        CMD_SOCK.unlink()
+                    except Exception:
+                        pass
 
     def hyprland_event_loop(self):
         """Connects to Hyprland's UNIX domain socket (.socket2.sock) for instant events."""
@@ -298,9 +325,9 @@ def main():
     signal.signal(signal.SIGTERM, handle_sig)
 
     t_timer = threading.Thread(target=daemon.timer_loop, daemon=True)
-    t_pipe = threading.Thread(target=daemon.pipe_listener_loop, daemon=True)
+    t_cmd = threading.Thread(target=daemon.command_listener_loop, daemon=True)
     t_timer.start()
-    t_pipe.start()
+    t_cmd.start()
 
     print("[INFO] WinApps Hyprland Socket2 Daemon initialized successfully.")
     daemon.hyprland_event_loop()
