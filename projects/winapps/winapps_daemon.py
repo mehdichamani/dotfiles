@@ -24,7 +24,7 @@ CMD_PIPE = Path("/tmp/winapps_daemon.cmd")
 PROJECT_DIR = Path(__file__).resolve().parent
 
 # Target window classes / titles for RemoteApp and FreeRDP
-WINDOW_TARGETS = ("xfreerdp", "xfreerdp3", "wlfreerdp", "freerdp")
+WINDOW_TARGETS = ("xfreerdp", "xfreerdp3", "wlfreerdp", "freerdp", "rail:")
 
 
 class WinAppsDaemon:
@@ -34,7 +34,7 @@ class WinAppsDaemon:
         self.state = "stopped"  # "active", "idle", "disabled", "stopped"
         self.remaining_seconds = IDLE_TIMEOUT_SECONDS
         self.warn_sent = False
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
 
         # Clean old pipes
         if CMD_PIPE.exists():

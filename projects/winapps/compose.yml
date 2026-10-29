@@ -30,3 +30,4 @@ services:
       - data:/storage
       - ${HOME}:/shared
       - ./oem:/oem
+      - ${HOME}/Downloads/tiny11core_25H2_Nov25.iso:/custom.iso

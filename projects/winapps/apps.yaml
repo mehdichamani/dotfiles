@@ -9,13 +9,13 @@
 apps:
   - id: "winapps-word"
     name: "Microsoft Word"
-    target: "||WINWORD"
+    target: 'C:\Program Files\Microsoft Office\root\Office16\WINWORD.EXE'
     categories: "Office;WordProcessor;"
     icon: "x-office-document"
 
   - id: "winapps-excel"
     name: "Microsoft Excel"
-    target: "||EXCEL"
+    target: 'C:\Program Files\Microsoft Office\root\Office16\EXCEL.EXE'
     categories: "Office;Spreadsheet;"
     icon: "x-office-spreadsheet"
 

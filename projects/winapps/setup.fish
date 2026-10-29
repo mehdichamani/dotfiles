@@ -5,7 +5,7 @@
 
 set SCRIPT_DIR (path resolve (dirname (status filename)))
 set SECRETS_FILE "$HOME/.ssh/secrets/winapps.env"
-set ISO_PATH "/run/media/unreal/TUF_Data/OS/tiny11core_25H2_Nov25.iso"
+set ISO_PATH "$HOME/Downloads/tiny11core_25H2_Nov25.iso"
 set DAEMON_SCRIPT "$SCRIPT_DIR/winapps_daemon.py"
 set STATE_FILE "/tmp/winapps_state.json"
 set CMD_PIPE "/tmp/winapps_daemon.cmd"
@@ -90,7 +90,7 @@ end
 function ensure_daemon
     if not pgrep -f "$DAEMON_SCRIPT" &>/dev/null
         _log_info "در حال اجرای دیمن مانیتورینگ رویدادمحور Hyprland..."
-        nohup python3 "$DAEMON_SCRIPT" &>/dev/null &
+        nohup python3 "$DAEMON_SCRIPT" </dev/null &>/dev/null &
         disown
     end
 end
@@ -159,9 +159,9 @@ function vm_rdp
 
     _log_info "در حال اتصال RDP با FreeRDP..."
     if command -v xfreerdp3 &>/dev/null
-        xfreerdp3 /v:127.0.0.1:3389 /u:"$user" /p:"$pass" /cert:tofu /dynamic-resolution /sound /microphone +clipboard &
+        xfreerdp3 /v:127.0.0.1:3389 /u:"$user" /p:"$pass" /cert:ignore /dynamic-resolution /sound /microphone +clipboard &
     else if command -v xfreerdp &>/dev/null
-        xfreerdp /v:127.0.0.1:3389 /u:"$user" /p:"$pass" /cert:tofu /dynamic-resolution /sound /microphone +clipboard &
+        xfreerdp /v:127.0.0.1:3389 /u:"$user" /p:"$pass" /cert:ignore /dynamic-resolution /sound /microphone +clipboard &
     else
         _log_error "نرم‌افزار freerdp پیدا نشد!"
     end
@@ -293,9 +293,9 @@ function run_app
     ensure_daemon
     _log_info "در حال باز کردن نرم‌افزار: $app_target"
     if command -v xfreerdp3 &>/dev/null
-        xfreerdp3 /v:127.0.0.1:3389 /u:"$user" /p:"$pass" /cert:tofu +clipboard /app:"$app_target" &
+        xfreerdp3 /v:127.0.0.1:3389 /u:"$user" /p:"$pass" /cert:ignore +clipboard /app:program:"$app_target" &
     else
-        xfreerdp /v:127.0.0.1:3389 /u:"$user" /p:"$pass" /cert:tofu +clipboard /app:"$app_target" &
+        xfreerdp /v:127.0.0.1:3389 /u:"$user" /p:"$pass" /cert:ignore +clipboard /app:program:"$app_target" &
     end
 end
 
