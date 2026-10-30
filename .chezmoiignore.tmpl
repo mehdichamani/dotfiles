@@ -1,11 +1,19 @@
 Screenshot.png
 .gitignore
-.chezmoiignore
-obsidian-vault
 Notes
-.local/share/applications/winvm.desktop
+Notes/**
+.ssh
+.ssh/**
 plans
 plans/**
+
+# Secrets, environments & cache
+**/.env
+*.env
+dot_env
+**/__pycache__
+**/*.py[cod]
+**/.wrangler/**
 
 {{ if ne .chezmoi.os "windows" }}
 Documents

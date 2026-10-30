@@ -148,7 +148,7 @@ end
 
 __auto_python_venv
 
-# Load secrets
-if test -f ~/.config/fish/secrets.fish
-    source ~/.config/fish/secrets.fish
+# Load centralized secrets from vault if available
+if test -f "$HOME/.ssh/secrets/secrets.fish"
+    source "$HOME/.ssh/secrets/secrets.fish"
 end
