@@ -268,8 +268,11 @@ setup_remote_unlock_hook() {
     cat > "${HOOK_REMOTE_UNLOCK_RUN}" << EOF
 #!/usr/bin/ash
 
-run_hook ()
+_start_remote_unlock_monitor ()
 {
+    [ -f "/run/remote-unlock-monitor.pid" ] && return 0
+    echo "\$\$" > /run/remote-unlock-monitor.pid
+
     (
         local last_msg=""
         # Loop dynamically until disk is unlocked without arbitrary timeouts
@@ -312,6 +315,16 @@ run_hook ()
     ) &
 }
 
+run_earlyhook ()
+{
+    _start_remote_unlock_monitor
+}
+
+run_hook ()
+{
+    _start_remote_unlock_monitor
+}
+
 run_latehook ()
 {
     # Propagate unlock flag from initramfs tmpfs to real system /run before switch_root
@@ -326,6 +339,9 @@ EOF
     cat > "${HOOK_REMOTE_UNLOCK_INSTALL}" << 'EOF'
 #!/bin/bash
 build() {
+    # Bundle stty binary from coreutils so password echo suppression works cleanly over SSH PTY
+    add_binary "stty"
+
     add_file - /bin/cryptsetup_shell 0755 < <(
         cat << 'INSIDE_SHELL'
 #!/bin/sh
@@ -361,9 +377,9 @@ attempt=1
 
 while [ $attempt -le $max_attempts ]; do
     printf "Enter LUKS passphrase (attempt %d/%d): " "$attempt" "$max_attempts"
-    stty -echo 2>/dev/null || true
+    stty -echo < /dev/tty 2>/dev/null || stty -echo 2>/dev/null || true
     read -r pass
-    stty echo 2>/dev/null || true
+    stty echo < /dev/tty 2>/dev/null || stty echo 2>/dev/null || true
     echo ""
 
     if [ "$pass" = "shell" ]; then
@@ -407,7 +423,7 @@ INSIDE_SHELL
     # Trigger background monitor right when encryptssh initiates
     if [[ -f "${BUILDROOT}/hooks/encryptssh" ]]; then
         sed -i 's/--prompt="A password is required to access the \${cryptname} volume"/--prompt="Enter password or remote unlock via SSH (LAN or Tailscale)"/' "${BUILDROOT}/hooks/encryptssh"
-        sed -i '/run_hook ()/a \ \ \ \ ( [ -x /hooks/remote-unlock ] && /hooks/remote-unlock ) 2>/dev/null || true' "${BUILDROOT}/hooks/encryptssh"
+        sed -i '/run_hook ()/a \ \ \ \ ( . /hooks/remote-unlock 2>/dev/null && run_hook ) 2>/dev/null || true' "${BUILDROOT}/hooks/encryptssh"
     fi
 
     add_runscript
