@@ -4,13 +4,13 @@
     "layout": {
       "center": [
         {
+          "id": "mehdichamani.indicators"
+        },
+        {
           "id": "omarchy.system-update"
         }
       ],
       "left": [
-        {
-          "id": "mehdichamani.menu"
-        },
         {
           "id": "omarchy-menu-omni"
         },
@@ -19,7 +19,8 @@
           "showIcons": true,
           "showApps": "all",
           "perMonitor": true,
-          "persistentWorkspaces": 5,
+          "persistentWorkspaces": 0,
+          "hideEmpty": true,
           "pillBackground": true,
           "dimUnfocused": true,
           "focusedTitle": true,
@@ -29,9 +30,6 @@
         }
       ],
       "right": [
-        {
-          "id": "mehdichamani.indicators"
-        },
         {
           "id": "mehdichamani.tray"
         },
@@ -104,7 +102,5 @@
   "cloneSourceRestores": [
     "omarchy-menu-omni"
   ],
-  "disabledPlugins": [
-    "omarchy.menu"
-  ]
+  "disabledPlugins": []
 }
