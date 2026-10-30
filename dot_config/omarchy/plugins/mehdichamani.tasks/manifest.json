@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "mehdichamani.tasks",
+  "name": "Tasks & Reminders",
+  "version": "2.0.0",
+  "author": "Mehdi Chamani",
+  "description": "Interactive Todoist widget for Omarchy (synced with S24 Ultra & Galaxy Watch 6)",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Tasks & Reminders",
+    "description": "Interactive Todoist tasks and reminders drawer",
+    "category": "Status",
+    "allowMultiple": false
+  }
+}
