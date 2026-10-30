@@ -228,13 +228,13 @@ setup_mkinitcpio_hooks_dropin() {
 
     local unlock_chain="netconf"
     if [ "$mode" = "tailscale" ]; then
-        unlock_chain="netconf tailscale remote-unlock encryptssh"
+        unlock_chain="netconf tailscale encryptssh remote-unlock"
     elif [ "$mode" = "hybrid" ]; then
         setup_tinyssh_custom_port
-        unlock_chain="netconf tinyssh tailscale remote-unlock encryptssh"
+        unlock_chain="netconf tinyssh tailscale encryptssh remote-unlock"
     else
         setup_tinyssh_custom_port
-        unlock_chain="netconf tinyssh remote-unlock encryptssh"
+        unlock_chain="netconf tinyssh encryptssh remote-unlock"
     fi
 
     cat > "${HOOKS_CONF}" << EOF
@@ -264,18 +264,16 @@ setup_remote_unlock_hook() {
     printf "${CYAN}▷ ایجاد هوک دیباگ بصری و هندلر ریموت در initcpio...${NC}\n"
     mkdir -p /etc/initcpio/hooks /etc/initcpio/install
 
-    # 1. Runtime Hook: runs right before encryptssh asks for password
+    # 1. Runtime Hook: runs in background for visual status and persists SDDM flag on late hook
     cat > "${HOOK_REMOTE_UNLOCK_RUN}" << EOF
 #!/usr/bin/ash
 
 run_hook ()
 {
     (
-        # Loop until disk is unlocked to ensure Plymouth displays the status overlay
-        for _i in \$(seq 1 35); do
-            [ -e "/dev/mapper/root" ] && break
-            [ -f "/.done" ] && break
-
+        local last_msg=""
+        # Loop dynamically until disk is unlocked without arbitrary timeouts
+        while [ ! -e "/dev/mapper/root" ] && [ ! -f "/.done" ]; do
             local my_ip=""
             if [ -f /ip_opts ]; then
                 . /ip_opts
@@ -295,56 +293,127 @@ run_hook ()
 
             local msg="SSH: ssh -p ${SSH_PORT} root@\${my_ip}  |  \${ts_status}"
 
-            if command -v plymouth >/dev/null 2>&1 && plymouth --ping 2>/dev/null; then
-                plymouth display-message --text="\${msg}" 2>/dev/null || true
+            # Anti-flicker: Only update Plymouth when message content actually changes
+            if [ "\${msg}" != "\${last_msg}" ]; then
+                if command -v plymouth >/dev/null 2>&1 && plymouth --ping 2>/dev/null; then
+                    plymouth display-message --text="\${msg}" 2>/dev/null || true
+                fi
+                last_msg="\${msg}"
             fi
 
             sleep 1
         done
+
+        if [ -f "/run/luks-remote-unlock" ]; then
+            if command -v plymouth >/dev/null 2>&1 && plymouth --ping 2>/dev/null; then
+                plymouth display-message --text="Disk unlocked remotely; boot continues..." 2>/dev/null || true
+            fi
+        fi
     ) &
+}
+
+run_latehook ()
+{
+    # Propagate unlock flag from initramfs tmpfs to real system /run before switch_root
+    if [ -f "/run/luks-remote-unlock" ]; then
+        mkdir -p /sysroot/run 2>/dev/null || true
+        : > /sysroot/run/luks-remote-unlock 2>/dev/null || true
+    fi
 }
 EOF
 
-    # 2. Install Hook: patches cryptsetup_shell, Plymouth script z-index/prompt, and encryptssh hook
+    # 2. Install Hook: provides resilient cryptsetup_shell with retry loop and emergency shell fallback
     cat > "${HOOK_REMOTE_UNLOCK_INSTALL}" << 'EOF'
 #!/bin/bash
 build() {
     add_file - /bin/cryptsetup_shell 0755 < <(
         cat << 'INSIDE_SHELL'
 #!/bin/sh
-if [ -c "/dev/mapper/control" ]; then
-    if eval cryptsetup open --type luks `cat /.cryptdev` `cat /.cryptname` `cat /.cryptargs` ; then
+if [ ! -c "/dev/mapper/control" ]; then
+    echo "Encryption control device not ready. Please wait..."
+    exit 1
+fi
+
+cryptdev="$(cat /.cryptdev 2>/dev/null)"
+cryptname="$(cat /.cryptname 2>/dev/null)"
+cryptargs="$(cat /.cryptargs 2>/dev/null)"
+
+if [ -z "$cryptdev" ] || [ -z "$cryptname" ]; then
+    echo "Encryption metadata not found in initramfs."
+    exit 1
+fi
+
+if [ -b "/dev/mapper/${cryptname}" ]; then
+    echo "Volume '${cryptname}' is already unlocked."
+    exit 0
+fi
+
+echo ""
+echo "=========================================================="
+echo " Omarchy Early-Boot Remote Disk Unlock (LUKS)"
+echo " Target: ${cryptdev} -> /dev/mapper/${cryptname}"
+echo " Type 'shell' to open an emergency recovery shell."
+echo "=========================================================="
+echo ""
+
+max_attempts=3
+attempt=1
+
+while [ $attempt -le $max_attempts ]; do
+    printf "Enter LUKS passphrase (attempt %d/%d): " "$attempt" "$max_attempts"
+    stty -echo 2>/dev/null || true
+    read -r pass
+    stty echo 2>/dev/null || true
+    echo ""
+
+    if [ "$pass" = "shell" ]; then
+        echo "Entering emergency recovery shell. Type 'exit' to return to unlock prompt."
+        /bin/sh
+        continue
+    fi
+
+    if [ -z "$pass" ]; then
+        continue
+    fi
+
+    if printf '%s' "$pass" | cryptsetup open --type luks "$cryptdev" "$cryptname" $cryptargs --key-file=- ; then
         echo > /.done
         : > /run/luks-remote-unlock
         killall -q cryptsetup 2>/dev/null || true
         if command -v plymouth >/dev/null 2>&1 && plymouth --ping 2>/dev/null; then
-            plymouth display-message --text="Disk unlocked remotely; boot continues." 2>/dev/null || true
+            plymouth display-message --text="Disk unlocked remotely; boot continues..." 2>/dev/null || true
             killall -q plymouth 2>/dev/null || true
         fi
-        echo "Disk unlocked remotely; boot continues."
+        echo "Disk unlocked successfully! Boot continues."
+        exit 0
+    else
+        echo "[!] Passphrase incorrect."
+        attempt=$((attempt + 1))
     fi
-else
-    echo "encryption bootup not succeeded. please wait!"
-fi
+done
+
+echo ""
+echo "[✗] $max_attempts failed passphrase attempts."
+echo "Spawning emergency rescue shell..."
+exec /bin/sh
 INSIDE_SHELL
     )
 
-    # Patch Plymouth theme script inside initramfs buildroot to guarantee message visibility (z-index 20000)
+    # Ensure Plymouth message visibility on z-index layer
     if [[ -f "${BUILDROOT}/usr/share/plymouth/themes/omarchy/omarchy.script" ]]; then
         sed -i 's/message_sprite.SetPosition(10, 10, 10000);/message_sprite.SetPosition(10, 10, 20000);/' "${BUILDROOT}/usr/share/plymouth/themes/omarchy/omarchy.script"
-        sed -i '/fun display_password_callback(prompt, bullets) {/a \ \ if (prompt) {\n    display_message_callback(prompt);\n  }' "${BUILDROOT}/usr/share/plymouth/themes/omarchy/omarchy.script"
     fi
 
-    # Customize encryptssh prompt and trigger remote-unlock overlay
+    # Trigger background monitor right when encryptssh initiates
     if [[ -f "${BUILDROOT}/hooks/encryptssh" ]]; then
         sed -i 's/--prompt="A password is required to access the \${cryptname} volume"/--prompt="Enter password or remote unlock via SSH (LAN or Tailscale)"/' "${BUILDROOT}/hooks/encryptssh"
-        sed -i '/plymouth ask-for-password/i \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ ( [ -x /hooks/remote-unlock ] && /hooks/remote-unlock ) 2>/dev/null || true' "${BUILDROOT}/hooks/encryptssh"
+        sed -i '/run_hook ()/a \ \ \ \ ( [ -x /hooks/remote-unlock ] && /hooks/remote-unlock ) 2>/dev/null || true' "${BUILDROOT}/hooks/encryptssh"
     fi
 
     add_runscript
 }
 help() {
-    echo "Provides visual Plymouth debug overlay and remote-unlock helpers."
+    echo "Provides visual Plymouth debug overlay, resilient cryptsetup_shell, and remote-unlock helpers."
 }
 EOF
     chmod +x "${HOOK_REMOTE_UNLOCK_RUN}" "${HOOK_REMOTE_UNLOCK_INSTALL}"
