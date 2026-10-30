@@ -357,7 +357,7 @@ Panel {
                   anchors.left: parent.left
                   anchors.verticalCenter: parent.verticalCenter
                   visible: taskInput.text.length === 0 && !taskInput.activeFocus
-                  text: "یادآور جدید... (مثال: جلسه فردا 18:30) (Enter)"
+                  text: "New task... (e.g. Meeting @ tomorrow 18:30) (Enter)"
                   color: root.dim
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.body

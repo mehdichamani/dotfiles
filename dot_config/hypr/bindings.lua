@@ -49,6 +49,10 @@ o.bind("SUPER + SHIFT + A", "Antigravity App", { launch = "withproxy /home/unrea
 -- Remmina
 o.bind("SUPER + R", "Remmina", { launch = "remmina" })
 
+-- Todoist New Task Popup (SUPER + SHIFT + R)
+hl.unbind("SUPER + SHIFT + R")
+o.bind("SUPER + SHIFT + R", "New Task", os.getenv("HOME") .. "/.config/omarchy/plugins/mehdichamani.tasks/tasks_backend.py prompt")
+
 -- Obsidian (SUPER + N)
 hl.unbind("SUPER + N")
 o.bind("SUPER + N", "Obsidian", "obsidian")

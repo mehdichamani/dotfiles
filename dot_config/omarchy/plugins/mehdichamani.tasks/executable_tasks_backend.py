@@ -357,7 +357,81 @@ def cmd_delete(task_id):
     return {"ok": True, "deleted_id": task_id}
 
 
-def send_omarchy_notification(headline, description, urgency="normal"):
+def cmd_prompt():
+    """Display an interactive Omarchy menu popup to enter and create a task."""
+    input_bin = "/usr/share/omarchy/bin/omarchy-menu-input"
+    if not Path(input_bin).exists():
+        input_bin = "omarchy-menu-input"
+
+    try:
+        import subprocess
+        proc = subprocess.run(
+            [input_bin, "New task (e.g. Meeting @ tomorrow 18:30)", "--width", "500"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except Exception as e:
+        send_omarchy_notification("Todoist Error", f"Failed to open menu: {e}", urgency="critical")
+        return {"ok": False, "error": str(e)}
+
+    if proc.returncode != 0:
+        return {"ok": False, "cancelled": True}
+
+    task_text = (proc.stdout or "").strip()
+    if not task_text:
+        return {"ok": False, "cancelled": True}
+
+    res = cmd_add(task_text)
+    if res.get("ok"):
+        added_title = res.get("task", {}).get("title", task_text)
+        send_omarchy_notification(
+            headline="Task Added",
+            description=added_title,
+            urgency="normal",
+            sound=True,
+        )
+        try:
+            import subprocess
+            subprocess.run(
+                ["omarchy-shell", "-q", "mehdichamani.tasks", "refresh"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+        except Exception:
+            pass
+        return res
+    else:
+        err = res.get("error", "Failed to add task")
+        send_omarchy_notification(
+            headline="Failed to Add Task",
+            description=err,
+            urgency="critical",
+            sound=True,
+        )
+        return res
+
+
+def play_notification_sound():
+    """Play notification chime using pw-play, paplay, or canberra."""
+    sound_file = "/usr/share/sounds/freedesktop/stereo/message.oga"
+    if Path(sound_file).exists():
+        for player in ["pw-play", "paplay"]:
+            try:
+                import subprocess
+                subprocess.Popen([player, sound_file], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return
+            except Exception:
+                continue
+    try:
+        import subprocess
+        subprocess.run(["canberra-gtk-play", "-i", "message"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    except Exception:
+        pass
+
+
+def send_omarchy_notification(headline, description, urgency="normal", sound=True):
     """Send desktop notification using omarchy-notification-send or notify-send fallback."""
     notifier = "/usr/share/omarchy/bin/omarchy-notification-send"
     if Path(notifier).exists():
@@ -383,6 +457,9 @@ def send_omarchy_notification(headline, description, urgency="normal"):
         subprocess.run(cmd, check=False)
     except Exception as e:
         sys.stderr.write(f"Failed to send notification: {e}\n")
+
+    if sound:
+        play_notification_sound()
 
 
 def cmd_check_alerts():
@@ -439,14 +516,15 @@ def cmd_check_alerts():
                     dt = dt.astimezone()
 
                 diff_seconds = (dt - now).total_seconds()
-                # Due window: from 10 minutes overdue up to 5 minutes upcoming
-                if -600 <= diff_seconds <= 300:
+                # Due window: trigger when due (up to 10 minutes past due), without 5-minute advance alert
+                if -600 <= diff_seconds <= 0:
                     if alert_key not in alerted:
                         due_time_str = dt.strftime("%H:%M")
                         send_omarchy_notification(
-                            headline=f"یادآور: {content}",
-                            description=f"سررسید زمان: {due_time_str}",
-                            urgency="normal" if diff_seconds > 0 else "critical",
+                            headline=f"Reminder: {content}",
+                            description=f"Due at {due_time_str}",
+                            urgency="critical",
+                            sound=True,
                         )
                         alerted[alert_key] = time.time()
                         fired_count += 1
@@ -458,9 +536,10 @@ def cmd_check_alerts():
                 if task_date == now.date() and 9 <= now.hour < 10:
                     if alert_key not in alerted:
                         send_omarchy_notification(
-                            headline=f"یادآور امروز: {content}",
-                            description="سررسید برای امروز تعیین شده است",
+                            headline=f"Today's Task: {content}",
+                            description="Due today",
                             urgency="low",
+                            sound=True,
                         )
                         alerted[alert_key] = time.time()
                         fired_count += 1
@@ -520,6 +599,10 @@ def main():
 
         elif command == "check-alerts":
             res = cmd_check_alerts()
+            print(json.dumps(res, ensure_ascii=False))
+
+        elif command == "prompt":
+            res = cmd_prompt()
             print(json.dumps(res, ensure_ascii=False))
 
         else:
