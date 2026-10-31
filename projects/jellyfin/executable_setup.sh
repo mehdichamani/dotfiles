@@ -99,29 +99,11 @@ check_docker() {
 # مانت و تنظیم fstab برای دیسک مدیا
 # ------------------------------------------------------------------------------
 mount_storage_action() {
-    # بررسی نصب بودن درایور ntfs-3g
-    if ! command -v ntfs-3g &> /dev/null; then
-        log_warn "درایور ntfs-3g روی سیستم شما نصب نیست!"
-        if ask_confirm "آیا مایلید پکیج ntfs-3g به صورت خودکار نصب شود؟" "y"; then
-            if command -v pacman &> /dev/null; then
-                sudo pacman -S --needed ntfs-3g
-            elif command -v apt-get &> /dev/null; then
-                sudo apt-get update && sudo apt-get install -y ntfs-3g
-            elif command -v dnf &> /dev/null; then
-                sudo dnf install -y ntfs-3g
-            else
-                log_error "مدیر بسته سازگار یافت نشد. لطفاً ntfs-3g را دستی نصب کنید."
-            fi
-        else
-            log_warn "بدون درایور ntfs-3g ممکن است مانت پارتیشن‌های NTFS ناموفق باشد."
-        fi
-    fi
-
     local CURRENT_UID=${SUDO_UID:-$(id -u)}
     local CURRENT_GID=${SUDO_GID:-$(id -g)}
-    local MOUNT_OPTS="defaults,nofail,uid=${CURRENT_UID},gid=${CURRENT_GID},umask=022,x-systemd.device-timeout=5s"
+    local MOUNT_OPTS="defaults,nofail,uid=${CURRENT_UID},gid=${CURRENT_GID},dmask=022,fmask=133,iocharset=utf8,x-systemd.device-timeout=5s"
     local FSTAB_COMMENT="# Jellyfin Media SSD (NTFS)"
-    local FSTAB_ENTRY="UUID=${SSD_UUID}\t${MEDIA_MOUNT}\tntfs-3g\t${MOUNT_OPTS}\t0 0"
+    local FSTAB_ENTRY="UUID=${SSD_UUID}\t${MEDIA_MOUNT}\tntfs3\t${MOUNT_OPTS}\t0 0"
 
     log_info "آماده‌سازی نقطه مانت: ${MEDIA_MOUNT}"
     sudo mkdir -p "${MEDIA_MOUNT}"
@@ -143,7 +125,7 @@ mount_storage_action() {
     if mountpoint -q "${MEDIA_MOUNT}"; then
         log_success "دیسک با موفقیت روی ${MEDIA_MOUNT} مانت شد."
     else
-        log_error "دیسک در ${MEDIA_MOUNT} مانت نشد. لطفاً اتصال فیزیکی دیسک یا نصب ntfs-3g را بررسی کنید."
+        log_error "دیسک در ${MEDIA_MOUNT} مانت نشد. لطفاً اتصال فیزیکی دیسک یا پشتیبانی کرنل از ntfs3 را بررسی کنید."
     fi
 }
 
