@@ -5,11 +5,30 @@
 
 set SCRIPT_DIR (path resolve (dirname (status filename)))
 set SECRETS_FILE "$HOME/.ssh/secrets/winapps.env"
-set ISO_PATH "$HOME/Downloads/tiny11core_25H2_Nov25.iso"
+set ENV_FILE "$SCRIPT_DIR/.env"
 set DAEMON_SCRIPT "$SCRIPT_DIR/winapps_daemon.py"
 set STATE_FILE "/tmp/winapps_state.json"
 set CMD_SOCK "/tmp/winapps_daemon.sock"
 set ICON_FILE "$SCRIPT_DIR/winapps.png"
+
+# تابع بارگذاری و اعتبارسنجی فایل .env محلی
+function load_local_env
+    if test -f "$ENV_FILE"
+        for line in (cat "$ENV_FILE")
+            set -l trimmed (string trim "$line")
+            if test -n "$trimmed"; and not string match -q '#*' "$trimmed"
+                set -l kv (string split -m 1 = "$trimmed")
+                if test (count $kv) -eq 2
+                    set -gx $kv[1] (string trim -c '"\' ' "$kv[2]")
+                end
+            end
+        end
+    end
+    set -g ISO_PATH "$WINAPPS_ISO_PATH"
+    set -g PROGRAMS_DIR "$WINAPPS_PROGRAMS_DIR"
+end
+
+load_local_env
 
 function _log_info
     echo (set_color cyan)"[INFO] "(set_color normal)$argv
@@ -66,7 +85,7 @@ function check_environment
 
     # 1. بررسی پکیج‌های سیستمی
     echo ""
-    echo (set_color yellow)"[۱/۶] بررسی پکیج‌ها و دستورات مورد نیاز:"(set_color normal)
+    echo (set_color yellow)"[۱/۷] بررسی پکیج‌ها و دستورات مورد نیاز:"(set_color normal)
     set -l required_cmds docker jq python3 notify-send
     for cmd in $required_cmds
         if type -q $cmd
@@ -88,7 +107,7 @@ function check_environment
 
     # 2. بررسی دسترسی KVM
     echo ""
-    echo (set_color yellow)"[۲/۶] بررسی شتاب‌دهنده سخت‌افزاری KVM:"(set_color normal)
+    echo (set_color yellow)"[۲/۷] بررسی شتاب‌دهنده سخت‌افزاری KVM:"(set_color normal)
     if test -c /dev/kvm
         if test -r /dev/kvm -a -w /dev/kvm
             echo "  ✔ /dev/kvm: "(set_color green)"موجود و قابل خواندن/نوشتن است"(set_color normal)
@@ -102,7 +121,7 @@ function check_environment
 
     # 3. بررسی سرویس و دسترسی داکر
     echo ""
-    echo (set_color yellow)"[۳/۶] بررسی سرویس داکر:"(set_color normal)
+    echo (set_color yellow)"[۳/۷] بررسی سرویس داکر:"(set_color normal)
     if docker info &>/dev/null
         echo "  ✔ داکر: "(set_color green)"سرویس در حال اجراست و دسترسی مجاز است"(set_color normal)
     else
@@ -112,7 +131,7 @@ function check_environment
 
     # 4. بررسی ایمیج داکر
     echo ""
-    echo (set_color yellow)"[۴/۶] بررسی ایمیج داکر (dockur/windows):"(set_color normal)
+    echo (set_color yellow)"[۴/۷] بررسی ایمیج داکر (dockur/windows):"(set_color normal)
     if docker image inspect ghcr.io/dockur/windows:latest &>/dev/null
         echo "  ✔ ایمیج ghcr.io/dockur/windows:latest: "(set_color green)"موجود و آماده در Docker cache"(set_color normal)
     else
@@ -126,23 +145,57 @@ function check_environment
         end
     end
 
-    # 5. بررسی فایل ISO
+    # 5. بررسی فایل .env محلی و متغیرهای مسیر
     echo ""
-    echo (set_color yellow)"[۵/۶] بررسی فایل ISO ویندوز:"(set_color normal)
-    if test -f "$ISO_PATH"
-        set -l iso_size (numfmt --to=iec (stat -c %s "$ISO_PATH" 2>/dev/null) 2>/dev/null)
-        if test -z "$iso_size"
-            set iso_size "موجود"
+    echo (set_color yellow)"[۵/۷] بررسی فایل کانفیگ محیطی (.env):"(set_color normal)
+    if test -f "$ENV_FILE"
+        echo "  ✔ فایل .env: "(set_color green)"یافت شد ($ENV_FILE)"(set_color normal)
+        load_local_env
+
+        # بررسی وجود دو ردیف الزامی در .env
+        if test -z "$WINAPPS_ISO_PATH"
+            echo "  ✘ ردیف WINAPPS_ISO_PATH: "(set_color red)"در فایل .env تعریف نشده است!"(set_color normal)
+            set has_error 1
+        else
+            echo "  ✔ WINAPPS_ISO_PATH: "(set_color green)"$WINAPPS_ISO_PATH"(set_color normal)
         end
+
+        if test -z "$WINAPPS_PROGRAMS_DIR"
+            echo "  ✘ ردیف WINAPPS_PROGRAMS_DIR: "(set_color red)"در فایل .env تعریف نشده است!"(set_color normal)
+            set has_error 1
+        else
+            echo "  ✔ WINAPPS_PROGRAMS_DIR: "(set_color green)"$WINAPPS_PROGRAMS_DIR"(set_color normal)
+        end
+    else
+        echo "  ✘ فایل .env: "(set_color red)"یافت نشد! ($ENV_FILE)"(set_color normal)
+        echo "     لطفاً یک فایل .env در این مسیر بسازید و دو متغیر زیر را در آن مقداردهی کنید:"
+        echo "     WINAPPS_ISO_PATH=/path/to/windows.iso"
+        echo "     WINAPPS_PROGRAMS_DIR=/path/to/programs"
+        set has_error 1
+    end
+
+    # 6. بررسی درستی مسیر فایل ISO و پوشه برنامه‌ها
+    echo ""
+    echo (set_color yellow)"[۶/۷] بررسی صحت مسیرهای فایل ISO و پوشه برنامه‌ها:"(set_color normal)
+    if test -n "$ISO_PATH" -a -f "$ISO_PATH"
+        set -l iso_size (numfmt --to=iec (stat -c %s "$ISO_PATH" 2>/dev/null) 2>/dev/null)
+        test -z "$iso_size"; and set iso_size "موجود"
         echo "  ✔ فایل ISO: "(set_color green)"یافت شد ($iso_size) -> $ISO_PATH"(set_color normal)
     else
         echo "  ✘ فایل ISO: "(set_color red)"در مسیر $ISO_PATH یافت نشد!"(set_color normal)
         set has_error 1
     end
 
-    # 6. بررسی سکرت‌ها
+    if test -n "$PROGRAMS_DIR" -a -d "$PROGRAMS_DIR"
+        echo "  ✔ پوشه برنامه‌ها: "(set_color green)"یافت شد -> $PROGRAMS_DIR"(set_color normal)
+    else
+        echo "  ✘ پوشه برنامه‌ها: "(set_color red)"در مسیر $PROGRAMS_DIR یافت نشد!"(set_color normal)
+        set has_error 1
+    end
+
+    # 7. بررسی سکرت‌ها
     echo ""
-    echo (set_color yellow)"[۶/۶] بررسی فایل سکرت و متغیرهای محلی:"(set_color normal)
+    echo (set_color yellow)"[۷/۷] بررسی فایل سکرت و متغیرهای محلی:"(set_color normal)
     if test -f "$SECRETS_FILE"
         echo "  ✔ فایل سکرت: "(set_color green)"یافت شد ($SECRETS_FILE)"(set_color normal)
         set -l u (get_secret USERNAME)
