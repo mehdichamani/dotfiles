@@ -66,6 +66,11 @@ hl.unbind("SUPER + SHIFT + S")
 o.bind("SUPER + SHIFT + S", "LocalSend", { launch = "localsend" })
 o.window("org.localsend.localsend_app", { float = true })
 
+-- WinApps Windows RDP (SUPER + SHIFT + W, replaces default Omawrite binding)
+hl.unbind("SUPER + SHIFT + W")
+o.bind("SUPER + SHIFT + W", "Windows RDP", "fish -c \"/home/unreal/projects/winapps/setup.fish rdp\"")
+
+
 -- Clipboard manager (replace default Universal paste with Clipboard manager history)
 hl.unbind("SUPER + V")
 o.bind("SUPER + V", "Clipboard manager", "omarchy-shell shell toggle omarchy.clipboard")

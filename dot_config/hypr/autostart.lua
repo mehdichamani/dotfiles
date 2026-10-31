@@ -11,3 +11,5 @@ o.window("firefox", { workspace = "2" })
 o.window("antigravity", { workspace = "3" })
 o.window("md.obsidian.Obsidian", { workspace = "4" })
 o.window("org.remmina.Remmina", { workspace = "5" })
+o.window("(xfreerdp|xfreerdp3|wlfreerdp|FreeRDP)", { workspace = "6" })
+
