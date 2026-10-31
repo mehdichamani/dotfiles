@@ -405,18 +405,39 @@ print(f'زمان باقیمانده تا خاموشی: {m} دقیقه و {s} ث�
     end
 end
 
-# ساخت لانچر دسکتاپ اتصال مستقیم به ویندوز با RDP
+# ساخت لانچرهای دسکتاپ (RDP و Web) و نصب آیکون‌ها
 function install_launcher
     set -l apps_dir "$HOME/.local/share/applications"
+    set -l icons_dir "$HOME/.local/share/icons/hicolor"
     mkdir -p "$apps_dir"
-    set -l desktop_file "$apps_dir/winapps-rdp.desktop"
 
-    # حذف لانچرهای قدیمی در صورت وجود
-    rm -f "$apps_dir"/winapps-*.desktop 2>/dev/null
+    # نصب آیکون‌ها در تم سیستم (PNG و SVG)
+    if test -f "$ICON_FILE"
+        mkdir -p "$icons_dir/48x48/apps" "$icons_dir/scalable/apps"
+        cp -f "$ICON_FILE" "$icons_dir/48x48/apps/winapps.png"
+        if test -f "$SCRIPT_DIR/winapps.svg"
+            cp -f "$SCRIPT_DIR/winapps.svg" "$icons_dir/scalable/apps/winapps.svg"
+        end
+        gtk-update-icon-cache -f -t "$HOME/.local/share/icons/hicolor" 2>/dev/null
+    end
 
-    printf "[Desktop Entry]\nName=Windows Desktop (RDP)\nComment=Connect to full Windows VM desktop session via FreeRDP\nExec=fish -c \"%s/setup.fish rdp\"\nType=Application\nCategories=System;RemoteAccess;Network;\nIcon=winapps\nStartupNotify=true\n" "$SCRIPT_DIR" > "$desktop_file"
+    # انتخاب دقیق‌ترین مسیر یا نام آیکون
+    set -l icon_target "winapps"
+    if test -f "$ICON_FILE"
+        set icon_target "$ICON_FILE"
+    end
 
-    _log_success "لانچر Windows Desktop (RDP) در $desktop_file ایجاد شد."
+    # لانچر ۱: اتصال مستقیم RDP
+    set -l rdp_file "$apps_dir/winapps-rdp.desktop"
+    printf "[Desktop Entry]\nName=Windows Desktop (RDP)\nComment=Connect to full Windows VM desktop session via FreeRDP\nExec=fish -c \"%s/setup.fish rdp\"\nType=Application\nCategories=System;RemoteAccess;Network;\nIcon=%s\nStartupNotify=true\n" "$SCRIPT_DIR" "$icon_target" > "$rdp_file"
+    _log_success "لانچر Windows Desktop (RDP) در $rdp_file ایجاد شد."
+
+    # لانچر ۲: کنسول وب (XDG / Web VNC)
+    set -l web_file "$apps_dir/winapps-web.desktop"
+    printf "[Desktop Entry]\nName=Windows Console (Web)\nComment=Open Windows Web VNC console in default browser\nExec=fish -c \"%s/setup.fish web\"\nType=Application\nCategories=System;RemoteAccess;Network;\nIcon=%s\nStartupNotify=true\n" "$SCRIPT_DIR" "$icon_target" > "$web_file"
+    _log_success "لانچر Windows Console (Web) در $web_file ایجاد شد."
+
+    update-desktop-database "$apps_dir" 2>/dev/null
 end
 
 # منوی کاربری
