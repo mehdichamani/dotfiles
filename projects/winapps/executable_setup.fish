@@ -136,7 +136,7 @@ function check_environment
         echo "  ✔ ایمیج ghcr.io/dockur/windows:latest: "(set_color green)"موجود و آماده در Docker cache"(set_color normal)
     else
         echo "  ⚠ ایمیج داکر در کش یافت نشد. بررسی فایل پشتیبان آفلاین..."
-        set -l tar_path "/run/media/unreal/TUF_Data/programs/docker-images/dockurr_windows_latest.tar"
+        set -l tar_path "$PROGRAMS_DIR/docker-images/dockurr_windows_latest.tar"
         if test -f "$tar_path"
             echo "  ✔ فایل ایمیج آفلاین در هارد اکسترنال یافت شد: "(set_color green)"$tar_path"(set_color normal)
         else
@@ -221,7 +221,7 @@ end
 # بررسی و لود خودکار ایمیج آفلاین از هارد اکسترنال
 function ensure_offline_image
     if not docker image inspect ghcr.io/dockur/windows:latest &>/dev/null
-        set -l tar_path "/run/media/unreal/TUF_Data/programs/docker-images/dockurr_windows_latest.tar"
+        set -l tar_path "$PROGRAMS_DIR/docker-images/dockurr_windows_latest.tar"
         if test -f "$tar_path"
             _log_info "ایمیج محلی در داکر یافت نشد. در حال بارگذاری سریع از هارد اکسترنال..."
             set -l loaded_out (docker load -i "$tar_path")

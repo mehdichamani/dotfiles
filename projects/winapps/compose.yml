@@ -29,6 +29,6 @@ services:
     volumes:
       - data:/storage
       - ${HOME}:/shared/Home
-      - ${WINAPPS_PROGRAMS_DIR:-/run/media/unreal/UromShisheSachi/Programs}:/shared/Programs:ro
+      - ${WINAPPS_PROGRAMS_DIR}:/shared/Programs:ro
       - ./oem:/oem
-      - ${WINAPPS_ISO_PATH:-/run/media/unreal/UromShisheSachi/OS/common/tiny11core_25H2_Nov25.iso}:/custom.iso:ro
+      - ${WINAPPS_ISO_PATH}:/custom.iso:ro
