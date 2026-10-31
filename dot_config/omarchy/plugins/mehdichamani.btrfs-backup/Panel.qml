@@ -27,7 +27,6 @@ Panel {
 
   readonly property bool isMounted: backupData ? (backupData.backup_disk_mounted === true) : false
   readonly property bool isConnected: backupData ? (backupData.backup_disk_connected === true || backupData.backup_disk_mounted === true) : false
-  readonly property bool isEjected: Helper.isEjected(backupData)
   readonly property bool isRunning: backupData ? (backupData.status === "running") : false
   readonly property bool isError: backupData ? (backupData.status === "error") : false
   readonly property int cycleDay: backupData ? (backupData.cycle_day || 0) : 0
@@ -64,14 +63,6 @@ Panel {
       return
     }
     runCmd("omarchy-launch-floating-terminal-with-presentation \"sudo $HOME/.config/scripts/btrfs-backup.sh --probe\"")
-  }
-
-  function triggerSafeEject() {
-    if (!root.isConnected) {
-      runCmd("notify-send -a 'Btrfs Backup' -u low -i drive-harddisk 'Drive Absent' 'External backup drive is already disconnected.'")
-      return
-    }
-    runCmd("omarchy-launch-floating-terminal-with-presentation \"sudo $HOME/.config/scripts/btrfs-backup.sh --eject\"")
   }
 
   function triggerRemount() {
@@ -162,7 +153,7 @@ Panel {
     fontSize: 18
     text: Helper.getStatusBadge(root.backupData)
     dimmed: !root.isRunning && root.cycleDay === 0 && !root.isMounted
-    active: (root.cycleDay > 0 || root.isMounted) && !root.isError && !root.isEjected
+    active: (root.cycleDay > 0 || root.isMounted) && !root.isError
     activeColor: root.isRunning ? root.urgent : ((root.bar && root.bar.accent) ? root.bar.accent : Color.accent)
     tooltipText: Helper.getStatusTooltip(root.backupData)
 
@@ -248,12 +239,11 @@ Panel {
                     text: {
                       if (root.isRunning) return "Active data transfer in progress"
                       if (root.isError) return "Error: " + (root.backupData ? root.backupData.message : "")
-                      if (root.isEjected) return "Drive safely unmounted (Ready to remove)"
                       if (!root.isConnected) return "External drive absent / disconnected"
                       if (!root.isMounted) return "Drive connected · Unmounted standby"
                       return "Retention Day " + root.cycleDay + " of 15 · " + (root.backupData ? root.backupData.storage_avail_human : "0B") + " free"
                     }
-                    color: root.isRunning ? root.urgent : (root.isEjected ? root.dim : (root.isConnected ? root.accent : root.dim))
+                    color: root.isRunning ? root.urgent : (root.isConnected ? root.accent : root.dim)
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.caption
                   }
@@ -349,12 +339,12 @@ Panel {
                   spacing: Style.space(6)
                   Text {
                     text: root.isMounted ? "󰋊" : "󱊪"
-                    color: root.isMounted ? root.accent : (root.isEjected ? root.urgent : root.dim)
+                    color: root.isMounted ? root.accent : root.dim
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.bodySmall
                   }
                   Text {
-                    text: root.isMounted ? "Mounted (Active)" : (root.isEjected ? "Safely Ejected" : "Unmounted")
+                    text: root.isMounted ? "Mounted (Active)" : "Unmounted"
                     color: root.isMounted ? root.foreground : root.dim
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.caption
@@ -607,15 +597,16 @@ Panel {
               onClicked: root.triggerBackupNow()
             }
 
-            // Safe Eject / Mount Button
+            // Mount Drive Button (when disconnected or unmounted)
             Button {
               Layout.fillWidth: true
               implicitHeight: Style.space(36)
-              text: root.isMounted ? "󰚃  Safe Eject" : "󱊞  Mount Drive"
+              visible: !root.isMounted
+              text: "󱊞  Mount Drive"
               fontFamily: root.fontFamily
               fontSize: Style.font.bodySmall
-              enabled: (root.isConnected || root.isMounted) && !root.isRunning
-              onClicked: root.isMounted ? root.triggerSafeEject() : root.triggerRemount()
+              enabled: root.isConnected && !root.isMounted && !root.isRunning
+              onClicked: root.triggerRemount()
             }
 
             // Open Folder Button

@@ -13,7 +13,6 @@
 #   - 24-hour cooldown prevention (with --force bypass)
 #   - Safe pruning of previous cycles only after 100% successful new full backup
 #   - JSON status reporting for Omarchy Shell widget & live monitoring
-#   - Safe drive ejection helper
 # ==============================================================================
 
 set -euo pipefail
@@ -72,7 +71,6 @@ FORCE_RUN=false
 DRY_RUN=false
 STATUS_ONLY=false
 PROBE_ONLY=false
-EJECT_ONLY=false
 
 # ------------------------------------------------------------------------------
 # Logging & Output Helpers
@@ -269,62 +267,6 @@ require_root() {
         log_error "This script must be run as root (or via sudo)."
         exit 1
     fi
-}
-
-# ------------------------------------------------------------------------------
-# Safe Eject All Partitions of External Drive
-# ------------------------------------------------------------------------------
-safe_eject_drive() {
-    require_root
-    log_info "Initiating safe eject for backup drive (${BACKUP_UUID})..."
-
-    # Find the parent disk device for this UUID
-    local dev_part
-    dev_part=$(blkid -U "${BACKUP_UUID}" 2>/dev/null || true)
-    if [[ -z "${dev_part}" ]]; then
-        log_warn "Backup partition with UUID ${BACKUP_UUID} was not found."
-        echo "Drive is not connected or already removed."
-        notify_desktop "Drive Not Found" "Backup drive is not connected or already removed." "low" "drive-harddisk"
-        exit 0
-    fi
-
-    local parent_disk
-    parent_disk=$(lsblk -no PKNAME "${dev_part}" 2>/dev/null || true)
-    if [[ -z "${parent_disk}" ]]; then
-        parent_disk=$(basename "${dev_part}" | sed 's/[0-9]*$//')
-    fi
-
-    local target_disk="/dev/${parent_disk}"
-    log_info "Found parent block device: ${target_disk}"
-
-    # Sync any pending writes
-    sync
-
-    # Stop systemd automount & mount units to prevent immediate auto-remounting
-    systemctl stop mnt-tuf_backup.automount 2>/dev/null || true
-    systemctl stop mnt-tuf_backup.mount 2>/dev/null || true
-
-    # Unmount all mountpoints under parent disk and all its partitions
-    for part in $(lsblk -nrpo NAME "${target_disk}" 2>/dev/null); do
-        while findmnt -rn "${part}" >/dev/null 2>&1; do
-            local mp
-            mp=$(findmnt -n -o TARGET "${part}" | head -n 1)
-            log_info "Unmounting ${part} from ${mp}..."
-            umount "${mp}" 2>/dev/null || umount -l "${mp}" 2>/dev/null || break
-        done
-    done
-
-    # Ensure preferred mountpoint specifically is unmounted
-    while findmnt -rn "${BACKUP_MOUNT_PREFERRED}" >/dev/null 2>&1; do
-        umount "${BACKUP_MOUNT_PREFERRED}" 2>/dev/null || umount -l "${BACKUP_MOUNT_PREFERRED}" 2>/dev/null || break
-    done
-
-    # Sync again
-    sync
-    log_info "All partitions on ${target_disk} have been cleanly unmounted."
-    echo "✓ Safe to disconnect drive (${target_disk})."
-    notify_desktop "Drive Safely Ejected" "External backup SSD is unmounted. Safe to unplug." "normal" "media-eject"
-    update_status_json "ejected" "Drive safely unmounted and ready for removal." "none" 0 "none"
 }
 
 # ------------------------------------------------------------------------------
@@ -758,18 +700,11 @@ show_status() {
             current_msg=$(jq -r '.message // "Drive connected."' "${active_mount}/status.json" 2>/dev/null || echo "Drive connected.")
         fi
     elif [[ -n "${dev_part}" ]]; then
-        local prev_status=""
         if [[ -f "${STATUS_JSON}" ]] && command -v jq >/dev/null 2>&1; then
-            prev_status=$(jq -r '.status // ""' "${STATUS_JSON}" 2>/dev/null || true)
             backup_type=$(jq -r '.last_backup_type // "incremental"' "${STATUS_JSON}" 2>/dev/null || echo "incremental")
         fi
-        if [[ "${prev_status}" == "ejected" ]]; then
-            current_status="ejected"
-            current_msg="Drive connected (safely ejected)."
-        else
-            current_status="idle"
-            current_msg="Drive connected (unmounted)."
-        fi
+        current_status="idle"
+        current_msg="Drive connected (unmounted)."
     else
         current_status="disconnected"
         current_msg="External backup drive absent/disconnected."
@@ -885,7 +820,6 @@ Options:
   -d, --dry-run          Simulate all operations without modifying disk state
   -s, --status           Display the current JSON backup status and cycle details
   -p, --probe            Temporarily mount and probe drive stats on demand, then unmount
-  -e, --eject            Safely unmount all partitions on the external backup drive
       --install-systemd  Install and enable systemd service and daily timer
       --edit-schedule    Open systemd timer file in editor to change backup schedule
   -h, --help             Display this help message
@@ -897,7 +831,6 @@ Examples:
   sudo btrfs-backup.sh --probe           # Probe stats & unmount
   sudo btrfs-backup.sh --install-systemd # Setup & enable systemd timer
   sudo btrfs-backup.sh --edit-schedule   # Edit timer schedule and reload
-  sudo btrfs-backup.sh --eject           # Safe ejection of external drive
   btrfs-backup.sh --status               # View JSON status for widget/scripting
 EOF
 }
@@ -922,10 +855,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         -p|--probe)
             PROBE_ONLY=true
-            shift
-            ;;
-        -e|--eject)
-            EJECT_ONLY=true
             shift
             ;;
         --install-systemd)
@@ -958,9 +887,6 @@ if [[ "${STATUS_ONLY}" == "true" ]]; then
     exit 0
 elif [[ "${PROBE_ONLY}" == "true" ]]; then
     probe_and_update_state
-    exit 0
-elif [[ "${EJECT_ONLY}" == "true" ]]; then
-    safe_eject_drive
     exit 0
 elif [[ "${INSTALL_SYSTEMD}" == "true" ]]; then
     install_systemd

@@ -53,11 +53,6 @@ function isMounted(data) {
   return data.backup_disk_mounted === true;
 }
 
-function isEjected(data) {
-  if (!data) return false;
-  return data.status === "ejected";
-}
-
 function isRunning(data) {
   if (!data) return false;
   return data.status === "running";
@@ -123,7 +118,6 @@ function getStoragePercent(usedBytes, availBytes) {
 function getStatusBadge(data) {
   if (!data) return "󰁯";
   if (isRunning(data)) return "󰑐 Run";
-  if (isEjected(data)) return "󰚃 Eject";
   if (!isConnected(data)) return "󰁯 Off";
   if (!isMounted(data)) return "󱊞 Unmount";
   if (data.cycle_day > 0) return "󰁯 D" + data.cycle_day;
@@ -134,7 +128,6 @@ function getStatusTooltip(data) {
   if (!data) return "Btrfs Backup";
   if (isRunning(data)) return "Btrfs Backup: Snapshot transfer active";
   if (isError(data)) return "Btrfs Backup: Error - " + (data.message || "");
-  if (isEjected(data)) return "Btrfs Backup: Drive safely unmounted and ready to unplug";
   if (!isConnected(data)) return "Btrfs Backup: External backup SSD disconnected";
   if (!isMounted(data)) return "Btrfs Backup: Drive connected but unmounted";
   return "Btrfs Backup: Day " + (data.cycle_day || 0) + "/15 · " + (data.storage_avail_human || "0B") + " Free";
