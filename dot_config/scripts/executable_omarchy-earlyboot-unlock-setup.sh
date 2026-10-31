@@ -60,20 +60,29 @@ detect_profile() {
             INTERFACE="eth0"
             DRIVER_MODULE="r8169"
             HOSTNAME="homeomarchy"
+            STATIC_IP=""
+            GATEWAY=""
+            NETMASK=""
             KERNEL_NET_CMD="ip=::::${HOSTNAME}:${INTERFACE}:dhcp netconf_timeout=30"
             ;;
         work|Work*|workomarchy|WorkOmarchy)
             PROFILE="work"
             INTERFACE="eth0"
             DRIVER_MODULE="e1000e"
+            STATIC_IP="192.168.1.100"
+            GATEWAY="192.168.1.1"
+            NETMASK="255.255.255.0"
             HOSTNAME="workomarchy"
-            KERNEL_NET_CMD="ip=::::${HOSTNAME}:${INTERFACE}:dhcp netconf_timeout=30"
+            KERNEL_NET_CMD="ip=${STATIC_IP}::${GATEWAY}:${NETMASK}:${HOSTNAME}:${INTERFACE}:none netconf_timeout=30"
             ;;
         *)
             PROFILE="custom"
             HOSTNAME="omarchy"
             INTERFACE="eth0"
             DRIVER_MODULE="r8169"
+            STATIC_IP=""
+            GATEWAY=""
+            NETMASK=""
             KERNEL_NET_CMD="ip=::::${HOSTNAME}:${INTERFACE}:dhcp netconf_timeout=45"
             ;;
     esac
@@ -81,6 +90,11 @@ detect_profile() {
 
 show_banner() {
     clear 2>/dev/null || true
+    local ip_info="DHCP (Auto IP & DNS)"
+    if [ -n "${STATIC_IP:-}" ]; then
+        ip_info="Static (${STATIC_IP} / GW: ${GATEWAY})"
+    fi
+
     printf "${GREEN}"
     cat << 'EOF'
   ___  __  __   _   ___  ___ _  ___   __
@@ -94,7 +108,7 @@ EOF
     printf "${WHITE}▸ Detected Profile:  ${YELLOW}%s${NC}\n" "${PROFILE}"
     printf "${WHITE}▸ Network Interface: ${YELLOW}%s${NC} (Kernel early-boot name)\n" "${INTERFACE}"
     printf "${WHITE}▸ Ethernet Driver:   ${YELLOW}%s${NC}\n" "${DRIVER_MODULE}"
-    printf "${WHITE}▸ IP Assignment:     ${YELLOW}DHCP (Auto IP & DNS)${NC}\n"
+    printf "${WHITE}▸ IP Assignment:     ${YELLOW}%s${NC}\n" "${ip_info}"
     printf "${WHITE}▸ TinySSH Port:      ${YELLOW}%s${NC}\n" "${SSH_PORT}"
     printf "================================================================\n\n"
 }
@@ -284,6 +298,9 @@ _start_remote_unlock_monitor ()
             fi
             if [ -z "\${my_ip}" ]; then
                 my_ip=\$(/sbin/ip -4 addr show dev ${INTERFACE} 2>/dev/null | grep inet | awk '{print \$2}' | cut -d/ -f1 | head -n1 || true)
+            fi
+            if [ -z "\${my_ip}" ]; then
+                my_ip=\$(/sbin/ip -4 -o addr show scope global 2>/dev/null | awk '{print \$4}' | cut -d/ -f1 | head -n1 || true)
             fi
             [ -z "\${my_ip}" ] && my_ip="[Connecting...]"
 
@@ -497,8 +514,8 @@ uninstall() {
     systemctl disable remote-unlock-no-autologin.service 2>/dev/null || true
     rm -f "${AUTOLOGIN_SERVICE}"
     rm -f "${HOOKS_CONF}" /etc/mkinitcpio.conf.d/99-earlyboot-unlock.conf
-    rm -f "${MODULES_CONF}" /etc/mkinitcpio.conf.d/99-earlyboot-driver.conf
-    rm -f "${LIMINE_CONF}" /etc/limine-entry-tool.d/99-earlyboot-unlock.conf
+    rm -f "${MODULES_CONF}" /etc/mkinitcpio.conf.d/99-earlyboot-driver.conf /etc/mkinitcpio.conf.d/omarchy_network.conf
+    rm -f "${LIMINE_CONF}" /etc/limine-entry-tool.d/99-earlyboot-unlock.conf /etc/limine-entry-tool.d/omarchy-network.conf
     rm -f "${HOOK_REMOTE_UNLOCK_INSTALL}"
     rm -f "${HOOK_REMOTE_UNLOCK_RUN}"
     rm -f /etc/initcpio/hooks/tinyssh
@@ -542,10 +559,12 @@ main() {
     read -r method_choice
     method_choice="${method_choice:-3}"
 
-    # Clean up previous names if present
+    # Clean up previous names and conflicting legacy network configs if present
     rm -f /etc/mkinitcpio.conf.d/99-earlyboot-unlock.conf \
           /etc/mkinitcpio.conf.d/99-earlyboot-driver.conf \
-          /etc/limine-entry-tool.d/99-earlyboot-unlock.conf 2>/dev/null || true
+          /etc/mkinitcpio.conf.d/omarchy_network.conf \
+          /etc/limine-entry-tool.d/99-earlyboot-unlock.conf \
+          /etc/limine-entry-tool.d/omarchy-network.conf 2>/dev/null || true
 
     local selected_mode="hybrid"
     case "$method_choice" in
