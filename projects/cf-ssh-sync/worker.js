@@ -106,7 +106,7 @@ cp -a "\$SSH_DIR/." "\$TEMP_DIR/ssh/"
 echo "✔ Added ~/.ssh (including keys, config and ~/.ssh/secrets)"
 
 echo "Archiving and encrypting vault data (AES-256-CBC)..."
-tar -C "\$TEMP_DIR" -czf - . | openssl enc -aes-256-cbc -pbkdf2 -salt -pass pass:"\$PASSPHRASE" -out "\$TEMP_ENC"
+tar --exclude='.git' -C "\$TEMP_DIR" -czf - . | openssl enc -aes-256-cbc -pbkdf2 -salt -pass pass:"\$PASSPHRASE" -out "\$TEMP_ENC"
 
 echo "Uploading encrypted payload to Cloudflare KV..."
 HTTP_CODE=$(curl -s -w "%{http_code}" -o /dev/null -X POST "${origin}/data${tokenQuery}" \
@@ -131,6 +131,7 @@ fi
 
     // 2. GET /get.sh (Public, zero-knowledge ciphertext decryption)
     if (pathname === '/get.sh') {
+      const vQuery = url.searchParams.get('v') ? `?v=${encodeURIComponent(url.searchParams.get('v'))}` : '';
       const script = `#!/usr/bin/env bash
 set -euo pipefail
 
@@ -171,7 +172,7 @@ ensure_deps() {
 ensure_deps
 
 echo "=========================================="
-echo "  🔑 Downloading & Restoring Vault (SSH & Secrets)"
+echo "  🔑 Downloading & Restoring Vault (SSH & Secrets)${vQuery ? ` [Snapshot: ${url.searchParams.get('v')}]` : ''}"
 echo "=========================================="
 
 echo -n "Enter decryption passphrase: "
@@ -189,7 +190,7 @@ TEMP_DECRYPTED=$(mktemp)
 TEMP_EXTRACT=$(mktemp -d)
 trap 'rm -rf "$TEMP_FILE" "$TEMP_DECRYPTED" "$TEMP_EXTRACT"' EXIT
 
-HTTP_CODE=$(curl -s -w "%{http_code}" -o "\$TEMP_FILE" "${origin}/data")
+HTTP_CODE=$(curl -s -w "%{http_code}" -o "\$TEMP_FILE" "${origin}/data${vQuery}")
 
 if [ "\$HTTP_CODE" -ne 200 ]; then
   echo "❌ Failed to download vault payload. HTTP status: \$HTTP_CODE (Payload may not have been uploaded yet)" >&2
@@ -315,7 +316,7 @@ try {
         $tempTar = [System.IO.Path]::GetTempFileName()
         $tempEnc = [System.IO.Path]::GetTempFileName()
         try {
-            & tar -C $tempFolder -czf $tempTar .
+            & tar --exclude='.git' -C $tempFolder -czf $tempTar .
             & openssl enc -aes-256-cbc -pbkdf2 -salt -pass "pass:$plainPass" -in $tempTar -out $tempEnc
             $encBytes = [System.IO.File]::ReadAllBytes($tempEnc)
             
@@ -335,7 +336,7 @@ try {
         if ($hasTar) {
             Write-Host "Archiving with Windows Tar and native .NET OpenSSL AES-256..." -ForegroundColor Yellow
             $tempArchive = [System.IO.Path]::GetTempFileName()
-            & tar -C $tempFolder -czf $tempArchive .
+            & tar --exclude='.git' -C $tempFolder -czf $tempArchive .
             $archiveBytes = [System.IO.File]::ReadAllBytes($tempArchive)
         } else {
             Write-Host "Archiving with PowerShell Zip and native .NET OpenSSL AES-256..." -ForegroundColor Yellow
@@ -387,11 +388,12 @@ try {
 
     // 4. GET /get.ps1 (Windows PowerShell, Public zero-knowledge)
     if (pathname === '/get.ps1') {
+      const vQuery = url.searchParams.get('v') ? `?v=${encodeURIComponent(url.searchParams.get('v'))}` : '';
       const script = `$ErrorActionPreference = 'Stop'
 $sshDir = Join-Path $HOME ".ssh"
 
 Write-Host "==========================================" -ForegroundColor Cyan
-Write-Host "  🔑 Downloading & Restoring Vault (Windows)" -ForegroundColor Cyan
+Write-Host "  🔑 Downloading & Restoring Vault (Windows)${vQuery ? ` [Snapshot: ${url.searchParams.get('v')}]` : ''}" -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
 
 $pass = Read-Host "Enter decryption passphrase" -AsSecureString
@@ -404,7 +406,7 @@ if ([string]::IsNullOrEmpty($plainPass)) {
 }
 
 Write-Host "Fetching encrypted payload..." -ForegroundColor Yellow
-$resp = Invoke-WebRequest -Uri "${origin}/data" -UseBasicParsing
+$resp = Invoke-WebRequest -Uri "${origin}/data${vQuery}" -UseBasicParsing
 $payload = $resp.Content
 
 if ($resp.RawContentStream) {
@@ -603,7 +605,7 @@ try {
       });
     }
 
-    // 5. POST /data - Store encrypted bytes into KV (Requires token if SYNC_TOKEN is set)
+    // 5. POST /data - Store encrypted bytes into KV with 5-version rolling snapshots
     if (pathname === '/data' && request.method === 'POST') {
       if (!validateToken(request)) {
         return new Response('❌ Unauthorized: Missing or invalid token parameter (?token=YOUR_TOKEN)\n', {
@@ -620,22 +622,105 @@ try {
         return new Response('Empty payload.', { status: 400 });
       }
 
+      const MAX_VERSIONS = 5;
+
+      // 1. Fetch current history metadata
+      let history = [];
+      try {
+        const histData = await env.SSH_KV.get('ssh_payload_history', { type: 'json' });
+        if (Array.isArray(histData)) {
+          history = histData;
+        }
+      } catch (e) {
+        history = [];
+      }
+
+      // 2. Fetch current active payload (if any) to preserve as backup version
+      const currentActive = await env.SSH_KV.get('ssh_payload', { type: 'arrayBuffer' });
+      if (currentActive && currentActive.byteLength > 0) {
+        // Shift old versions: 4 -> 5, 3 -> 4, 2 -> 3, 1 -> 2
+        for (let i = MAX_VERSIONS - 1; i >= 1; i--) {
+          const prevData = await env.SSH_KV.get(`ssh_payload_v${i}`, { type: 'arrayBuffer' });
+          if (prevData) {
+            await env.SSH_KV.put(`ssh_payload_v${i + 1}`, prevData);
+          }
+        }
+        // Save current active as version 1
+        await env.SSH_KV.put('ssh_payload_v1', currentActive);
+      }
+
+      // 3. Store new active payload
       await env.SSH_KV.put('ssh_payload', data);
-      return new Response('Encrypted vault payload stored successfully.', { status: 200 });
+
+      // 4. Update history metadata
+      const newEntry = {
+        version: 0, // 0 = Latest / Active
+        timestamp: new Date().toISOString(),
+        size: data.byteLength,
+      };
+
+      const updatedHistory = [newEntry];
+      for (const h of history) {
+        if (updatedHistory.length < MAX_VERSIONS) {
+          updatedHistory.push({
+            ...h,
+            version: updatedHistory.length,
+          });
+        }
+      }
+
+      await env.SSH_KV.put('ssh_payload_history', JSON.stringify(updatedHistory));
+
+      return new Response('Encrypted vault payload stored successfully. (Snapshot history rotated up to 5 versions)\n', {
+        status: 200,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      });
     }
 
     // 6. GET /data - Retrieve encrypted bytes from KV (Public zero-knowledge)
+    // Supports: /data (Latest) or /data?v=1 to 5 (Historical versions)
     if (pathname === '/data' && request.method === 'GET') {
       if (!env.SSH_KV) {
         return new Response('KV Binding "SSH_KV" not configured.', { status: 500 });
       }
-      const data = await env.SSH_KV.get('ssh_payload', { type: 'arrayBuffer' });
-      if (!data) {
-        return new Response('No vault payload found in store.', { status: 404 });
+
+      const vParam = url.searchParams.get('v');
+      let targetKey = 'ssh_payload';
+
+      if (vParam) {
+        const vNum = parseInt(vParam, 10);
+        if (isNaN(vNum) || vNum < 1 || vNum > 5) {
+          return new Response('Invalid version parameter. Allowed range: 1 to 5.\n', { status: 400 });
+        }
+        targetKey = `ssh_payload_v${vNum}`;
       }
+
+      const data = await env.SSH_KV.get(targetKey, { type: 'arrayBuffer' });
+      if (!data) {
+        return new Response(`No vault payload found for ${vParam ? `version v${vParam}` : 'latest snapshot'}.\n`, {
+          status: 404,
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+        });
+      }
+
       return new Response(data, {
         headers: {
           'Content-Type': 'application/octet-stream',
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          'X-Vault-Version': vParam ? `v${vParam}` : 'latest',
+        },
+      });
+    }
+
+    // 6.1. GET /api/history - Return JSON of available snapshot versions
+    if (pathname === '/api/history' && request.method === 'GET') {
+      if (!env.SSH_KV) {
+        return new Response('KV Binding "SSH_KV" not configured.', { status: 500 });
+      }
+      const histData = (await env.SSH_KV.get('ssh_payload_history', { type: 'text' })) || '[]';
+      return new Response(histData, {
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
           'Cache-Control': 'no-store, no-cache, must-revalidate',
         },
       });
@@ -668,6 +753,61 @@ DEPLOYMENT INSTRUCTIONS:
     }
 
     if (pathname === '/') {
+      let history = [];
+      if (env.SSH_KV) {
+        try {
+          const histData = await env.SSH_KV.get('ssh_payload_history', { type: 'json' });
+          if (Array.isArray(histData)) {
+            history = histData;
+          }
+        } catch (e) {
+          history = [];
+        }
+      }
+
+      const historyRows = history.length > 0 
+        ? history.map((item, idx) => {
+            const isLatest = item.version === 0;
+            const label = isLatest 
+              ? '<span style="display:inline-flex;align-items:center;gap:6px;color:var(--accent-green);font-weight:700;"><span style="width:7px;height:7px;border-radius:50%;background:var(--accent-green);box-shadow:0 0 6px var(--accent-green);"></span>LATEST (Active)</span>' 
+              : `<span style="color:var(--accent-cyan);font-weight:700;">V${item.version} <span style="font-size:0.68rem;opacity:0.75;">(-${item.version})</span></span>`;
+            
+            const dateObj = item.timestamp ? new Date(item.timestamp) : null;
+            const dateStr = dateObj ? dateObj.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : 'Unknown';
+            const sizeKb = item.size ? (item.size / 1024).toFixed(1) + ' KB' : '-';
+            
+            const linkLinux = isLatest ? `${origin}/get.sh` : `${origin}/get.sh?v=${item.version}`;
+            const linkWin = isLatest ? `${origin}/get.ps1` : `${origin}/get.ps1?v=${item.version}`;
+            const linkRawData = isLatest ? `${origin}/data` : `${origin}/data?v=${item.version}`;
+
+            const restoreCmdLinux = `curl -fsSL ${linkLinux} | bash`;
+            const restoreCmdWin = `irm ${linkWin} | iex`;
+
+            return `<tr>
+              <td style="padding:0.75rem 0.85rem;border-bottom:1px solid #162030;white-space:nowrap;">${label}</td>
+              <td style="padding:0.75rem 0.85rem;border-bottom:1px solid #162030;color:var(--text-secondary);font-size:0.76rem;white-space:nowrap;">${dateStr}</td>
+              <td style="padding:0.75rem 0.85rem;border-bottom:1px solid #162030;color:#94a3b8;font-size:0.76rem;white-space:nowrap;">${sizeKb}</td>
+              <td style="padding:0.75rem 0.85rem;border-bottom:1px solid #162030;">
+                <div style="display:flex;flex-wrap:wrap;gap:0.45rem;align-items:center;">
+                  <a href="${linkLinux}" target="_blank" style="display:inline-flex;align-items:center;background:#0d1829;border:1px solid #23354e;color:var(--accent-cyan);padding:0.25rem 0.55rem;border-radius:2px;text-decoration:none;font-size:0.68rem;transition:0.2s;" onmouseover="this.style.borderColor='var(--accent-cyan)'" onmouseout="this.style.borderColor='#23354e'">
+                    🔗 GET.SH LINK
+                  </a>
+                  <a href="${linkWin}" target="_blank" style="display:inline-flex;align-items:center;background:#0d1829;border:1px solid #23354e;color:var(--accent-cyan);padding:0.25rem 0.55rem;border-radius:2px;text-decoration:none;font-size:0.68rem;transition:0.2s;" onmouseover="this.style.borderColor='var(--accent-cyan)'" onmouseout="this.style.borderColor='#23354e'">
+                    🔗 GET.PS1 LINK
+                  </a>
+                  <a href="${linkRawData}" target="_blank" style="display:inline-flex;align-items:center;background:#0d1829;border:1px solid #1e293b;color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:2px;text-decoration:none;font-size:0.68rem;transition:0.2s;" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='var(--text-muted)'">
+                    📦 RAW DATA
+                  </a>
+                </div>
+              </td>
+              <td style="padding:0.75rem 0.85rem;border-bottom:1px solid #162030;text-align:right;white-space:nowrap;">
+                <button class="copy-btn" onclick="navigator.clipboard.writeText('${restoreCmdLinux}').then(() => { this.innerText='COPIED'; setTimeout(()=>this.innerText='COPY LINUX', 2000); })">COPY LINUX</button>
+                <button class="copy-btn" style="margin-left:5px;" onclick="navigator.clipboard.writeText('${restoreCmdWin}').then(() => { this.innerText='COPIED'; setTimeout(()=>this.innerText='COPY WIN', 2000); })">COPY WIN</button>
+              </td>
+            </tr>`;
+          }).join('')
+        : `<tr><td colspan="5" style="padding:1.5rem;text-align:center;color:var(--text-muted);font-size:0.8rem;">No snapshots recorded yet. Upload a vault payload with <code>send.sh</code> or <code>send.ps1</code> to initialize snapshot history.</td></tr>`;
+
       const html = `<!DOCTYPE html>
 <html lang="en" dir="ltr">
 <head>
@@ -1127,6 +1267,34 @@ DEPLOYMENT INSTRUCTIONS:
             <button class="copy-btn" onclick="copyCode('cmd-get-win', this)">COPY</button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- 02-B. Snapshot Vault History (Rollback & Time-Machine) -->
+    <div class="card" style="margin-top:1.25rem;">
+      <div class="card-title">
+        <div class="card-title-left">
+          <span class="tag-prefix">[02-B]</span>
+          <span>SNAPSHOT VAULT TIME-MACHINE // 5-VERSION HISTORY</span>
+        </div>
+        <span class="step-tag green">ROLLBACK &amp; ARCHIVE</span>
+      </div>
+      <div class="cmd-desc">Inspect recent rolling backups and copy point-in-time restore commands:</div>
+      <div style="overflow-x:auto;margin-top:0.5rem;background:#020408;border:1px solid #162030;border-radius:2px;">
+        <table style="width:100%;border-collapse:collapse;font-size:0.75rem;text-align:left;">
+          <thead>
+            <tr style="background:#0b1320;color:var(--text-secondary);border-bottom:1px solid #1e293b;">
+              <th style="padding:0.6rem 0.8rem;">SNAPSHOT</th>
+              <th style="padding:0.6rem 0.8rem;">UPLOAD TIMESTAMP</th>
+              <th style="padding:0.6rem 0.8rem;">SIZE</th>
+              <th style="padding:0.6rem 0.8rem;">DIRECT GET SCRIPTS</th>
+              <th style="padding:0.6rem 0.8rem;text-align:right;">PULL &amp; RESTORE COMMANDS</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${historyRows}
+          </tbody>
+        </table>
       </div>
     </div>
 
