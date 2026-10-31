@@ -448,7 +448,7 @@ Panel {
               }
 
               Text {
-                text: "هیچ یادآوری برای انجام باقی نمانده"
+                text: "All tasks completed"
                 color: root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.body
@@ -457,7 +457,7 @@ Panel {
               }
 
               Text {
-                text: "کارهای تیک خورده روی ساعت و موبایل سینک شدند"
+                text: "Everything is up to date"
                 color: root.dim
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.caption

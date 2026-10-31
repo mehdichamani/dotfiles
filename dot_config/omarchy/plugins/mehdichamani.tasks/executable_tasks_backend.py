@@ -34,7 +34,7 @@ def get_token():
     """Retrieve Todoist Personal API Token from ~/.ssh/secrets/todoist.env."""
     if not ENV_FILE.exists():
         sys.stderr.write(
-            "\033[91mخطا: فایل ~/.ssh/secrets/todoist.env یافت نشد.\033[0m\n"
+            "\033[91mError: ~/.ssh/secrets/todoist.env file not found.\033[0m\n"
         )
         return ""
 
@@ -49,7 +49,7 @@ def get_token():
                 if k.strip() == "TODOIST_API_TOKEN":
                     return v.strip().strip('"').strip("'")
     except Exception as e:
-        sys.stderr.write(f"\033[91mخطا در خواندن todoist.env: {e}\033[0m\n")
+        sys.stderr.write(f"\033[91mError reading todoist.env: {e}\033[0m\n")
     return ""
 
 
@@ -79,7 +79,7 @@ def api_request(method, endpoint, data=None):
     """Execute authenticated HTTP request to Todoist API v1."""
     token = get_token()
     if not token:
-        raise RuntimeError("TODOIST_API_TOKEN در ~/.ssh/secrets/todoist.env تنظیم نشده است")
+        raise RuntimeError("TODOIST_API_TOKEN is not set in ~/.ssh/secrets/todoist.env")
 
     url = f"{API_BASE_URL}{endpoint}"
     req_body = None
@@ -105,12 +105,12 @@ def api_request(method, endpoint, data=None):
     except urllib.error.HTTPError as e:
         err_msg = e.read().decode("utf-8", errors="replace")
         if e.code == 401:
-            raise RuntimeError("توکن Todoist نامعتبر یا منقضی شده است (401 Unauthorized)")
+            raise RuntimeError("Todoist token is invalid or expired (401 Unauthorized)")
         elif e.code == 404:
-            raise RuntimeError(f"آیتم یافت نشد (404 Not Found): {endpoint}")
-        raise RuntimeError(f"خطای Todoist API ({e.code}): {err_msg}")
+            raise RuntimeError(f"Item not found (404 Not Found): {endpoint}")
+        raise RuntimeError(f"Todoist API error ({e.code}): {err_msg}")
     except urllib.error.URLError as e:
-        raise RuntimeError(f"عدم برقراری ارتباط با سرور Todoist (بررسی اینترنت/پروکسی): {e.reason}")
+        raise RuntimeError(f"Failed to connect to Todoist server (check network/proxy): {e.reason}")
 
 
 def read_cache():
@@ -196,7 +196,7 @@ def parse_due_info(due_obj):
                 is_overdue = True
 
             if task_date == now.date():
-                badge = "󰸗 امروز"
+                badge = "󰸗 Today"
             else:
                 badge = f"󰸗 {task_date.strftime('%b %d')}"
         except Exception:
@@ -311,7 +311,7 @@ def cmd_add(title, notes="", parent_id=""):
     """
     Create a new task.
     Supports '@ <due_string>' syntax in title for setting due dates,
-    e.g. 'جلسه با تیم @ 18:30' or 'Call Bob @ tomorrow 5pm'.
+    e.g. 'Team meeting @ 18:30' or 'Call Bob @ tomorrow 5pm'.
     """
     title = title.strip()
     if not title:
