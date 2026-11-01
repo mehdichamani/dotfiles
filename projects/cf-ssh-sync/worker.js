@@ -241,7 +241,7 @@ C_GRAY="\\033[90m"
 
 # Scan & inspect changes between local and incoming vault
 echo ""
-printf "${C_CYAN}🔍 Inspecting vault changes against local %s...${C_RESET}\n" "\$SSH_DIR"
+printf "\${C_CYAN}🔍 Inspecting vault changes against local %s...\${C_RESET}\n" "\$SSH_DIR"
 mkdir -p "\$SSH_DIR"
 
 TOTAL_NEW=0
@@ -268,20 +268,20 @@ while IFS= read -r -d '' src_file; do
 done < <(find "\$SOURCE_DIR" -type f -print0 | sort -z)
 
 echo "------------------------------------------------------------"
-printf "${C_BOLD}📋 Vault Change Summary:${C_RESET} ${C_GREEN}%d new${C_RESET}, ${C_YELLOW}%d modified${C_RESET}, ${C_GRAY}%d unchanged${C_RESET}\n" \
+printf "\${C_BOLD}📋 Vault Change Summary:\${C_RESET} \${C_GREEN}%d new\${C_RESET}, \${C_YELLOW}%d modified\${C_RESET}, \${C_GRAY}%d unchanged\${C_RESET}\n" \
   "\$TOTAL_NEW" "\$TOTAL_MOD" "\$TOTAL_SAME"
 echo "------------------------------------------------------------"
 
 if [ "\$TOTAL_NEW" -eq 0 ] && [ "\$TOTAL_MOD" -eq 0 ]; then
-  printf "${C_GREEN}✨ Local ~/.ssh is already 100%% up to date with the vault.${C_RESET}\n"
+  printf "\${C_GREEN}✨ Local ~/.ssh is already 100%% up to date with the vault.\${C_RESET}\n"
 else
   for item in "\${CHANGES_LIST[@]}"; do
     status="\${item%%|*}"
     file="\${item#*|}"
     if [ "\$status" = "NEW" ]; then
-      printf "  ${C_GREEN}%-12s${C_RESET} %s\n" "[+ NEW]" "\$file"
+      printf "  \${C_GREEN}%-12s\${C_RESET} %s\n" "[+ NEW]" "\$file"
     else
-      printf "  ${C_YELLOW}%-12s${C_RESET} %s\n" "[~ MODIFIED]" "\$file"
+      printf "  \${C_YELLOW}%-12s\${C_RESET} %s\n" "[~ MODIFIED]" "\$file"
     fi
   done
 fi
@@ -289,7 +289,7 @@ echo "------------------------------------------------------------"
 
 # Ask for confirmation before applying changes
 echo ""
-printf "${C_BOLD}❓ Apply these changes to %s? [y/N]: ${C_RESET}" "\$SSH_DIR"
+printf "\${C_BOLD}❓ Apply these changes to %s? [y/N]: \${C_RESET}" "\$SSH_DIR"
 CONFIRM=""
 if [ -t 0 ]; then
   read -r CONFIRM
