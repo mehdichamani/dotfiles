@@ -224,16 +224,67 @@ else
   tar -xf "\$TEMP_DECRYPTED" -C "\$TEMP_EXTRACT" 2>/dev/null || unzip -q "\$TEMP_DECRYPTED" -d "\$TEMP_EXTRACT"
 fi
 
-# 1. Restore SSH if present in archive (or legacy root archive format)
-mkdir -p "\$SSH_DIR"
-if [ -d "\$TEMP_EXTRACT/ssh" ]; then
-  cp -a "\$TEMP_EXTRACT/ssh/." "\$SSH_DIR/"
-  echo "✔ Restored ~/.ssh"
-elif [ ! -d "\$TEMP_EXTRACT/secrets" ]; then
-  # Legacy payload format where root of tar was directly ~/.ssh
-  cp -a "\$TEMP_EXTRACT/." "\$SSH_DIR/"
-  echo "✔ Restored ~/.ssh (Legacy format)"
+# Identify extracted source directory
+SOURCE_DIR="$TEMP_EXTRACT"
+if [ -d "$TEMP_EXTRACT/ssh" ]; then
+  SOURCE_DIR="$TEMP_EXTRACT/ssh"
 fi
+
+# Compare local ~/.ssh with downloaded vault contents
+echo ""
+echo "🔍 Comparing incoming vault with local \$SSH_DIR..."
+mkdir -p "$SSH_DIR"
+
+DIFF_OUTPUT=""
+if command -v diff >/dev/null 2>&1; then
+  # Exclude temporary or non-sync files if any, and compare recursively
+  DIFF_OUTPUT=$(diff -ruN -x "*.tmp" "$SSH_DIR" "$SOURCE_DIR" 2>/dev/null || true)
+fi
+
+if [ -z "$DIFF_OUTPUT" ]; then
+  echo "✨ No differences found. Local \$SSH_DIR is identical to the downloaded vault."
+else
+  echo "----------------------------------------"
+  echo "📋 Differences preview (- local, + incoming):"
+  echo "----------------------------------------"
+  if command -v colordiff >/dev/null 2>&1; then
+    echo "$DIFF_OUTPUT" | colordiff | head -n 100
+  else
+    echo "$DIFF_OUTPUT" | head -n 100
+  fi
+  TOTAL_DIFF_LINES=$(echo "$DIFF_OUTPUT" | wc -l)
+  if [ "$TOTAL_DIFF_LINES" -gt 100 ]; then
+    echo "... (diff truncated, showing first 100 of $TOTAL_DIFF_LINES lines)"
+  fi
+  echo "----------------------------------------"
+fi
+
+# Ask for confirmation before applying changes
+echo ""
+echo -n "❓ Do you want to apply these changes to \$SSH_DIR? [y/N]: "
+CONFIRM=""
+if [ -t 0 ]; then
+  read -r CONFIRM
+else
+  read -r CONFIRM </dev/tty || true
+fi
+echo ""
+
+case "\$CONFIRM" in
+  [yY]|[yY][eE][sS])
+    echo "🚀 Applying vault changes..."
+    ;;
+  *)
+    echo "🚫 Operation cancelled by user. No files were modified."
+    rm -rf "$TEMP_FILE" "$TEMP_DECRYPTED" "$TEMP_EXTRACT"
+    trap - EXIT
+    exit 0
+    ;;
+esac
+
+# 1. Restore SSH if present in archive (or legacy root archive format)
+cp -a "$SOURCE_DIR/." "$SSH_DIR/"
+echo "✔ Restored ~/.ssh"
 
 # 2. Apply Strict Security Permissions
 chmod 700 "\$SSH_DIR" 2>/dev/null || true
@@ -580,17 +631,53 @@ try {
         Extract-ArchiveData -Data $decryptedBytes -DestDir $tempExtract
     }
 
-    # 1. Restore SSH
+    # Identify extracted source directory
+    $sourceDir = $tempExtract
     if (Test-Path (Join-Path $tempExtract "ssh")) {
-        if (-not (Test-Path $sshDir)) { New-Item -ItemType Directory -Path $sshDir -Force | Out-Null }
-        Copy-Item -Path (Join-Path $tempExtract "ssh\*") -Destination $sshDir -Recurse -Force
-        Write-Host "✔ Restored ~/.ssh (including keys, config, and secrets)" -ForegroundColor Green
-    } else {
-        # Legacy format fallback
-        if (-not (Test-Path $sshDir)) { New-Item -ItemType Directory -Path $sshDir -Force | Out-Null }
-        Copy-Item -Path (Join-Path $tempExtract "*") -Destination $sshDir -Recurse -Force
-        Write-Host "✔ Restored ~/.ssh (Legacy format)" -ForegroundColor Green
+        $sourceDir = Join-Path $tempExtract "ssh"
     }
+
+    Write-Host ""
+    Write-Host "🔍 Comparing incoming vault with local $sshDir..." -ForegroundColor Cyan
+    if (-not (Test-Path $sshDir)) { New-Item -ItemType Directory -Path $sshDir -Force | Out-Null }
+
+    $incomingFiles = Get-ChildItem -Path $sourceDir -Recurse -File
+    $hasDiff = $false
+
+    Write-Host "----------------------------------------" -ForegroundColor Gray
+    Write-Host "📋 File Inspection Summary:" -ForegroundColor Gray
+    Write-Host "----------------------------------------" -ForegroundColor Gray
+    foreach ($file in $incomingFiles) {
+        $relPath = $file.FullName.Substring($sourceDir.Length).TrimStart([char]92, [char]47)
+        $targetFile = Join-Path $sshDir $relPath
+        if (-not (Test-Path $targetFile)) {
+            Write-Host "+ [NEW]      $relPath" -ForegroundColor Green
+            $hasDiff = $true
+        } else {
+            $srcHash = (Get-FileHash -Path $file.FullName -Algorithm SHA256).Hash
+            $destHash = (Get-FileHash -Path $targetFile -Algorithm SHA256).Hash
+            if ($srcHash -ne $destHash) {
+                Write-Host "~ [MODIFIED] $relPath" -ForegroundColor Yellow
+                $hasDiff = $true
+            }
+        }
+    }
+
+    if (-not $hasDiff) {
+        Write-Host "✨ No differences found. Local $sshDir is up to date." -ForegroundColor Green
+    }
+    Write-Host "----------------------------------------" -ForegroundColor Gray
+
+    # Confirm before applying
+    $confirm = Read-Host "❓ Do you want to apply these changes to $sshDir? [y/N]"
+    if ($confirm -notmatch '^(y|yes)$') {
+        Write-Host "🚫 Operation cancelled by user. No files were modified." -ForegroundColor Yellow
+        return
+    }
+
+    Write-Host "🚀 Applying vault changes..." -ForegroundColor Cyan
+    Copy-Item -Path (Join-Path $sourceDir "*") -Destination $sshDir -Recurse -Force
+    Write-Host "✔ Restored ~/.ssh (including keys, config, and secrets)" -ForegroundColor Green
 
     Write-Host "🎉 Done! Your SSH environment and secrets vault are ready." -ForegroundColor Green
 } catch {
