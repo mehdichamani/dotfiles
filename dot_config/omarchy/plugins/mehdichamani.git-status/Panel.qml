@@ -45,9 +45,9 @@ Panel {
     actionRefreshTimer.restart()
   }
 
-  function openLazygit(repoPath) {
+  function openGitClient(repoPath) {
     var p = repoPath || "$HOME";
-    runCmd("omarchy-launch-floating-terminal-with-presentation \"cd '" + p + "' && lazygit\"")
+    runCmd("github-desktop '" + p + "'")
   }
 
   function openTerminal(repoPath) {
@@ -131,7 +131,7 @@ Panel {
       if (b === Qt.RightButton) root.refresh()
       else if (b === Qt.MiddleButton) {
         var firstDirty = (root.gitData && root.gitData.repos && root.gitData.repos.length > 0) ? root.gitData.repos[0].path : "";
-        root.openLazygit(firstDirty)
+        root.openGitClient(firstDirty)
       }
       else root.toggle()
     }
@@ -235,13 +235,13 @@ Panel {
                 }
 
                 PanelActionButton {
-                  iconText: "󰨞"
-                  tooltipText: "Open Lazygit"
+                  iconText: "󰊤"
+                  tooltipText: "Open GitHub Desktop"
                   foreground: root.foreground
                   fontFamily: root.fontFamily
                   onClicked: {
                     var target = (root.gitData && root.gitData.repos && root.gitData.repos.length > 0) ? root.gitData.repos[0].path : "";
-                    root.openLazygit(target)
+                    root.openGitClient(target)
                   }
                 }
               }
@@ -363,11 +363,11 @@ Panel {
                     Layout.fillWidth: false
 
                     PanelActionButton {
-                      iconText: "󰨞"
-                      tooltipText: "Open in Lazygit"
+                      iconText: "󰊤"
+                      tooltipText: "Open in GitHub Desktop"
                       foreground: root.foreground
                       fontFamily: root.fontFamily
-                      onClicked: root.openLazygit(repoRow.r.path)
+                      onClicked: root.openGitClient(repoRow.r.path)
                     }
 
                     PanelActionButton {
