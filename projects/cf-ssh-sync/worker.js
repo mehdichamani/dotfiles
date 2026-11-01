@@ -300,10 +300,10 @@ echo ""
 
 case "\$CONFIRM" in
   [yY]|[yY][eE][sS])
-    printf "${C_GREEN}🚀 Applying vault changes...${C_RESET}\n"
+    printf "\${C_GREEN}🚀 Applying vault changes...\${C_RESET}\n"
     ;;
   *)
-    printf "${C_YELLOW}🚫 Operation cancelled by user. No files were modified.${C_RESET}\n"
+    printf "\${C_YELLOW}🚫 Operation cancelled by user. No files were modified.\${C_RESET}\n"
     rm -rf "\$TEMP_FILE" "\$TEMP_DECRYPTED" "\$TEMP_EXTRACT"
     trap - EXIT
     exit 0
