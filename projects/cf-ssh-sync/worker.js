@@ -230,38 +230,66 @@ if [ -d "$TEMP_EXTRACT/ssh" ]; then
   SOURCE_DIR="$TEMP_EXTRACT/ssh"
 fi
 
-# Compare local ~/.ssh with downloaded vault contents
+# ANSI Color formatting
+C_RESET="\\033[0m"
+C_BOLD="\\033[1m"
+C_GREEN="\\033[32m"
+C_YELLOW="\\033[33m"
+C_CYAN="\\033[36m"
+C_RED="\\033[31m"
+C_GRAY="\\033[90m"
+
+# Scan & inspect changes between local and incoming vault
 echo ""
-echo "🔍 Comparing incoming vault with local \$SSH_DIR..."
-mkdir -p "$SSH_DIR"
+printf "${C_CYAN}🔍 Inspecting vault changes against local %s...${C_RESET}\n" "\$SSH_DIR"
+mkdir -p "\$SSH_DIR"
 
-DIFF_OUTPUT=""
-if command -v diff >/dev/null 2>&1; then
-  # Exclude temporary or non-sync files if any, and compare recursively
-  DIFF_OUTPUT=$(diff -ruN -x "*.tmp" "$SSH_DIR" "$SOURCE_DIR" 2>/dev/null || true)
-fi
+TOTAL_NEW=0
+TOTAL_MOD=0
+TOTAL_SAME=0
+CHANGES_LIST=()
 
-if [ -z "$DIFF_OUTPUT" ]; then
-  echo "✨ No differences found. Local \$SSH_DIR is identical to the downloaded vault."
-else
-  echo "----------------------------------------"
-  echo "📋 Differences preview (- local, + incoming):"
-  echo "----------------------------------------"
-  if command -v colordiff >/dev/null 2>&1; then
-    echo "$DIFF_OUTPUT" | colordiff | head -n 100
+# Collect all files from incoming vault
+while IFS= read -r -d '' src_file; do
+  rel_path="\${src_file#\$SOURCE_DIR/}"
+  local_file="\$SSH_DIR/\$rel_path"
+
+  if [ ! -e "\$local_file" ]; then
+    CHANGES_LIST+=("NEW|\$rel_path")
+    ((TOTAL_NEW++)) || true
   else
-    echo "$DIFF_OUTPUT" | head -n 100
+    if cmp -s "\$src_file" "\$local_file"; then
+      ((TOTAL_SAME++)) || true
+    else
+      CHANGES_LIST+=("MOD|\$rel_path")
+      ((TOTAL_MOD++)) || true
+    fi
   fi
-  TOTAL_DIFF_LINES=$(echo "$DIFF_OUTPUT" | wc -l)
-  if [ "$TOTAL_DIFF_LINES" -gt 100 ]; then
-    echo "... (diff truncated, showing first 100 of $TOTAL_DIFF_LINES lines)"
-  fi
-  echo "----------------------------------------"
+done < <(find "\$SOURCE_DIR" -type f -print0 | sort -z)
+
+echo "------------------------------------------------------------"
+printf "${C_BOLD}📋 Vault Change Summary:${C_RESET} ${C_GREEN}%d new${C_RESET}, ${C_YELLOW}%d modified${C_RESET}, ${C_GRAY}%d unchanged${C_RESET}\n" \
+  "\$TOTAL_NEW" "\$TOTAL_MOD" "\$TOTAL_SAME"
+echo "------------------------------------------------------------"
+
+if [ "\$TOTAL_NEW" -eq 0 ] && [ "\$TOTAL_MOD" -eq 0 ]; then
+  printf "${C_GREEN}✨ Local ~/.ssh is already 100%% up to date with the vault.${C_RESET}\n"
+else
+  for item in "\${CHANGES_LIST[@]}"; do
+    status="\${item%%|*}"
+    file="\${item#*|}"
+    if [ "\$status" = "NEW" ]; then
+      printf "  ${C_GREEN}%-12s${C_RESET} %s\n" "[+ NEW]" "\$file"
+    else
+      printf "  ${C_YELLOW}%-12s${C_RESET} %s\n" "[~ MODIFIED]" "\$file"
+    fi
+  done
 fi
+echo "------------------------------------------------------------"
 
 # Ask for confirmation before applying changes
 echo ""
-echo -n "❓ Do you want to apply these changes to \$SSH_DIR? [y/N]: "
+printf "${C_BOLD}❓ Apply these changes to %s? [y/N]: ${C_RESET}" "\$SSH_DIR"
 CONFIRM=""
 if [ -t 0 ]; then
   read -r CONFIRM
@@ -272,11 +300,11 @@ echo ""
 
 case "\$CONFIRM" in
   [yY]|[yY][eE][sS])
-    echo "🚀 Applying vault changes..."
+    printf "${C_GREEN}🚀 Applying vault changes...${C_RESET}\n"
     ;;
   *)
-    echo "🚫 Operation cancelled by user. No files were modified."
-    rm -rf "$TEMP_FILE" "$TEMP_DECRYPTED" "$TEMP_EXTRACT"
+    printf "${C_YELLOW}🚫 Operation cancelled by user. No files were modified.${C_RESET}\n"
+    rm -rf "\$TEMP_FILE" "\$TEMP_DECRYPTED" "\$TEMP_EXTRACT"
     trap - EXIT
     exit 0
     ;;
