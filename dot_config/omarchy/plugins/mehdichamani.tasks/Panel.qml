@@ -154,7 +154,6 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: root.barSize
 
-  // 1. Status Bar Icon & Badge
   BarIconButton {
     id: button
     anchors.fill: parent
@@ -169,25 +168,25 @@ Panel {
       Item {
         anchors.fill: parent
 
-        Text {
-          anchors.centerIn: parent
+        OpticalGlyph {
+          anchors.fill: parent
           text: "󰄲"
-          font.family: root.fontFamily
-          font.pixelSize: Style.bar.iconFont
-          color: root.taskCount > 0 ? root.accent : root.foreground
+          fontFamily: root.fontFamily
+          fontSize: Style.bar.iconFont
+          color: root.taskCount > 0 ? root.foreground : root.dim
         }
 
-        // Counter badge
         BorderSurface {
           visible: root.taskCount > 0
-          width: Math.max(14, badgeText.implicitWidth + Style.space(6))
-          height: 14
+          width: Math.max(10, badgeText.implicitWidth + Style.space(3))
+          height: 10
           radius: height / 2
-          color: root.accent
+          color: (root.bar && root.bar.accent) ? root.bar.accent : Color.accent
           anchors.right: parent.right
           anchors.top: parent.top
-          anchors.topMargin: Style.space(2)
-          borderSpec: Border.flat(Color.popups.background, 1)
+          anchors.topMargin: -Style.space(2)
+          anchors.rightMargin: -Style.space(4)
+          borderSpec: Border.none
 
           Text {
             id: badgeText
@@ -195,7 +194,7 @@ Panel {
             text: String(root.taskCount)
             color: Color.background
             font.family: root.fontFamily
-            font.pixelSize: 9
+            font.pixelSize: 7
             font.bold: true
           }
         }

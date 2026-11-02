@@ -270,7 +270,7 @@ BarWidget {
           height: implicitHeight
           x: root.drawerExtent - root.revealExtent
           text: "\uf053"
-          fontSize: 18
+          fontSize: Style.bar.iconFont
           onPressed: function(button) {
             if (button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
           }

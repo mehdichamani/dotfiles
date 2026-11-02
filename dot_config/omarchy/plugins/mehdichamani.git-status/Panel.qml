@@ -112,19 +112,53 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: root.barSize
 
-  WidgetButton {
+  BarIconButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    fontSize: 20
-    text: root.attentionCount > 0 ? ("󰊢 " + root.attentionCount) : "󰊢"
-    dimmed: root.attentionCount === 0
-    active: root.attentionCount > 0
-    activeColor: (root.bar && root.bar.accent) ? root.bar.accent : Color.accent
+    text: "󰊢"
+    useActiveColor: false
     tooltipText: {
       if (root.totalCount === 0) return "Git Repositories";
       if (root.attentionCount === 0) return "All " + root.totalCount + " Git repositories clean";
       return root.attentionCount + " Git repositories need attention (" + root.dirtyCount + " dirty, " + root.syncCount + " sync)";
+    }
+
+    iconComponent: Component {
+      Item {
+        anchors.fill: parent
+
+        OpticalGlyph {
+          anchors.fill: parent
+          text: "󰊢"
+          fontFamily: root.fontFamily
+          fontSize: Style.bar.iconFont
+          color: root.attentionCount > 0 ? root.foreground : root.dim
+        }
+
+        BorderSurface {
+          visible: root.attentionCount > 0
+          width: Math.max(10, badgeText.implicitWidth + Style.space(3))
+          height: 10
+          radius: height / 2
+          color: (root.bar && root.bar.accent) ? root.bar.accent : Color.accent
+          anchors.right: parent.right
+          anchors.top: parent.top
+          anchors.topMargin: -Style.space(2)
+          anchors.rightMargin: -Style.space(4)
+          borderSpec: Border.none
+
+          Text {
+            id: badgeText
+            anchors.centerIn: parent
+            text: String(root.attentionCount)
+            color: Color.background
+            font.family: root.fontFamily
+            font.pixelSize: 7
+            font.bold: true
+          }
+        }
+      }
     }
 
     onPressed: function(b) {

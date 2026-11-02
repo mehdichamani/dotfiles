@@ -120,7 +120,7 @@ function getStatusBadge(data) {
   if (isRunning(data)) return "󰑐 Run";
   if (!isConnected(data)) return "󰁯 Off";
   if (!isMounted(data)) return "󱊞 Unmount";
-  if (data.cycle_day > 0) return "󰁯 D" + data.cycle_day;
+  if (data.cycle_day > 0) return "󰁯 " + data.cycle_day;
   return "󰁯 Ready";
 }
 

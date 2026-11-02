@@ -128,16 +128,50 @@ Panel {
   // ---------------------------------------------------------------------------
   // TopBar Button (Always visible, Nerd Font \uf052 icon)
   // ---------------------------------------------------------------------------
-  WidgetButton {
+  BarIconButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    fontSize: 18
-    text: Helper.getStatusBadge(root.driveData)
-    dimmed: !root.hasDrives
-    active: root.hasDrives
-    activeColor: (root.bar && root.bar.accent) ? root.bar.accent : Color.accent
+    text: "󰋊"
+    useActiveColor: false
     tooltipText: Helper.getStatusTooltip(root.driveData)
+
+    iconComponent: Component {
+      Item {
+        anchors.fill: parent
+
+        OpticalGlyph {
+          anchors.fill: parent
+          text: "󰋊"
+          fontFamily: root.fontFamily
+          fontSize: Style.bar.iconFont
+          color: root.hasDrives ? root.foreground : root.dim
+        }
+
+        BorderSurface {
+          visible: root.hasDrives
+          width: Math.max(10, badgeText.implicitWidth + Style.space(3))
+          height: 10
+          radius: height / 2
+          color: (root.bar && root.bar.accent) ? root.bar.accent : Color.accent
+          anchors.right: parent.right
+          anchors.top: parent.top
+          anchors.topMargin: -Style.space(2)
+          anchors.rightMargin: -Style.space(4)
+          borderSpec: Border.none
+
+          Text {
+            id: badgeText
+            anchors.centerIn: parent
+            text: String((root.driveData && root.driveData.drive_count) || 0)
+            color: Color.background
+            font.family: root.fontFamily
+            font.pixelSize: 7
+            font.bold: true
+          }
+        }
+      }
+    }
 
     onPressed: function(b) {
       if (b === Qt.RightButton) root.refresh()

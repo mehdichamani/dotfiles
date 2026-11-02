@@ -210,7 +210,7 @@ BarWidget {
     anchors.fill: parent
     bar: root.bar
     text: root.layoutLabel.toUpperCase()
-    fontSize: 18
+    fontSize: Style.bar.iconFont
     horizontalMargin: 8
     tooltipText: root.layoutFull
     onPressed: function() { root.cycleLayout() }

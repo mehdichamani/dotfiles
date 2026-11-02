@@ -104,7 +104,7 @@ Panel {
       Item {
         WireguardIcon {
           anchors.centerIn: parent
-          iconSize: Style.space(13)
+          iconSize: Style.bar.iconFont
           color: root.barIconColor
           badgeColor: root.urgent
           crossed: !wireguard.active

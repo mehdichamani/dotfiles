@@ -136,20 +136,31 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: root.barSize
 
-  WidgetButton {
+  BarIconButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    fontSize: 20
     text: root.statusGlyph
-    dimmed: !root.isAvailable
-    active: root.isAvailable
-    activeColor: (root.bar && root.bar.accent) ? root.bar.accent : Color.accent
+    useActiveColor: false
     tooltipText: {
       if (!root.isAvailable) return "Syncthing: Offline / Unreachable"
       if (root.overallStatus === "ok") return "Syncthing: All remotes up to date (" + root.connectedDevices + " connected)"
       if (root.overallStatus === "syncing") return "Syncthing: Syncing in progress..."
       return "Syncthing: Attention needed (Disconnected / Paused / Error)"
+    }
+
+    iconComponent: Component {
+      Item {
+        anchors.fill: parent
+
+        OpticalGlyph {
+          anchors.fill: parent
+          text: root.statusGlyph
+          fontFamily: root.fontFamily
+          fontSize: Style.bar.iconFont
+          color: root.isAvailable ? ((root.overallStatus === "syncing" && root.bar && root.bar.accent) ? root.bar.accent : root.foreground) : root.dim
+        }
+      }
     }
 
     onPressed: function(b) {

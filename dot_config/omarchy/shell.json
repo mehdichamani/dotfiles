@@ -1,10 +1,13 @@
 {
   "bar": {
-    "centerAnchor": "",
+    "centerAnchor": "mehdichamani.shamsi-clock",
     "layout": {
       "center": [
         {
           "id": "mehdichamani.indicators"
+        },
+        {
+          "id": "mehdichamani.shamsi-clock"
         },
         {
           "id": "omarchy.system-update"
@@ -52,6 +55,12 @@
           "id": "mehdichamani.drive-eject"
         },
         {
+          "id": "mehdichamani.tasks"
+        },
+        {
+          "id": "mehdichamani.antigravity"
+        },
+        {
           "id": "omarchy.tailscale"
         },
         {
@@ -59,12 +68,6 @@
         },
         {
           "id": "omarchy.agents"
-        },
-        {
-          "id": "mehdichamani.tasks"
-        },
-        {
-          "id": "mehdichamani.antigravity"
         },
         {
           "id": "omarchy.bluetooth"
@@ -83,9 +86,6 @@
         },
         {
           "id": "omatunes"
-        },
-        {
-          "id": "mehdichamani.shamsi-clock"
         }
       ]
     },
