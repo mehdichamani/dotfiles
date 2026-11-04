@@ -17,18 +17,21 @@ A cross-platform configuration ecosystem managed with **[chezmoi](https://www.ch
 
 This repository goes beyond basic configuration files—it includes an integrated suite of automation scripts and intelligent networking utilities designed for seamless multi-device workflows:
 
-### 1. 🔄 `dotsync` — Intelligent P2P Mesh Sync
-A cross-platform synchronization engine implemented in native **Fish shell** (`dot_config/fish/functions/dotsync.fish`) and **PowerShell** (`Documents/PowerShell/Functions/dotsync.ps1`).
+### 1. 🔄 `cm` — Unified Chezmoi & P2P Mesh Manager
+A cross-platform dotfiles CLI implemented in native **Fish shell** (`dot_config/fish/functions/cm.fish`) and **PowerShell** (`Documents/PowerShell/Functions/cm.ps1`).
 
 - **Decentralized P2P Mesh:** Synchronizes dotfiles directly between active peers (`home`, `work`, `s24`, and newly added devices) without relying on a central git host.
 - **Dynamic Peer Discovery:** Reads hosts, repo paths (`# @repo`), and targets dynamically from `~/.ssh/config`—no hardcoded IP addresses or device lists.
 - **Ultra-Fast Network Probing:** Tests LAN and WAN connectivity in parallel using high-speed socket probes to select the lowest-latency route.
 - **Proxy-Isolated Operations:** Automatically bypasses active system/shell proxies for local subnet operations to ensure ultra-fast peer transfers.
-- **Automated Deployment:**
+- **Standard Subcommands:**
   ```bash
-  dotsync              # Sync bidirectionally with all reachable peers
-  dotsync work         # Sync specifically with peer 'work'
-  dotsync -a           # Sync and automatically run 'chezmoi apply' upon new commits
+  cm sync              # Sync bidirectionally with all reachable peers
+  cm sync work         # Sync specifically with peer 'work'
+  cm apply             # Apply changes to live system
+  cm apply deep        # Apply changes and auto-reload desktop (Hyprland & Bar)
+  cm patch status      # Check system patch status (e.g. omarchy icon-font)
+  cm diff / cm status  # Direct chezmoi diff/status inspection
   ```
 
 ### 2. ⚡ `s` — Smart SSH Connection Router & Tunnel Manager
@@ -120,18 +123,21 @@ chezmoi apply
 
 این مخزن فراتر از فایل‌های متنی ساده است؛ مجموعه‌ای از اسکریپت‌های کاربردی و هوشمند برای مدیریت شبکه، همگام‌سازی خودکار و پروکسی در آن تعبیه شده است:
 
-### ۱. 🔄 اسکریپت `dotsync` — همگام‌سازی نظیر‌به‌نظیر (P2P Mesh)
-موتور هوشمند همگام‌سازی مخزن دات‌فایل‌ها که در هر دو شل **Fish** (`dot_config/fish/functions/dotsync.fish`) و **PowerShell** (`Documents/PowerShell/Functions/dotsync.ps1`) پیاده‌سازی شده است.
+### ۱. 🔄 ابزار `cm` — مدیریت یکپارچه دات‌فایلز و همگام‌سازی نظیر‌به‌نظیر (P2P Mesh)
+موتور استاندارد مدیریت دات‌فایل‌ها و همگام‌سازی که در هر دو شل **Fish** (`dot_config/fish/functions/cm.fish`) و **PowerShell** (`Documents/PowerShell/Functions/cm.ps1`) پیاده‌سازی شده است.
 
 - **شبکه نامتمرکز (P2P Mesh):** همگام‌سازی مستقیم مخزن Chezmoi بین دستگاه‌ها (`home`, `work`, `s24`) بدون نیاز به سرور مرکزی یا Push به ریپوی عمومی گیت‌هاب در هر تغییر کوچک.
 - **کشف پویای دستگاه‌ها (Dynamic Discovery):** استخراج خودکار آدرس‌ها، نام پیرها و مسیر مخزن (`# @repo`) از متادیتای فایل `~/.ssh/config` بدون وابستگی به IPهای ثابت.
 - **پروب سریع شبکه:** پایش هم‌زمان وضعیت شبکه LAN و اینترنت از طریق سوکت پروب فوق‌سریع برای انتخاب کم‌تاخیرترین مسیر ارتباطی.
 - **ایزولاسیون پروکسی:** دور زدن خودکار پروکسی‌های فعال برای ارتباطات شبکه محلی (LAN) جهت تضمین نهایت سرعت در همگام‌سازی.
-- **دستورات کاربردی:**
+- **زیرفرمان‌های استاندارد:**
   ```bash
-  dotsync              # همگام‌سازی دوطرفه با تمام دستگاه‌های آنلاین در دسترس
-  dotsync work         # همگام‌سازی اختصاصی با دستگاه work
-  dotsync -a           # همگام‌سازی و اجرای خودکار 'chezmoi apply' در صورت دریافت کامیت‌های جدید
+  cm sync              # همگام‌سازی دوطرفه با تمام دستگاه‌های آنلاین در دسترس
+  cm sync work         # همگام‌سازی اختصاصی با دستگاه work
+  cm apply             # اعمال دات‌فایل‌ها به سیستم
+  cm apply deep        # اعمال دات‌فایل‌ها و ری‌استارت خودکار دسکتاپ (Hyprland & Bar)
+  cm patch status      # بررسی وضعیت پچ‌های سیستمی (مانند فونت آیکون اومارکی)
+  cm diff / cm status  # بررسی مستقیم وضعیت و تغییرات با chezmoi
   ```
 
 ### ۲. ⚡ اسکریپت `s` — مسیریاب هوشمند SSH و مدیریت تونل‌ها

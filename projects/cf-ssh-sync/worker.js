@@ -1443,7 +1443,7 @@ DEPLOYMENT INSTRUCTIONS:
 
         <div class="terminal-step"><strong>2. Install core package bundle &amp; Omarchy menu (in fish):</strong></div>
         <div class="code-box">
-          <div class="code-text" id="cmd-cm-arch-2">dotsync install && omarchy plugin add https://github.com/filip-spaldon/omarchy-menu.git --enable</div>
+          <div class="code-text" id="cmd-cm-arch-2">cm install && omarchy plugin add https://github.com/filip-spaldon/omarchy-menu.git --enable</div>
           <button class="copy-btn" onclick="copyCode('cmd-cm-arch-2', this)">COPY</button>
         </div>
 
