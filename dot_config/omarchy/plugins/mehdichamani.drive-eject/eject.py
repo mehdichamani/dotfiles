@@ -67,19 +67,26 @@ def safe_eject(device_path: str, model: str = "External Drive") -> bool:
         # Also try unmounting the main device
         subprocess.run(["udisksctl", "unmount", "-b", device_path, "-f"], capture_output=True, timeout=5)
 
-        # Sync again
+        # Sync and wait for udev events to settle
         subprocess.run(["sync"], check=False)
-        time.sleep(0.5)
+        try:
+            subprocess.run(["udevadm", "settle", "--timeout=3"], check=False, timeout=4)
+        except Exception:
+            pass
 
-        # Power off drive hardware
-        po_res = subprocess.run(
-            ["udisksctl", "power-off", "-b", device_path],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if po_res.returncode == 0:
-            success = True
+        # Power off drive hardware with smart retries (handles transient udev/fsync locks)
+        for attempt in range(4):
+            po_res = subprocess.run(
+                ["udisksctl", "power-off", "-b", device_path],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if po_res.returncode == 0:
+                success = True
+                break
+            # Wait briefly before retrying if drive was momentarily busy
+            time.sleep(1.2)
 
     if success:
         notify(
