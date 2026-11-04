@@ -1,17 +1,5 @@
-{{- $nameFile := joinPath .chezmoi.homeDir ".config" "name" -}}
-{{- $hostName := "" -}}
-{{- if stat $nameFile -}}
-{{-   $hostName = trim (include $nameFile) -}}
-{{- end -}}
 # مسیر پیش‌فرض ذخیره فایل‌ها
 dir={{ .chezmoi.homeDir }}/Downloads
-
-{{ if eq $hostName "work" -}}
-# بایند کردن ارتباطات دانلود به اینترفیس فیبر نوری VLAN 500 در سیستم کار (work)
-interface=eno1
-{{ else -}}
-# در سایر سیستم‌ها به صورت پیش‌فرض از اینترفیس اصلی سیستم استفاده می‌شود
-{{ end -}}
 
 # ذخیره و بازیابی نشست دانلودها (حفظ وضعیت بعد از ری‌استارت)
 input-file={{ .chezmoi.homeDir }}/.config/aria2/aria2.session

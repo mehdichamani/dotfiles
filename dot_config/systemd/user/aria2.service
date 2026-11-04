@@ -1,5 +1,5 @@
 [Unit]
-Description=Aria2c Download Manager Daemon (Bound to VLAN 500)
+Description=Aria2c Download Manager Daemon
 After=network.target
 
 [Service]
