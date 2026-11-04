@@ -46,24 +46,36 @@ def read_cache():
         pass
     return None
 
-def format_relative_reset(reset_str):
+def parse_reset_dt(reset_str):
     if not reset_str:
-        return ""
+        return None
     s = reset_str.strip()
-    dt = None
     try:
         if s.endswith("Z"):
-            dt = datetime.fromisoformat(s[:-1] + "+00:00")
+            return datetime.fromisoformat(s[:-1] + "+00:00")
         elif "+" in s or "-" in s:
             try:
-                dt = datetime.fromisoformat(s)
+                return datetime.fromisoformat(s)
             except Exception:
-                dt = datetime.strptime(s, "%Y-%m-%d %H:%M %z")
+                return datetime.strptime(s, "%Y-%m-%d %H:%M %z")
     except Exception:
         pass
+    return None
 
+def calc_time_percent(reset_str, total_seconds):
+    dt = parse_reset_dt(reset_str)
     if not dt:
-        return reset_str
+        return 0.0
+    now = datetime.now(timezone.utc)
+    diff = (dt - now).total_seconds()
+    if diff <= 0:
+        return 0.0
+    return round(min(100.0, max(0.0, (diff / total_seconds) * 100)), 1)
+
+def format_relative_reset(reset_str):
+    dt = parse_reset_dt(reset_str)
+    if not dt:
+        return reset_str or ""
 
     now = datetime.now(timezone.utc)
     diff = dt - now
@@ -137,12 +149,17 @@ def fetch_usage():
         default=0
     )
 
+    five_hour_time_pct = calc_time_percent(five_hour_reset, 5 * 3600)
+    weekly_time_pct = calc_time_percent(weekly_reset, 7 * 24 * 3600)
+
     data = {
         "ok": True,
         "five_hour_percent": five_hour_pct if five_hour_pct is not None else 0,
+        "five_hour_time_percent": five_hour_time_pct,
         "five_hour_reset": five_hour_reset,
         "five_hour_reset_rel": format_relative_reset(five_hour_reset),
         "weekly_percent": weekly_pct if weekly_pct is not None else 0,
+        "weekly_time_percent": weekly_time_pct,
         "weekly_reset": weekly_reset,
         "weekly_reset_rel": format_relative_reset(weekly_reset),
         "min_percent": min_pct,

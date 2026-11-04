@@ -15,8 +15,10 @@ Panel {
   property var quotaData: ({
     ok: true,
     five_hour_percent: 100,
+    five_hour_time_percent: 100,
     five_hour_reset: "",
     weekly_percent: 100,
+    weekly_time_percent: 100,
     weekly_reset: "",
     min_percent: 100,
     time_str: ""
@@ -291,7 +293,7 @@ Panel {
               }
               Item { Layout.fillWidth: true }
               Text {
-                text: (root.quotaData ? root.quotaData.five_hour_percent : 0) + "% remaining"
+                text: (root.quotaData ? root.quotaData.five_hour_percent : 0) + "% tokens"
                 color: root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.body
@@ -299,22 +301,87 @@ Panel {
               }
             }
 
-            // Progress Bar
-            Rectangle {
+            // Dual Progress Bars (Tokens vs Time)
+            ColumnLayout {
               Layout.fillWidth: true
-              height: Style.space(8)
-              radius: 4
-              color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.1)
+              spacing: Style.space(4)
 
-              Rectangle {
-                width: parent.width * (Math.max(0, Math.min(100, (root.quotaData ? root.quotaData.five_hour_percent : 0))) / 100)
-                height: parent.height
-                radius: 4
-                color: {
-                  var p = root.quotaData ? root.quotaData.five_hour_percent : 100
-                  if (p <= 15) return root.urgent
-                  if (p <= 35) return "#e0af68"
-                  return root.accent
+              // Token Remaining Bar
+              ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 2
+
+                RowLayout {
+                  Layout.fillWidth: true
+                  Text {
+                    text: "Tokens"
+                    color: root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                  }
+                  Item { Layout.fillWidth: true }
+                  Text {
+                    text: (root.quotaData ? root.quotaData.five_hour_percent : 0) + "%"
+                    color: root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                  }
+                }
+
+                Rectangle {
+                  Layout.fillWidth: true
+                  height: Style.space(7)
+                  radius: 3.5
+                  color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.1)
+
+                  Rectangle {
+                    width: parent.width * (Math.max(0, Math.min(100, (root.quotaData ? root.quotaData.five_hour_percent : 0))) / 100)
+                    height: parent.height
+                    radius: 3.5
+                    color: {
+                      var p = root.quotaData ? root.quotaData.five_hour_percent : 100
+                      if (p <= 15) return root.urgent
+                      if (p <= 35) return "#e0af68"
+                      return root.accent
+                    }
+                  }
+                }
+              }
+
+              // Time Remaining Bar
+              ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 2
+
+                RowLayout {
+                  Layout.fillWidth: true
+                  Text {
+                    text: "Time"
+                    color: root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                  }
+                  Item { Layout.fillWidth: true }
+                  Text {
+                    text: (root.quotaData && root.quotaData.five_hour_time_percent !== undefined ? root.quotaData.five_hour_time_percent : 0) + "%"
+                    color: root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                  }
+                }
+
+                Rectangle {
+                  Layout.fillWidth: true
+                  height: Style.space(7)
+                  radius: 3.5
+                  color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.1)
+
+                  Rectangle {
+                    width: parent.width * (Math.max(0, Math.min(100, (root.quotaData && root.quotaData.five_hour_time_percent !== undefined ? root.quotaData.five_hour_time_percent : 0))) / 100)
+                    height: parent.height
+                    radius: 3.5
+                    color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.45)
+                  }
                 }
               }
             }
@@ -344,7 +411,7 @@ Panel {
               }
               Item { Layout.fillWidth: true }
               Text {
-                text: (root.quotaData ? root.quotaData.weekly_percent : 0) + "% remaining"
+                text: (root.quotaData ? root.quotaData.weekly_percent : 0) + "% tokens"
                 color: root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.body
@@ -352,22 +419,87 @@ Panel {
               }
             }
 
-            // Progress Bar
-            Rectangle {
+            // Dual Progress Bars (Tokens vs Time)
+            ColumnLayout {
               Layout.fillWidth: true
-              height: Style.space(8)
-              radius: 4
-              color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.1)
+              spacing: Style.space(4)
 
-              Rectangle {
-                width: parent.width * (Math.max(0, Math.min(100, (root.quotaData ? root.quotaData.weekly_percent : 0))) / 100)
-                height: parent.height
-                radius: 4
-                color: {
-                  var p = root.quotaData ? root.quotaData.weekly_percent : 100
-                  if (p <= 15) return root.urgent
-                  if (p <= 35) return "#e0af68"
-                  return root.accent
+              // Token Remaining Bar
+              ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 2
+
+                RowLayout {
+                  Layout.fillWidth: true
+                  Text {
+                    text: "Tokens"
+                    color: root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                  }
+                  Item { Layout.fillWidth: true }
+                  Text {
+                    text: (root.quotaData ? root.quotaData.weekly_percent : 0) + "%"
+                    color: root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                  }
+                }
+
+                Rectangle {
+                  Layout.fillWidth: true
+                  height: Style.space(7)
+                  radius: 3.5
+                  color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.1)
+
+                  Rectangle {
+                    width: parent.width * (Math.max(0, Math.min(100, (root.quotaData ? root.quotaData.weekly_percent : 0))) / 100)
+                    height: parent.height
+                    radius: 3.5
+                    color: {
+                      var p = root.quotaData ? root.quotaData.weekly_percent : 100
+                      if (p <= 15) return root.urgent
+                      if (p <= 35) return "#e0af68"
+                      return root.accent
+                    }
+                  }
+                }
+              }
+
+              // Time Remaining Bar
+              ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 2
+
+                RowLayout {
+                  Layout.fillWidth: true
+                  Text {
+                    text: "Time"
+                    color: root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                  }
+                  Item { Layout.fillWidth: true }
+                  Text {
+                    text: (root.quotaData && root.quotaData.weekly_time_percent !== undefined ? root.quotaData.weekly_time_percent : 0) + "%"
+                    color: root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                  }
+                }
+
+                Rectangle {
+                  Layout.fillWidth: true
+                  height: Style.space(7)
+                  radius: 3.5
+                  color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.1)
+
+                  Rectangle {
+                    width: parent.width * (Math.max(0, Math.min(100, (root.quotaData && root.quotaData.weekly_time_percent !== undefined ? root.quotaData.weekly_time_percent : 0))) / 100)
+                    height: parent.height
+                    radius: 3.5
+                    color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.45)
+                  }
                 }
               }
             }
