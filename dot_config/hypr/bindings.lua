@@ -39,12 +39,12 @@ o.bind("SUPER + SUPER_L", "Omarchy menu", "omarchy-menu toggle", { release = tru
 -- Unbind default SUPER + SPACE from Omarchy menu so Super+Space toggles keyboard layout directly via xkb
 hl.unbind("SUPER + SPACE")
 
--- Antigravity IDE (with proxy)
-o.bind("SUPER + A", "Antigravity IDE", { launch = "withproxy antigravity-ide" })
+-- Antigravity App (with proxy)
+o.bind("SUPER + A", "Antigravity App", { launch = "withproxy /home/unreal/.local/bin/antigravity" })
 
--- Antigravity 2.0 App (with proxy, replace default ChatGPT webapp)
+-- VS Code (replaces default ChatGPT webapp)
 hl.unbind("SUPER + SHIFT + A")
-o.bind("SUPER + SHIFT + A", "Antigravity App", { launch = "withproxy /home/unreal/.local/bin/antigravity" })
+o.bind("SUPER + SHIFT + A", "VS Code", { launch = "code" })
 
 -- Remmina
 o.bind("SUPER + R", "Remmina", { launch = "remmina" })
