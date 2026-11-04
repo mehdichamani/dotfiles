@@ -489,23 +489,32 @@ Panel {
                               elide: Text.ElideRight
                             }
 
-                            // Filesystem badge
-                            Rectangle {
-                              height: Style.space(16)
-                              implicitWidth: fsText.implicitWidth + Style.space(8)
-                              radius: 3
-                              color: Qt.rgba(0.5, 0.5, 0.5, 0.15)
-                              border.color: Helper.getFsBadgeColor(partRow.modelData.fstype)
-                              border.width: 1
+                            // Filesystem text
+                            Text {
+                              text: partRow.modelData.fstype
+                              color: root.dim
+                              font.family: root.fontFamily
+                              font.pixelSize: Style.font.caption
+                              opacity: 0.75
+                            }
+
+                            // Minimal Jellyfin indicator
+                            RowLayout {
+                              visible: !!partRow.modelData.is_jellyfin
+                              spacing: Style.space(2)
 
                               Text {
-                                id: fsText
-                                anchors.centerIn: parent
-                                text: partRow.modelData.fstype
-                                color: Helper.getFsBadgeColor(partRow.modelData.fstype)
+                                text: "󰚺"
+                                color: root.accent
                                 font.family: root.fontFamily
-                                font.pixelSize: Style.font.small
-                                font.bold: true
+                                font.pixelSize: Style.font.caption
+                              }
+
+                              Text {
+                                text: "Jellyfin"
+                                color: root.accent
+                                font.family: root.fontFamily
+                                font.pixelSize: Style.font.caption
                               }
                             }
 
@@ -590,7 +599,6 @@ Panel {
                                 color: {
                                   var pct = Helper.getUsagePercent(partRow.modelData)
                                   if (pct > 90) return root.urgent
-                                  if (pct > 75) return "#e0af68"
                                   return root.accent
                                 }
                               }

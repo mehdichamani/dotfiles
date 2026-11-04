@@ -27,6 +27,7 @@ services:
       - "${RENDER_GID:-987}"    # Host 'render' group GID for GPU hardware access permissions
       - "${VIDEO_GID:-983}"     # Host 'video' group GID for GPU video device access permissions
     volumes:
-      - /mnt/ssd/jellyfin_data/config:/config # Persistent application configuration and database
-      - /mnt/ssd/jellyfin_data/cache:/cache   # Transcoding and metadata cache
-      - /mnt/ssd/media:/media                 # Media library storage (Movies, Shows, Music)
+      - /run/media/unreal/TUF_Data/jellyfin_data/config:/config # Persistent application configuration and database
+      - /run/media/unreal/TUF_Data/jellyfin_data/cache:/cache   # Transcoding and metadata cache
+      - /run/media/unreal/TUF_Data/media:/media                 # Media library storage (Movies, Shows, Music)
+      - /run/media/unreal/TUF_Data/media_archive:/media_archive # Media archive storage

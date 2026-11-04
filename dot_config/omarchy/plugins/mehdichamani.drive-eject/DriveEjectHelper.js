@@ -24,12 +24,3 @@ function getUsagePercent(partition) {
   }
   return 0;
 }
-
-function getFsBadgeColor(fstype) {
-  var fs = String(fstype || "").toUpperCase();
-  if (fs === "NTFS") return "#268bd2";
-  if (fs === "BTRFS") return "#2aa198";
-  if (fs === "EXT4") return "#859900";
-  if (fs === "EXFAT" || fs === "VFAT" || fs === "FAT32") return "#b58900";
-  return "#6c71c4";
-}

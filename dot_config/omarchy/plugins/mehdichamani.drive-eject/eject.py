@@ -5,6 +5,8 @@ Flushes buffers (sync), cleanly unmounts all partitions, and powers off the driv
 Sends native desktop notifications in English.
 """
 
+import os
+from pathlib import Path
 import subprocess
 import sys
 import time
@@ -20,11 +22,40 @@ def notify(title: str, body: str, urgency: str = "normal", icon: str = "media-re
         pass
 
 
+def stop_jellyfin_if_needed(target: str, tag: str = ""):
+    """Pre-unmount hook: If ejecting TUF_Data or TUF drive, gracefully stop Jellyfin container first."""
+    tag_upper = (tag or "").upper()
+    is_tuf = "TUF" in tag_upper or "TUF_DATA" in tag_upper
+    if not is_tuf and target.startswith("/dev/"):
+        # Check if the block device hosts TUF_Data label
+        try:
+            lbl_proc = subprocess.run(
+                ["lsblk", "-nlo", "LABEL", target],
+                capture_output=True,
+                text=True,
+                timeout=3,
+            )
+            if "TUF_Data" in lbl_proc.stdout:
+                is_tuf = True
+        except Exception:
+            pass
+
+    if is_tuf:
+        setup_script = Path.home() / "projects" / "jellyfin" / "setup.sh"
+        if setup_script.exists():
+            notify("Stopping Jellyfin...", "Gracefully stopping media server before drive ejection...", urgency="low", icon="media-playback-stop")
+            try:
+                subprocess.run([str(setup_script), "stop"], capture_output=True, timeout=5)
+            except Exception:
+                pass
+
+
 def safe_eject(device_path: str, model: str = "External Drive") -> bool:
     if not device_path or not device_path.startswith("/dev/"):
         notify("Eject Error", f"Invalid device path: {device_path}", urgency="critical", icon="dialog-error")
         return False
 
+    stop_jellyfin_if_needed(device_path, model)
     notify("Ejecting Drive...", f"Syncing file buffers for {model}...", urgency="low", icon="drive-harddisk")
 
     # 1. Flush memory caches to disk
@@ -109,6 +140,7 @@ def safe_eject(device_path: str, model: str = "External Drive") -> bool:
 def unmount_partition(part_path: str, label: str = "Partition") -> bool:
     if not part_path or not part_path.startswith("/dev/"):
         return False
+    stop_jellyfin_if_needed(part_path, label)
     subprocess.run(["sync"], check=False)
     res = subprocess.run(["udisksctl", "unmount", "-b", part_path], capture_output=True, text=True, timeout=10)
     if res.returncode == 0:

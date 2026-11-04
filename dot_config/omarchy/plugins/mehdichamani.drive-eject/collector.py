@@ -162,16 +162,21 @@ def collect():
 
             primary_mount = mountpoints[0] if is_mounted else ""
             usage = get_mount_usage(primary_mount) if is_mounted else None
+            p_label = (dev.get("label") or drive_model).strip()
+            is_jellyfin = (p_label == "TUF_Data") or (
+                bool(primary_mount) and os.path.isdir(os.path.join(primary_mount, "jellyfin_data"))
+            )
 
             partitions.append(
                 {
                     "name": drive_name,
                     "path": drive_path,
-                    "label": (dev.get("label") or drive_model).strip(),
+                    "label": p_label,
                     "fstype": (fstype or "raw").upper(),
                     "size_bytes": raw_size,
                     "size_str": format_bytes(raw_size),
                     "is_mounted": is_mounted,
+                    "is_jellyfin": is_jellyfin,
                     "mountpoints": mountpoints,
                     "primary_mount": primary_mount,
                     "uuid": dev.get("uuid") or "",
@@ -189,16 +194,21 @@ def collect():
                 c_primary_mount = c_mountpoints[0] if c_mounted else ""
                 c_usage = get_mount_usage(c_primary_mount) if c_mounted else None
                 c_size = child.get("size") or 0
+                c_label = (child.get("label") or child.get("name") or "Partition").strip()
+                is_jellyfin = (c_label == "TUF_Data") or (
+                    bool(c_primary_mount) and os.path.isdir(os.path.join(c_primary_mount, "jellyfin_data"))
+                )
 
                 partitions.append(
                     {
                         "name": child.get("name") or "",
                         "path": child.get("path") or f"/dev/{child.get('name')}",
-                        "label": (child.get("label") or child.get("name") or "Partition").strip(),
+                        "label": c_label,
                         "fstype": (child.get("fstype") or "unknown").upper(),
                         "size_bytes": c_size,
                         "size_str": format_bytes(c_size),
                         "is_mounted": c_mounted,
+                        "is_jellyfin": is_jellyfin,
                         "mountpoints": c_mountpoints,
                         "primary_mount": c_primary_mount,
                         "uuid": child.get("uuid") or "",
