@@ -27,6 +27,7 @@ alias mkv='python3 ~/.config/scripts/mkvOrganizer.py'
 alias pinstall='~/.config/scripts/pinstall.sh'
 alias ipl='~/.config/scripts/ipl'
 alias antigravity='~/.local/bin/antigravity'
+alias jellyfin='~/projects/jellyfin/jellyfin-setup.sh'
 
 if command -v batcat > /dev/null
     alias bat='batcat'

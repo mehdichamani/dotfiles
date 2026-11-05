@@ -41,7 +41,9 @@ def stop_jellyfin_if_needed(target: str, tag: str = ""):
             pass
 
     if is_tuf:
-        setup_script = Path.home() / "projects" / "jellyfin" / "setup.sh"
+        setup_script = Path.home() / "projects" / "jellyfin" / "jellyfin-setup.sh"
+        if not setup_script.exists():
+            setup_script = Path.home() / "projects" / "jellyfin" / "setup.sh"
         if setup_script.exists():
             notify("Stopping Jellyfin...", "Gracefully stopping media server before drive ejection...", urgency="low", icon="media-playback-stop")
             try:
