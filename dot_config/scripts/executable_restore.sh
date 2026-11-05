@@ -35,6 +35,73 @@ echo -e "${CYAN}        Omarchy Btrfs & LUKS Full System Disaster Recovery      
 echo -e "${CYAN}================================================================${NC}"
 
 # ------------------------------------------------------------------------------
+# 0. Arch Linux Environment & Prerequisites Verification
+# ------------------------------------------------------------------------------
+log_info "Verifying Arch Linux live environment and essential tools..."
+
+# Check Arch-based environment
+if [[ ! -f /etc/arch-release ]] && ! grep -qi "arch" /etc/os-release 2>/dev/null; then
+    log_warn "This system does not appear to be an Arch Linux live environment."
+    log_warn "This recovery engine is optimized for Arch-based Live ISOs (CachyOS, EndeavourOS, Arch Linux)."
+    read -rp "Continue anyway? (y/N): " IGNORE_DISTRO
+    if [[ ! "${IGNORE_DISTRO}" =~ ^[Yy]$ ]]; then
+        log_info "Aborting recovery by user request."
+        exit 0
+    fi
+else
+    log_ok "Arch-based environment confirmed."
+fi
+
+# Essential tools check
+REQUIRED_TOOLS=(btrfs cryptsetup sgdisk wipefs mkfs.vfat tar zstd blkid lsblk efibootmgr)
+MISSING_TOOLS=()
+
+for tool in "${REQUIRED_TOOLS[@]}"; do
+    if ! command -v "${tool}" >/dev/null 2>&1; then
+        MISSING_TOOLS+=("${tool}")
+    fi
+done
+
+if [[ ${#MISSING_TOOLS[@]} -gt 0 ]]; then
+    log_warn "The following essential tools are missing: ${MISSING_TOOLS[*]}"
+    if command -v pacman >/dev/null 2>&1; then
+        read -rp "Would you like to install missing tools via pacman? (Y/n): " INSTALL_TOOLS
+        if [[ ! "${INSTALL_TOOLS}" =~ ^[Nn]$ ]]; then
+            log_info "Installing missing dependencies..."
+            pacman -Sy --noconfirm "${MISSING_TOOLS[@]}" || {
+                log_error "Failed to install required tools. Please connect to internet and retry."
+                exit 1
+            }
+        else
+            log_error "Cannot proceed without required recovery tools."
+            exit 1
+        fi
+    else
+        log_error "pacman not available to install missing tools: ${MISSING_TOOLS[*]}"
+        exit 1
+    fi
+fi
+
+# Visual progress tool (pv) verification & optional install
+if ! command -v pv >/dev/null 2>&1; then
+    echo ""
+    log_warn "'pv' (Pipe Viewer) is not installed."
+    log_info "'pv' provides a live progress bar, speed, and ETA during large Btrfs transfers."
+    if command -v pacman >/dev/null 2>&1; then
+        read -rp "Install 'pv' now via pacman? (Y/n): " INSTALL_PV
+        if [[ ! "${INSTALL_PV}" =~ ^[Nn]$ ]]; then
+            log_info "Installing pv via pacman..."
+            pacman -Sy --noconfirm pv 2>/dev/null && log_ok "pv installed successfully!" || log_warn "Could not install pv, falling back to quiet mode."
+        else
+            log_info "Proceeding without pv (transfers will run without live progress bar)."
+        fi
+    fi
+    echo ""
+else
+    log_ok "Visual stream monitor (pv) is ready."
+fi
+
+# ------------------------------------------------------------------------------
 # 1. Target Disk Detection
 # ------------------------------------------------------------------------------
 TARGET_DISK="${1:-}"
@@ -200,15 +267,21 @@ MNT_TOP="/mnt/btrfs_root_top"
 mkdir -p "${MNT_TOP}"
 mount -o compress=zstd:3 /dev/mapper/root "${MNT_TOP}"
 
+# Check for pv availability for visual progress
+PIPE_VIEWER="cat"
+if command -v pv >/dev/null 2>&1; then
+    PIPE_VIEWER="pv"
+fi
+
 log_info "Restoring Root Snapshot into subvolume '@'..."
-btrfs send "${LATEST_ROOT_SNAP}" | btrfs receive "${MNT_TOP}/"
+btrfs send "${LATEST_ROOT_SNAP}" | ${PIPE_VIEWER} | btrfs receive "${MNT_TOP}/"
 received_root="${MNT_TOP}/$(basename "${LATEST_ROOT_SNAP}")"
 btrfs subvolume snapshot "${received_root}" "${MNT_TOP}/@"
 btrfs subvolume delete "${received_root}"
 
 if [[ -n "${LATEST_HOME_SNAP}" ]]; then
     log_info "Restoring Home Snapshot into subvolume '@home'..."
-    btrfs send "${LATEST_HOME_SNAP}" | btrfs receive "${MNT_TOP}/"
+    btrfs send "${LATEST_HOME_SNAP}" | ${PIPE_VIEWER} | btrfs receive "${MNT_TOP}/"
     received_home="${MNT_TOP}/$(basename "${LATEST_HOME_SNAP}")"
     btrfs subvolume snapshot "${received_home}" "${MNT_TOP}/@home"
     btrfs subvolume delete "${received_home}"
@@ -260,7 +333,8 @@ if [[ -f /mnt/boot/limine.conf ]]; then
     log_info "Auto-updating /boot/limine.conf..."
     # Replace old PARTUUID in cryptdevice parameter
     sed -i -E "s/cryptdevice=PARTUUID=[a-fA-F0-9-]+:root/cryptdevice=PARTUUID=${NEW_LUKS_PARTUUID}:root/g" /mnt/boot/limine.conf
-    # Disable stale resume offset to prevent hang on restored swap
+    # Disable stale resume offset and full resume parameter to prevent hang on restored swap
+    sed -i -E "s/resume=\/dev\/mapper\/root[[:space:]]*resume_offset=[0-9]+//g" /mnt/boot/limine.conf
     sed -i -E "s/resume_offset=[0-9]+//g" /mnt/boot/limine.conf
     log_ok "limine.conf updated successfully."
 else
@@ -320,7 +394,32 @@ if [[ -e /dev/tpmrm0 ]] || [[ -e /dev/tpm0 ]]; then
 fi
 
 # ------------------------------------------------------------------------------
-# 12. Sync & Finalization
+# 12. Register UEFI Boot Entry with efibootmgr
+# ------------------------------------------------------------------------------
+log_info "Configuring UEFI boot entry in motherboard NVRAM..."
+if command -v efibootmgr >/dev/null 2>&1 && [[ -d /sys/firmware/efi ]]; then
+    # Look for Limine or standard EFI loader in restored /boot
+    LOADER_PATH=""
+    if [[ -f /mnt/boot/EFI/limine/limine_x64.efi ]]; then
+        LOADER_PATH='\\EFI\\limine\\limine_x64.efi'
+    elif [[ -f /mnt/boot/EFI/BOOT/BOOTX64.EFI ]]; then
+        LOADER_PATH='\\EFI\\BOOT\\BOOTX64.EFI'
+    fi
+
+    if [[ -n "${LOADER_PATH}" ]]; then
+        log_info "Registering UEFI boot entry for ${TARGET_DISK} (Partition 1, Loader: ${LOADER_PATH})..."
+        efibootmgr --create --disk "${TARGET_DISK}" --part 1 --label "Omarchy Linux" --loader "${LOADER_PATH}" 2>/dev/null && \
+            log_ok "UEFI boot entry registered successfully!" || \
+            log_warn "efibootmgr could not automatically register boot entry (non-fatal, check UEFI BIOS)."
+    else
+        log_warn "EFI loader binary not found under /boot/EFI/, skipping efibootmgr."
+    fi
+else
+    log_warn "System not booted in UEFI mode or efibootmgr unavailable; skipping NVRAM registration."
+fi
+
+# ------------------------------------------------------------------------------
+# 13. Sync & Finalization
 # ------------------------------------------------------------------------------
 log_info "Syncing changes to disk..."
 sync

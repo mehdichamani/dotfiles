@@ -571,31 +571,36 @@ run_backup() {
     fi
 
     # 3. Step: Send Snapshots to Target Backup Repository
+    local pipe_viewer="cat"
+    if command -v pv >/dev/null 2>&1; then
+        pipe_viewer="pv"
+    fi
+
     if [[ "${is_full_backup}" == "true" ]]; then
         log_info "Sending full root snapshot to external repository..."
         if [[ "${DRY_RUN}" == "false" ]]; then
-            btrfs send "${local_root_snap}" | btrfs receive "${SNAPSHOT_DIR}/"
+            btrfs send "${local_root_snap}" | ${pipe_viewer} | btrfs receive "${SNAPSHOT_DIR}/"
         else
             echo "[DRY-RUN] btrfs send ${local_root_snap} | btrfs receive ${SNAPSHOT_DIR}/"
         fi
 
         log_info "Sending full home snapshot to external repository..."
         if [[ "${DRY_RUN}" == "false" ]]; then
-            btrfs send "${local_home_snap}" | btrfs receive "${SNAPSHOT_DIR}/"
+            btrfs send "${local_home_snap}" | ${pipe_viewer} | btrfs receive "${SNAPSHOT_DIR}/"
         else
             echo "[DRY-RUN] btrfs send ${local_home_snap} | btrfs receive ${SNAPSHOT_DIR}/"
         fi
     else
         log_info "Sending incremental root diff (Parent: ${PARENT_ROOT_SNAP})..."
         if [[ "${DRY_RUN}" == "false" ]]; then
-            btrfs send -p "${LOCAL_SNAP_DIR}/${PARENT_ROOT_SNAP}" "${local_root_snap}" | btrfs receive "${SNAPSHOT_DIR}/"
+            btrfs send -p "${LOCAL_SNAP_DIR}/${PARENT_ROOT_SNAP}" "${local_root_snap}" | ${pipe_viewer} | btrfs receive "${SNAPSHOT_DIR}/"
         else
             echo "[DRY-RUN] btrfs send -p ${LOCAL_SNAP_DIR}/${PARENT_ROOT_SNAP} ${local_root_snap} | btrfs receive ${SNAPSHOT_DIR}/"
         fi
 
         log_info "Sending incremental home diff (Parent: ${PARENT_HOME_SNAP})..."
         if [[ "${DRY_RUN}" == "false" ]]; then
-            btrfs send -p "${LOCAL_SNAP_DIR}/${PARENT_HOME_SNAP}" "${local_home_snap}" | btrfs receive "${SNAPSHOT_DIR}/"
+            btrfs send -p "${LOCAL_SNAP_DIR}/${PARENT_HOME_SNAP}" "${local_home_snap}" | ${pipe_viewer} | btrfs receive "${SNAPSHOT_DIR}/"
         else
             echo "[DRY-RUN] btrfs send -p ${LOCAL_SNAP_DIR}/${PARENT_HOME_SNAP} ${local_home_snap} | btrfs receive ${SNAPSHOT_DIR}/"
         fi
