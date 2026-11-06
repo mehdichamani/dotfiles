@@ -1,7 +1,6 @@
 [tools]
 agy = "latest"
 bun = "latest"
-codex = "latest"
 node = "lts"
 opencode = "latest"
 pnpm = "latest"
