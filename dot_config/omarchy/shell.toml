@@ -5,3 +5,6 @@
 size-horizontal = 32
 background-alpha = 0.80
 icon-font = 18
+icon-size = 18
+icon-canvas = 20
+icon-slot = 30
