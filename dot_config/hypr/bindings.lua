@@ -83,9 +83,6 @@ o.bind("SUPER + H", "Toggle workspace layout", "omarchy-hyprland-workspace-layou
 o.bind("SUPER + CTRL + L", "Show screensaver", "omarchy launch screensaver")
 o.bind("SUPER + SHIFT + L", "Toggle screensaver", "omarchy-toggle-screensaver")
 
--- Floating default terminal
-o.bind("SUPER + grave", "Floating Terminal", "setsid uwsm-app -- xdg-terminal-exec --app-id=org.omarchy.terminal --dir=\"$(omarchy-cmd-terminal-cwd)\"")
-
 -- WezTerm (override default Tmux binding)
 hl.unbind("SUPER + ALT + RETURN")
 o.bind("SUPER + ALT + RETURN", "WezTerm", "setsid uwsm-app -- wezterm start --cwd \"$(omarchy-cmd-terminal-cwd)\"")
