@@ -103,10 +103,11 @@ trap 'rm -rf "$TEMP_DIR" "$TEMP_ENC"' EXIT
 # Prepare clean structure in temporary workspace
 mkdir -p "\$TEMP_DIR/ssh"
 cp -a "\$SSH_DIR/." "\$TEMP_DIR/ssh/"
-echo "✔ Added ~/.ssh (including keys, config and ~/.ssh/secrets)"
+rm -f "\$TEMP_DIR/ssh/known_hosts" "\$TEMP_DIR/ssh/known_hosts.old"
+echo "✔ Added ~/.ssh (excluding known_hosts, including keys, config and secrets)"
 
 echo "Archiving and encrypting vault data (AES-256-CBC)..."
-tar --exclude='.git' -C "\$TEMP_DIR" -czf - . | openssl enc -aes-256-cbc -pbkdf2 -salt -pass pass:"\$PASSPHRASE" -out "\$TEMP_ENC"
+tar --exclude='.git' --exclude='known_hosts*' -C "\$TEMP_DIR" -czf - . | openssl enc -aes-256-cbc -pbkdf2 -salt -pass pass:"\$PASSPHRASE" -out "\$TEMP_ENC"
 
 echo "Uploading encrypted payload to Cloudflare KV..."
 HTTP_CODE=$(curl -s -w "%{http_code}" -o /dev/null -X POST "${origin}/data${tokenQuery}" \
@@ -229,6 +230,9 @@ SOURCE_DIR="$TEMP_EXTRACT"
 if [ -d "$TEMP_EXTRACT/ssh" ]; then
   SOURCE_DIR="$TEMP_EXTRACT/ssh"
 fi
+
+# Always clean/ignore known_hosts from incoming vault to preserve local connection cache
+rm -f "$SOURCE_DIR/known_hosts" "$SOURCE_DIR/known_hosts.old"
 
 # ANSI Color formatting
 C_RESET="\\033[0m"
@@ -385,7 +389,8 @@ New-Item -ItemType Directory -Path $tempFolder -Force | Out-Null
 try {
     $destSsh = Join-Path $tempFolder "ssh"
     Copy-Item -Path "$sshDir" -Destination $destSsh -Recurse -Force
-    Write-Host "✔ Added ~/.ssh contents (including keys, config, and secrets)" -ForegroundColor Green
+    Remove-Item -Path (Join-Path $destSsh "known_hosts*") -Force -ErrorAction SilentlyContinue
+    Write-Host "✔ Added ~/.ssh contents (excluding known_hosts, including keys, config, and secrets)" -ForegroundColor Green
 
     $hasTar = Get-Command tar -ErrorAction SilentlyContinue
     $hasOpenssl = Get-Command openssl -ErrorAction SilentlyContinue
@@ -664,6 +669,9 @@ try {
     if (Test-Path (Join-Path $tempExtract "ssh")) {
         $sourceDir = Join-Path $tempExtract "ssh"
     }
+
+    # Always clean/ignore known_hosts from incoming vault
+    Remove-Item -Path (Join-Path $sourceDir "known_hosts*") -Force -ErrorAction SilentlyContinue
 
     Write-Host ""
     Write-Host "🔍 Comparing incoming vault with local $sshDir..." -ForegroundColor Cyan

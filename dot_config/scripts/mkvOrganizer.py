@@ -4,9 +4,9 @@ import shutil
 import re
 import requests
 
-NEW_FOLDER = "/mnt/ssd/media/new"
-MOVIES_FOLDER = "/mnt/ssd/media/Movies"
-TV_FOLDER = "/mnt/ssd/media/Series"
+NEW_FOLDER = "/run/media/unreal/TUF_Data/media/new"
+MOVIES_FOLDER = "/run/media/unreal/TUF_Data/media/Movies"
+TV_FOLDER = "/run/media/unreal/TUF_Data/media/Series"
 
 CONFIG_FILE = Path.home() / ".ssh" / "secrets" / "jellyfin.env"
 
