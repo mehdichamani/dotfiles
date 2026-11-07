@@ -31,8 +31,22 @@ fi
 # ------------------------------------------------------------------------------
 # Load Central Configuration & Secrets (~/.ssh/secrets/btrfs-backup.env)
 # ------------------------------------------------------------------------------
-ENV_FILE="${USER_HOME}/.ssh/secrets/btrfs-backup.env"
-if [[ -f "${ENV_FILE}" ]]; then
+HOST_NAME="home"
+if [[ -f "${USER_HOME}/.config/name" ]]; then
+    HOST_NAME="$(tr -d '[:space:]' < "${USER_HOME}/.config/name")"
+elif [[ -f "/etc/hostname" ]]; then
+    HOST_NAME="$(tr -d '[:space:]' < "/etc/hostname")"
+fi
+
+if [[ -f "${USER_HOME}/.ssh/secrets/btrfs-backup-${HOST_NAME}.env" ]]; then
+    ENV_FILE="${USER_HOME}/.ssh/secrets/btrfs-backup-${HOST_NAME}.env"
+elif [[ -f "${USER_HOME}/.ssh/secrets/btrfs-backup.env" ]]; then
+    ENV_FILE="${USER_HOME}/.ssh/secrets/btrfs-backup.env"
+else
+    ENV_FILE=""
+fi
+
+if [[ -n "${ENV_FILE}" && -f "${ENV_FILE}" ]]; then
     # shellcheck source=/dev/null
     source "${ENV_FILE}"
 fi
