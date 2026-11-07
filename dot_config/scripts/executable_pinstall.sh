@@ -57,13 +57,16 @@ ${COLOR_BOLD}${COLOR_CYAN}======================================================
 
 ${COLOR_BOLD}Usage:${COLOR_RESET}
   pinstall [source|url|github_repo] [options]
-  pinstall -l | --list
+  pinstall -l | --list [--plain]
+  pinstall --info [name]
   pinstall -u | --uninstall [name] [options]
 
 ${COLOR_BOLD}Management Options:${COLOR_RESET}
-  -l, --list                List all installed portable applications and their details.
+  -l, --list                List installed portable apps (interactive TUI with fzf & live preview).
+      --plain               Plain table listing without interactive fzf.
+      --info [name]         Display full details (binary path, symlink, desktop) of an app.
   -u, --uninstall [name]    Uninstall an application (removes files, desktop entry, and PATH link).
-                            If no name is provided, prompts with an interactive list.
+                            If no name is provided, opens interactive fzf selector.
   -y, --yes                 Skip confirmation prompts during uninstallation.
 
 ${COLOR_BOLD}Installation Options:${COLOR_RESET}
@@ -236,20 +239,310 @@ discover_installed_apps() {
     done < <(find "$base_dir" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null | sort -z)
 }
 
+# --- Action: Show Application Details ---
+show_app_details() {
+    local target_query="$1"
+    discover_installed_apps
+    local count="${#INSTALLED_APP_NAMES[@]}"
+
+    if (( count == 0 )); then
+        warn "No portable applications installed in ~/.local/share."
+        return 1
+    fi
+
+    local selected_idx=-1
+    if [[ -n "$target_query" ]]; then
+        local query_slug
+        query_slug="$(slugify "$target_query")"
+
+        for i in "${!INSTALLED_APP_NAMES[@]}"; do
+            local cur_name="${INSTALLED_APP_NAMES[$i]}"
+            local cur_slug
+            cur_slug="$(slugify "$cur_name")"
+            local cur_dir
+            cur_dir="$(basename "${INSTALLED_APP_DIRS[$i]}")"
+
+            if [[ "${cur_name,,}" == "${target_query,,}" || "$cur_slug" == "$query_slug" || "${cur_dir,,}" == "${target_query,,}" ]]; then
+                selected_idx=$i
+                break
+            fi
+        done
+
+        if (( selected_idx < 0 )); then
+            for i in "${!INSTALLED_APP_NAMES[@]}"; do
+                local cur_name="${INSTALLED_APP_NAMES[$i]}"
+                if [[ "${cur_name,,}" == *"${target_query,,}"* ]]; then
+                    selected_idx=$i
+                    break
+                fi
+            done
+        fi
+    else
+        # If no query provided and interactive fzf available, let user pick
+        if command -v fzf >/dev/null 2>&1 && [[ -t 0 && -t 1 ]]; then
+            local self_script
+            self_script="$(realpath "${BASH_SOURCE[0]}")"
+            local chosen
+            chosen="$(list_apps_fzf_selector "$self_script" "Inspect Details (Enter to select, Esc to cancel)")"
+            if [[ -n "$chosen" ]]; then
+                show_app_details "$chosen"
+                return $?
+            else
+                return 0
+            fi
+        fi
+    fi
+
+    if (( selected_idx < 0 )); then
+        err "Application matching '$target_query' not found."
+        return 1
+    fi
+
+    local name="${INSTALLED_APP_NAMES[$selected_idx]}"
+    local dir="${INSTALLED_APP_DIRS[$selected_idx]}"
+    local receipt="${INSTALLED_APP_RECEIPTS[$selected_idx]}"
+
+    local size_bytes
+    size_bytes=$(du -sb "$dir" 2>/dev/null | cut -f1 || echo 0)
+    local size_str
+    size_str="$(format_size "$size_bytes")"
+
+    local exec_path=""
+    local bin_link=""
+    local desktop_f=""
+    local icon_p=""
+    local source_url=""
+    local github_repo=""
+    local source_file=""
+    local install_date=""
+    local categories=""
+
+    if [[ -n "$receipt" && -f "$receipt" ]]; then
+        exec_path="$(get_receipt_field "$receipt" "exec_path")"
+        bin_link="$(get_receipt_field "$receipt" "bin_link")"
+        desktop_f="$(get_receipt_field "$receipt" "desktop_file")"
+        icon_p="$(get_receipt_field "$receipt" "icon_path")"
+        source_url="$(get_receipt_field "$receipt" "source_url")"
+        github_repo="$(get_receipt_field "$receipt" "github_repo")"
+        source_file="$(get_receipt_field "$receipt" "source_file")"
+        categories="$(get_receipt_field "$receipt" "categories")"
+        install_date="$(get_receipt_field "$receipt" "installed_at")"
+    fi
+
+    # Fallbacks if metadata is missing
+    if [[ -z "$desktop_f" || ! -f "$desktop_f" ]]; then
+        local slug
+        slug="$(slugify "$name")"
+        if [[ -f "$HOME/.local/share/applications/${slug}.desktop" ]]; then
+            desktop_f="$HOME/.local/share/applications/${slug}.desktop"
+        fi
+    fi
+
+    if [[ -z "$bin_link" ]]; then
+        while IFS= read -r -d '' link; do
+            local target
+            target="$(readlink -f "$link" 2>/dev/null || true)"
+            if [[ "$target" == "$dir"* ]]; then
+                bin_link="$link"
+                [[ -z "$exec_path" ]] && exec_path="$target"
+                break
+            fi
+        done < <(find "$HOME/.local/bin" -maxdepth 1 -type l -print0 2>/dev/null)
+    fi
+
+    if [[ -z "$exec_path" && -n "$desktop_f" && -f "$desktop_f" ]]; then
+        exec_path="$(grep -m 1 "^Exec=" "$desktop_f" 2>/dev/null | cut -d= -f2- | awk '{print $1}')"
+    fi
+
+    printf "\n${COLOR_BOLD}${COLOR_CYAN}  📦 %s${COLOR_RESET}\n" "$name"
+    printf "  ${COLOR_DIM}------------------------------------------------------------${COLOR_RESET}\n"
+    printf "  ${COLOR_BOLD}%-16s${COLOR_RESET} : %s\n" "Size" "$size_str"
+    printf "  ${COLOR_BOLD}%-16s${COLOR_RESET} : %s\n" "Install Path" "$dir"
+
+    if [[ -n "$exec_path" ]]; then
+        local exec_status=""
+        if [[ -x "$exec_path" ]]; then
+            exec_status="${COLOR_GREEN}(executable)${COLOR_RESET}"
+        elif [[ -e "$exec_path" ]]; then
+            exec_status="${COLOR_YELLOW}(exists, not +x)${COLOR_RESET}"
+        else
+            exec_status="${COLOR_RED}(missing)${COLOR_RESET}"
+        fi
+        printf "  ${COLOR_BOLD}%-16s${COLOR_RESET} : %s %s\n" "Binary" "$exec_path" "$exec_status"
+    else
+        printf "  ${COLOR_BOLD}%-16s${COLOR_RESET} : %s\n" "Binary" "${COLOR_DIM}(not recorded)${COLOR_RESET}"
+    fi
+
+    if [[ -n "$bin_link" ]]; then
+        local link_status=""
+        if [[ -e "$bin_link" ]]; then
+            link_status="${COLOR_GREEN}(active)${COLOR_RESET}"
+        else
+            link_status="${COLOR_RED}(broken)${COLOR_RESET}"
+        fi
+        printf "  ${COLOR_BOLD}%-16s${COLOR_RESET} : %s %s\n" "CLI (PATH)" "$bin_link" "$link_status"
+    else
+        printf "  ${COLOR_BOLD}%-16s${COLOR_RESET} : %s\n" "CLI (PATH)" "${COLOR_DIM}(none)${COLOR_RESET}"
+    fi
+
+    if [[ -n "$desktop_f" && -f "$desktop_f" ]]; then
+        printf "  ${COLOR_BOLD}%-16s${COLOR_RESET} : %s\n" "Desktop Entry" "$desktop_f"
+    else
+        printf "  ${COLOR_BOLD}%-16s${COLOR_RESET} : %s\n" "Desktop Entry" "${COLOR_DIM}(none)${COLOR_RESET}"
+    fi
+
+    if [[ -n "$icon_p" ]]; then
+        printf "  ${COLOR_BOLD}%-16s${COLOR_RESET} : %s\n" "Icon" "$icon_p"
+    fi
+
+    if [[ -n "$github_repo" ]]; then
+        printf "  ${COLOR_BOLD}%-16s${COLOR_RESET} : %s\n" "GitHub" "$github_repo"
+    fi
+
+    if [[ -n "$source_url" ]]; then
+        printf "  ${COLOR_BOLD}%-16s${COLOR_RESET} : %s\n" "Source URL" "$source_url"
+    fi
+
+    if [[ -n "$source_file" ]]; then
+        printf "  ${COLOR_BOLD}%-16s${COLOR_RESET} : %s\n" "Package" "$source_file"
+    fi
+
+    if [[ -n "$categories" ]]; then
+        printf "  ${COLOR_BOLD}%-16s${COLOR_RESET} : %s\n" "Categories" "$categories"
+    fi
+
+    if [[ -n "$install_date" ]]; then
+        printf "  ${COLOR_BOLD}%-16s${COLOR_RESET} : %s\n" "Installed Date" "$install_date"
+    fi
+
+    printf "  ${COLOR_DIM}------------------------------------------------------------${COLOR_RESET}\n\n"
+}
+
+# --- Helper: Interactive fzf selector for apps ---
+list_apps_fzf_selector() {
+    local self_script="$1"
+    local prompt_text="${2:-Select App}"
+
+    discover_installed_apps
+    local count="${#INSTALLED_APP_NAMES[@]}"
+    (( count == 0 )) && return
+
+    local fzf_input=""
+    for i in "${!INSTALLED_APP_NAMES[@]}"; do
+        local name="${INSTALLED_APP_NAMES[$i]}"
+        local dir="${INSTALLED_APP_DIRS[$i]}"
+        local size_bytes
+        size_bytes=$(du -sb "$dir" 2>/dev/null | cut -f1 || echo 0)
+        local size_str
+        size_str="$(format_size "$size_bytes")"
+        fzf_input+="$(printf "%-28s | %10s\n" "$name" "$size_str")"$'\n'
+    done
+
+    local selected_line
+    selected_line=$(printf "%s" "$fzf_input" | fzf \
+        --height 65% \
+        --reverse \
+        --border \
+        --border-label=" 📦 Portable Apps (${count}) " \
+        --preview-label=" ℹ️ Details " \
+        --footer=" ⏎ Select • Esc Cancel " \
+        --prompt="$prompt_text > " \
+        --preview="bash '$self_script' --internal-preview {1}" \
+        --preview-window=right:55%:wrap) || true
+
+    if [[ -n "$selected_line" ]]; then
+        local app_picked
+        app_picked="$(echo "$selected_line" | awk -F'|' '{print $1}' | sed 's/[[:space:]]*$//')"
+        echo "$app_picked"
+    fi
+}
+
 # --- Action: List Installed Portable Apps ---
 list_installed_apps() {
+    local force_plain="$1"
     discover_installed_apps
 
     local count="${#INSTALLED_APP_NAMES[@]}"
-    printf "\n${COLOR_BOLD}${COLOR_CYAN}===================================================================${COLOR_RESET}\n"
-    printf "${COLOR_BOLD}${COLOR_CYAN}         INSTALLED PORTABLE APPLICATIONS (%d found)                 ${COLOR_RESET}\n" "$count"
-    printf "${COLOR_BOLD}${COLOR_CYAN}===================================================================${COLOR_RESET}\n"
-
     if (( count == 0 )); then
+        printf "\n${COLOR_BOLD}${COLOR_CYAN}===================================================================${COLOR_RESET}\n"
         printf "  ${COLOR_DIM}No portable applications installed in ~/.local/share yet.${COLOR_RESET}\n"
         printf "${COLOR_BOLD}${COLOR_CYAN}===================================================================${COLOR_RESET}\n\n"
         return 0
     fi
+
+    # Interactive FZF UI if supported and not forced plain
+    if [[ "$force_plain" != true ]] && command -v fzf >/dev/null 2>&1 && [[ -t 0 && -t 1 ]]; then
+        local self_script
+        self_script="$(realpath "${BASH_SOURCE[0]}")"
+
+        local fzf_input=""
+        for i in "${!INSTALLED_APP_NAMES[@]}"; do
+            local name="${INSTALLED_APP_NAMES[$i]}"
+            local dir="${INSTALLED_APP_DIRS[$i]}"
+            local size_bytes
+            size_bytes=$(du -sb "$dir" 2>/dev/null | cut -f1 || echo 0)
+            local size_str
+            size_str="$(format_size "$size_bytes")"
+            fzf_input+="$(printf "%-28s | %10s\n" "$name" "$size_str")"$'\n'
+        done
+
+        local fzf_result
+        fzf_result=$(printf "%s" "$fzf_input" | fzf \
+            --height 75% \
+            --reverse \
+            --border \
+            --border-label=" 📦 Portable Apps (${count}) " \
+            --preview-label=" ℹ️ Details " \
+            --footer=" ⏎ Details • ^X Uninstall • ^O Folder • Esc Exit " \
+            --expect=ctrl-x,ctrl-d,del,ctrl-o \
+            --prompt="Filter > " \
+            --preview="bash '$self_script' --internal-preview {1}" \
+            --preview-window=right:55%:wrap) || true
+
+        if [[ -z "$fzf_result" ]]; then
+            return 0
+        fi
+
+        local key_pressed
+        key_pressed=$(head -n 1 <<< "$fzf_result")
+        local chosen_line
+        chosen_line=$(tail -n +2 <<< "$fzf_result")
+
+        if [[ -z "$chosen_line" ]]; then
+            return 0
+        fi
+
+        local app_name
+        app_name="$(echo "$chosen_line" | awk -F'|' '{print $1}' | sed 's/[[:space:]]*$//')"
+
+        case "$key_pressed" in
+            ctrl-x|ctrl-d|del)
+                printf "\n"
+                uninstall_app "$app_name" false
+                ;;
+            ctrl-o)
+                local target_dir="$HOME/.local/share/$app_name"
+                if [[ -d "$target_dir" ]]; then
+                    if command -v xdg-open >/dev/null 2>&1; then
+                        xdg-open "$target_dir" >/dev/null 2>&1 &
+                        success "Opened directory: $target_dir"
+                    else
+                        info "Directory: $target_dir"
+                    fi
+                fi
+                ;;
+            *)
+                # Default: Enter -> Show detailed information
+                show_app_details "$app_name"
+                ;;
+        esac
+        return 0
+    fi
+
+    # Fallback: Plain table listing
+    printf "\n${COLOR_BOLD}${COLOR_CYAN}===================================================================${COLOR_RESET}\n"
+    printf "${COLOR_BOLD}${COLOR_CYAN}         INSTALLED PORTABLE APPLICATIONS (%d found)                 ${COLOR_RESET}\n" "$count"
+    printf "${COLOR_BOLD}${COLOR_CYAN}===================================================================${COLOR_RESET}\n"
 
     printf "  ${COLOR_BOLD}%-24s %-10s %-18s %-12s %-16s${COLOR_RESET}\n" "Application Name" "Size" "CLI Command" "Desktop Menu" "Installed Date"
     printf "  ${COLOR_DIM}----------------------------------------------------------------------------------${COLOR_RESET}\n"
@@ -370,32 +663,50 @@ uninstall_app() {
             exit 1
         fi
     else
-        # Interactive selection menu
-        printf "\n${COLOR_CYAN}📦 Select an application to uninstall:${COLOR_RESET}\n"
-        printf "${COLOR_DIM}------------------------------------------------------------------------${COLOR_RESET}\n"
-        for i in "${!INSTALLED_APP_NAMES[@]}"; do
-            local name="${INSTALLED_APP_NAMES[$i]}"
-            local dir="${INSTALLED_APP_DIRS[$i]}"
-            local size_bytes
-            size_bytes=$(du -sb "$dir" 2>/dev/null | cut -f1 || echo 0)
-            local size_str
-            size_str="$(format_size "$size_bytes")"
-            printf "  [${COLOR_BOLD}%d${COLOR_RESET}] %-40s %10s\n" "$((i + 1))" "$name" "$size_str"
-        done
-        printf "${COLOR_DIM}------------------------------------------------------------------------${COLOR_RESET}\n"
+        # If fzf is available and running interactively, use it
+        if command -v fzf >/dev/null 2>&1 && [[ -t 0 && -t 1 ]]; then
+            local self_script
+            self_script="$(realpath "${BASH_SOURCE[0]}")"
+            local chosen
+            chosen="$(list_apps_fzf_selector "$self_script" "Uninstall App")"
+            if [[ -z "$chosen" ]]; then
+                echo "Uninstallation cancelled."
+                return 0
+            fi
+            for i in "${!INSTALLED_APP_NAMES[@]}"; do
+                if [[ "${INSTALLED_APP_NAMES[$i]}" == "$chosen" ]]; then
+                    selected_idx=$i
+                    break
+                fi
+            done
+        else
+            # Standard numbered interactive selection menu
+            printf "\n${COLOR_CYAN}📦 Select an application to uninstall:${COLOR_RESET}\n"
+            printf "${COLOR_DIM}------------------------------------------------------------------------${COLOR_RESET}\n"
+            for i in "${!INSTALLED_APP_NAMES[@]}"; do
+                local name="${INSTALLED_APP_NAMES[$i]}"
+                local dir="${INSTALLED_APP_DIRS[$i]}"
+                local size_bytes
+                size_bytes=$(du -sb "$dir" 2>/dev/null | cut -f1 || echo 0)
+                local size_str
+                size_str="$(format_size "$size_bytes")"
+                printf "  [${COLOR_BOLD}%d${COLOR_RESET}] %-40s %10s\n" "$((i + 1))" "$name" "$size_str"
+            done
+            printf "${COLOR_DIM}------------------------------------------------------------------------${COLOR_RESET}\n"
 
-        read -r -p "Enter selection (1-${count}) or 'q' to cancel: " sel_choice
-        if [[ "$sel_choice" =~ ^[Qq]$ || -z "$sel_choice" ]]; then
-            echo "Uninstallation cancelled."
-            exit 0
+            read -r -p "Enter selection (1-${count}) or 'q' to cancel: " sel_choice
+            if [[ "$sel_choice" =~ ^[Qq]$ || -z "$sel_choice" ]]; then
+                echo "Uninstallation cancelled."
+                exit 0
+            fi
+
+            if ! [[ "$sel_choice" =~ ^[0-9]+$ ]] || (( sel_choice < 1 || sel_choice > count )); then
+                err "Invalid selection: '$sel_choice'"
+                exit 1
+            fi
+
+            selected_idx=$((sel_choice - 1))
         fi
-
-        if ! [[ "$sel_choice" =~ ^[0-9]+$ ]] || (( sel_choice < 1 || sel_choice > count )); then
-            err "Invalid selection: '$sel_choice'"
-            exit 1
-        fi
-
-        selected_idx=$((sel_choice - 1))
     fi
 
     local app_name="${INSTALLED_APP_NAMES[$selected_idx]}"
@@ -484,7 +795,9 @@ uninstall_app() {
 # --- Parse Arguments ---
 ACTION="install"
 UNINSTALL_TARGET=""
+INFO_TARGET=""
 AUTO_CONFIRM=false
+PLAIN_LIST=false
 
 SOURCE=""
 APP_NAME=""
@@ -503,6 +816,24 @@ while [[ $# -gt 0 ]]; do
         -h|--help)
             show_help
             exit 0
+            ;;
+        --internal-preview)
+            # Used internally by fzf preview window
+            show_app_details "$2"
+            exit 0
+            ;;
+        --info)
+            ACTION="info"
+            if [[ -n "$2" && "$2" != -* ]]; then
+                INFO_TARGET="$2"
+                shift 2
+            else
+                shift
+            fi
+            ;;
+        --plain)
+            PLAIN_LIST=true
+            shift
             ;;
         -l|--list)
             ACTION="list"
@@ -848,8 +1179,13 @@ download_url_asset() {
 }
 
 # --- Route Actions ---
+if [[ "$ACTION" == "info" ]]; then
+    show_app_details "$INFO_TARGET"
+    exit 0
+fi
+
 if [[ "$ACTION" == "list" ]]; then
-    list_installed_apps
+    list_installed_apps "$PLAIN_LIST"
     exit 0
 fi
 
