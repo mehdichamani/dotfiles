@@ -40,6 +40,7 @@ o.bind("SUPER + SUPER_L", "Omarchy menu", "omarchy-menu toggle", { release = tru
 hl.unbind("SUPER + SPACE")
 
 -- Antigravity App (with proxy)
+hl.unbind("SUPER + A")
 o.bind("SUPER + A", "Antigravity App", { launch = "withproxy /home/unreal/.local/bin/antigravity" })
 
 -- VS Code (replaces default ChatGPT webapp)
