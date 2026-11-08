@@ -52,18 +52,24 @@ if [[ -n "${ENV_FILE}" && -f "${ENV_FILE}" ]]; then
 fi
 
 # Fallback defaults if not set in .env
-BACKUP_UUID="${BACKUP_UUID:-af9b946f-cf50-4ef8-9948-9d075979e958}"
-BACKUP_MOUNT_PREFERRED="${BACKUP_MOUNT_PREFERRED:-/mnt/backup}"
-BACKUP_LABEL="${BACKUP_LABEL:-Lexar_Backup}"
-LEXAR_BOOT_UUID="${LEXAR_BOOT_UUID:-14B0-F418}"
-LEXAR_BOOT_MOUNT="${LEXAR_BOOT_MOUNT:-/mnt/lexar_boot}"
+STANDBY_BACKUP_UUID="${STANDBY_BACKUP_UUID:-${BACKUP_UUID:-}}"
+STANDBY_MOUNT_PREFERRED="${STANDBY_MOUNT_PREFERRED:-${BACKUP_MOUNT_PREFERRED:-/mnt/backup}}"
+STANDBY_LABEL="${STANDBY_LABEL:-${BACKUP_LABEL:-Standby_Backup}}"
+STANDBY_BOOT_UUID="${STANDBY_BOOT_UUID:-${LEXAR_BOOT_UUID:-}}"
+STANDBY_BOOT_MOUNT="${STANDBY_BOOT_MOUNT:-${LEXAR_BOOT_MOUNT:-/mnt/standby_boot}}"
+STANDBY_LUKS_PARTUUID="${STANDBY_LUKS_PARTUUID:-}"
+BACKUP_UUID="${STANDBY_BACKUP_UUID}"
+BACKUP_MOUNT_PREFERRED="${STANDBY_MOUNT_PREFERRED}"
+BACKUP_LABEL="${STANDBY_LABEL}"
+LEXAR_BOOT_UUID="${STANDBY_BOOT_UUID}"
+LEXAR_BOOT_MOUNT="${STANDBY_BOOT_MOUNT}"
 MAX_CYCLE_DAYS=${MAX_CYCLE_DAYS:-15}
 COOLDOWN_SECONDS=${COOLDOWN_SECONDS:-86400}  # 24 hours
 ROOT_MOUNT="${ROOT_MOUNT:-/}"
 HOME_MOUNT="${HOME_MOUNT:-/home}"
 LOCAL_SNAP_DIR="${LOCAL_SNAP_DIR:-/.snapshots}"
 LOG_FILE="${LOG_FILE:-/var/log/btrfs-backup.log}"
-SSOT_STATE_FILE="${SSOT_STATE_FILE:-${USER_HOME}/Notes/SSoT/HomeBtrfsBackup/state.json}"
+SSOT_STATE_FILE="${SSOT_STATE_FILE:-${USER_HOME}/Notes/SSoT/WorkBtrfsBackup/state.json}"
 
 STATUS_STATE_DIR="${USER_HOME}/.local/state/btrfs-backup"
 STATUS_JSON="${STATUS_STATE_DIR}/status.json"
@@ -479,17 +485,17 @@ update_standby_bootable_system() {
     log_info "Creating fresh RW clone of root (${root_snap} -> @)..."
     btrfs subvolume snapshot "${SNAPSHOT_DIR}/${root_snap}" "${bootable_root}"
 
-    # 2. Adjust fstab and crypttab in the standby clone to point to Lexar LUKS/Btrfs
+    # 2. Adjust fstab and crypttab in the standby clone to point to Standby LUKS/Btrfs
     if [[ -f "${bootable_root}/etc/fstab" ]]; then
         log_info "Writing clean /etc/fstab in standby bootable root..."
         cat <<EOF > "${bootable_root}/etc/fstab"
-# Static information about the filesystems (Omarchy Standby on Lexar SSD).
+# Static information about the filesystems (Omarchy Standby on ${HOST_NAME}).
 # <file system> <dir> <type> <options> <dump> <pass>
-UUID=${BACKUP_UUID}	/	btrfs	rw,relatime,compress=zstd:3,ssd,space_cache=v2,subvol=/@bootable_system/@	0 0
-UUID=${BACKUP_UUID}	/home	btrfs	rw,relatime,compress=zstd:3,ssd,space_cache=v2,subvol=/@bootable_system/@home	0 0
-UUID=${BACKUP_UUID}	/var/cache/pacman/pkg	btrfs	rw,relatime,compress=zstd:3,ssd,space_cache=v2,subvol=/@bootable_system/@pkg	0 0
-UUID=${BACKUP_UUID}	/var/log	btrfs	rw,relatime,compress=zstd:3,ssd,space_cache=v2,subvol=/@bootable_system/@log	0 0
-UUID=${LEXAR_BOOT_UUID}	/boot	vfat	rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=ascii,shortname=mixed,utf8,errors=remount-ro	0 2
+UUID=${STANDBY_BACKUP_UUID}	/	btrfs	rw,relatime,compress=zstd:3,ssd,space_cache=v2,subvol=/@bootable_system/@	0 0
+UUID=${STANDBY_BACKUP_UUID}	/home	btrfs	rw,relatime,compress=zstd:3,ssd,space_cache=v2,subvol=/@bootable_system/@home	0 0
+UUID=${STANDBY_BACKUP_UUID}	/var/cache/pacman/pkg	btrfs	rw,relatime,compress=zstd:3,ssd,space_cache=v2,subvol=/@bootable_system/@pkg	0 0
+UUID=${STANDBY_BACKUP_UUID}	/var/log	btrfs	rw,relatime,compress=zstd:3,ssd,space_cache=v2,subvol=/@bootable_system/@log	0 0
+UUID=${STANDBY_BOOT_UUID}	/boot	vfat	rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=ascii,shortname=mixed,utf8,errors=remount-ro	0 2
 EOF
     fi
 
@@ -497,7 +503,7 @@ EOF
     if [[ -d "${bootable_root}/etc" ]]; then
         cat <<EOF > "${bootable_root}/etc/crypttab"
 # Configuration for encrypted block devices on Standby System.
-# Lexar LUKS2 container is opened by initramfs during early boot as 'root'.
+# Standby LUKS2 container is opened by initramfs during early boot as 'root'.
 EOF
     fi
 
@@ -517,29 +523,45 @@ EOF
     log_info "Creating fresh RW clone of home (${home_snap} -> @home)..."
     btrfs subvolume snapshot "${SNAPSHOT_DIR}/${home_snap}" "${bootable_home}"
 
-    # 4. Sync /boot contents to Lexar EFI partition
-    local lexar_boot_dev
-    lexar_boot_dev=$(blkid -U "${LEXAR_BOOT_UUID}" 2>/dev/null || true)
-    if [[ -n "${lexar_boot_dev}" ]]; then
-        mkdir -p "${LEXAR_BOOT_MOUNT}"
-        if ! findmnt -rn "${LEXAR_BOOT_MOUNT}" >/dev/null 2>&1; then
-            mount "${lexar_boot_dev}" "${LEXAR_BOOT_MOUNT}" 2>/dev/null || true
+    # 4. Sync /boot contents to Standby EFI partition
+    local standby_boot_dev
+    standby_boot_dev=$(blkid -U "${STANDBY_BOOT_UUID}" 2>/dev/null || true)
+    if [[ -n "${standby_boot_dev}" ]]; then
+        mkdir -p "${STANDBY_BOOT_MOUNT}"
+        if ! findmnt -rn "${STANDBY_BOOT_MOUNT}" >/dev/null 2>&1; then
+            mount "${standby_boot_dev}" "${STANDBY_BOOT_MOUNT}" 2>/dev/null || true
         fi
-        if findmnt -rn "${LEXAR_BOOT_MOUNT}" >/dev/null 2>&1; then
-            log_info "Syncing kernels and bootloader to Lexar EFI partition..."
-            rsync -aAX --delete /boot/ "${LEXAR_BOOT_MOUNT}/"
-            # Ensure Lexar limine.conf preserves its specific cmdline with PARTUUID and rootflags
-            local lexar_partuuid
-            lexar_partuuid=$(blkid -s PARTUUID -o value /dev/sda2 2>/dev/null || echo "e9fd95ac-deac-4edd-b09b-686e3edc6abe")
-            sed -i "s/cryptdevice=PARTUUID=[a-f0-9-]\{36\}:root/cryptdevice=PARTUUID=${lexar_partuuid}:root/g" "${LEXAR_BOOT_MOUNT}/limine.conf" 2>/dev/null || true
-            sed -i "s/subvol=@/subvol=@bootable_system\/@/g" "${LEXAR_BOOT_MOUNT}/limine.conf" 2>/dev/null || true
-            sed -i "s/resume=[^ ]* //g" "${LEXAR_BOOT_MOUNT}/limine.conf" 2>/dev/null || true
-            sed -i "s/resume_offset=[^ ]* //g" "${LEXAR_BOOT_MOUNT}/limine.conf" 2>/dev/null || true
-            sed -i "s/interface_branding: Omarchy Bootloader/interface_branding: Omarchy Standby Bootloader (Lexar)/g" "${LEXAR_BOOT_MOUNT}/limine.conf" 2>/dev/null || true
+        if findmnt -rn "${STANDBY_BOOT_MOUNT}" >/dev/null 2>&1; then
+            log_info "Syncing kernels and bootloader to Standby EFI partition..."
+            rsync -aAX --delete /boot/ "${STANDBY_BOOT_MOUNT}/"
+
+            # Determine Standby LUKS PARTUUID dynamically if not explicitly specified
+            local luks_partuuid="${STANDBY_LUKS_PARTUUID:-}"
+            if [[ -z "${luks_partuuid}" ]]; then
+                # Find the underlying physical partition for the backup mapper device
+                local backup_dev backup_slave
+                backup_dev=$(blkid -U "${STANDBY_BACKUP_UUID}" 2>/dev/null || true)
+                if [[ -n "${backup_dev}" ]]; then
+                    backup_slave=$(lsblk -no PKNAME "${backup_dev}" 2>/dev/null | head -n 1 || true)
+                    if [[ -n "${backup_slave}" ]]; then
+                        luks_partuuid=$(blkid -s PARTUUID -o value "/dev/${backup_slave}" 2>/dev/null || true)
+                    fi
+                fi
+            fi
+
+            # Ensure limine.conf preserves its specific cmdline with Standby PARTUUID and rootflags
+            if [[ -n "${luks_partuuid}" ]]; then
+                sed -i "s/cryptdevice=PARTUUID=[a-f0-9-]\{36\}:root/cryptdevice=PARTUUID=${luks_partuuid}:root/g" "${STANDBY_BOOT_MOUNT}/limine.conf" 2>/dev/null || true
+            fi
+            sed -i "s/subvol=@/subvol=@bootable_system\/@/g" "${STANDBY_BOOT_MOUNT}/limine.conf" 2>/dev/null || true
+            sed -i "s/resume=[^ ]* //g" "${STANDBY_BOOT_MOUNT}/limine.conf" 2>/dev/null || true
+            sed -i "s/resume_offset=[^ ]* //g" "${STANDBY_BOOT_MOUNT}/limine.conf" 2>/dev/null || true
+            sed -i "s/interface_branding: Omarchy Bootloader/interface_branding: Omarchy Standby Bootloader (${HOST_NAME})/g" "${STANDBY_BOOT_MOUNT}/limine.conf" 2>/dev/null || true
+            sed -i "s/interface_branding: Omarchy Standby Bootloader (Lexar)/interface_branding: Omarchy Standby Bootloader (${HOST_NAME})/g" "${STANDBY_BOOT_MOUNT}/limine.conf" 2>/dev/null || true
         fi
     fi
 
-    # 5. Inject SSoT metadata into ~/Notes/SSoT/HomeBtrfsBackup/state.json
+    # 5. Inject SSoT metadata into state.json
     if [[ -n "${SSOT_STATE_FILE}" && -f "${SSOT_STATE_FILE}" ]] && command -v jq >/dev/null 2>&1; then
         log_info "Updating SSoT metadata at ${SSOT_STATE_FILE}..."
         local tmp_ssot="${SSOT_STATE_FILE}.tmp"
@@ -548,8 +570,8 @@ EOF
           --arg root_snap "${root_snap}" \
           --arg home_snap "${home_snap}" \
           --arg boot_archive "boot_$(date '+%Y%m%d').tar.zst" \
-          '.last_updated = $ts | .status = "healthy" | .lexar_standby.status = "ready_and_bootable" | .latest_backups.root_snapshot = $root_snap | .latest_backups.home_snapshot = $home_snap | .latest_backups.boot_archive = $boot_archive | .latest_backups.last_sync_timestamp = $ts' \
-          "${SSOT_STATE_FILE}" > "${tmp_ssot}" 2>/dev/null && mv -f "${tmp_ssot}" "${SSOT_FILE:-${SSOT_STATE_FILE}}" 2>/dev/null || true
+          '.last_updated = $ts | .status = "healthy" | .standby_backup.status = "ready_and_bootable" | .latest_backups.root_snapshot = $root_snap | .latest_backups.home_snapshot = $home_snap | .latest_backups.boot_archive = $boot_archive | .latest_backups.last_sync_timestamp = $ts' \
+          "${SSOT_STATE_FILE}" > "${tmp_ssot}" 2>/dev/null && mv -f "${tmp_ssot}" "${SSOT_STATE_FILE}" 2>/dev/null || true
     fi
 }
 
