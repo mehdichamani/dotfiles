@@ -28,11 +28,24 @@ def get_configured_repos():
 
     projects_dir = os.path.expanduser("~/projects")
     if os.path.isdir(projects_dir):
+        ignored_dirs = {".git", "node_modules", ".venv", "venv", "__pycache__", "target", "build", "dist", ".cache"}
         try:
-            for entry in sorted(os.listdir(projects_dir)):
-                full_path = os.path.join(projects_dir, entry)
-                if os.path.isdir(os.path.join(full_path, ".git")) and full_path not in repos:
-                    repos.append(full_path)
+            for root, dirs, _ in os.walk(projects_dir):
+                # Calculate depth relative to projects_dir (depth 0 is projects_dir itself)
+                rel_path = os.path.relpath(root, projects_dir)
+                depth = 0 if rel_path == "." else len(rel_path.split(os.sep))
+                
+                # Check if current directory is a git repo
+                if depth > 0 and os.path.isdir(os.path.join(root, ".git")) and root not in repos:
+                    repos.append(root)
+
+                # Stop descending deeper than max depth 2
+                if depth >= 2:
+                    dirs.clear()
+                    continue
+
+                # Prune unwanted directories
+                dirs[:] = [d for d in dirs if d not in ignored_dirs and not d.startswith(".")]
         except Exception:
             pass
 
