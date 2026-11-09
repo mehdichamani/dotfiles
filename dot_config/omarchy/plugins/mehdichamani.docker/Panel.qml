@@ -14,7 +14,9 @@ Panel {
   manageIpc: true
 
   property var dockerData: ({ containers: [], projects: [], standalone: [], totalRunning: 0, totalCount: 0 })
-  property var winappsState: ({ state: "stopped", remaining: 1800 })
+  property var winappsState: ({ state: "stopped", remaining: 1800, base_timeout: 1800 })
+  property int winappsStepMinutes: 30
+  property bool winappsStepInitialized: false
   property bool dockerAvailable: true
   property bool isRefreshing: false
   property var expandedProjects: ({})
@@ -66,8 +68,15 @@ Panel {
   function restartProject(name) { runCmd("docker compose -p " + name + " restart") }
   function openLogs(id) { runCmd("omarchy-launch-floating-terminal-with-presentation \"docker logs -f --tail 100 " + id + "\"") }
   function openExec(id) { runCmd("omarchy-launch-floating-terminal-with-presentation \"docker exec -it " + id + " sh || docker exec -it " + id + " bash\"") }
-  function resetWinappsIdle() { runCmd("echo reset > /tmp/winapps_daemon.cmd") }
-  function cancelWinappsIdle() { runCmd("echo cancel > /tmp/winapps_daemon.cmd") }
+  function sendWinappsCmd(cmd) {
+    var pyCmd = "python3 -c \"import socket; s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM); s.connect('/home/unreal/.config/winapps/daemon.sock'); s.sendall(b'" + cmd + "\\n'); s.close()\""
+    runCmd(pyCmd)
+  }
+
+  function resetWinappsIdle() { sendWinappsCmd("reset") }
+  function cancelWinappsIdle() { sendWinappsCmd("cancel") }
+  function applyWinappsBaseTimeout(minutes) { sendWinappsCmd("set_timeout " + minutes) }
+  function applyWinappsCurrentTimeout(minutes) { sendWinappsCmd("set_current " + minutes) }
 
   // Background WinApps state reader
   Process {
@@ -80,12 +89,17 @@ Panel {
         try {
           var t = String(text || "").trim()
           if (t && t !== "{}") {
-            root.winappsState = JSON.parse(t)
+            var parsed = JSON.parse(t)
+            root.winappsState = parsed
+            if (parsed.base_timeout && !root.winappsStepInitialized) {
+              root.winappsStepMinutes = Math.round(parsed.base_timeout / 60)
+              root.winappsStepInitialized = true
+            }
           } else {
-            root.winappsState = { state: "stopped", remaining: 1800 }
+            root.winappsState = { state: "stopped", remaining: 1800, base_timeout: 1800 }
           }
         } catch(e) {
-          root.winappsState = { state: "stopped", remaining: 1800 }
+          root.winappsState = { state: "stopped", remaining: 1800, base_timeout: 1800 }
         }
       }
     }
@@ -386,19 +400,93 @@ Panel {
                       Layout.fillWidth: true
                     }
 
+                    // WinApps Stepper Controls (- 5m + Apply)
+                    Row {
+                      visible: projCol.proj.name === "winapps"
+                      spacing: Style.space(2)
+                      Layout.alignment: Qt.AlignVCenter
+
+                      // Decrease 5 min button
+                      PanelActionButton {
+                        iconText: "󰍴"
+                        tooltipText: "Decrease 5 min"
+                        foreground: root.foreground
+                        fontFamily: root.fontFamily
+                        onClicked: root.winappsStepMinutes = Math.max(5, root.winappsStepMinutes - 5)
+                      }
+
+                      // Target value badge
+                      Rectangle {
+                        implicitWidth: stepValText.implicitWidth + Style.space(8)
+                        implicitHeight: Style.space(18)
+                        radius: Style.cornerRadius
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.1)
+
+                        Text {
+                          id: stepValText
+                          anchors.centerIn: parent
+                          text: root.winappsStepMinutes + "m"
+                          color: root.foreground
+                          font.family: root.fontFamily
+                          font.pixelSize: Style.font.caption
+                          font.bold: true
+                        }
+                      }
+
+                      // Increase 5 min button
+                      PanelActionButton {
+                        iconText: "󰐕"
+                        tooltipText: "Increase 5 min"
+                        foreground: root.foreground
+                        fontFamily: root.fontFamily
+                        onClicked: root.winappsStepMinutes = root.winappsStepMinutes + 5
+                      }
+
+                      // Apply button (applies to base timeout AND current session if running)
+                      PanelActionButton {
+                        iconText: "󰄬"
+                        tooltipText: "Apply (" + root.winappsStepMinutes + "m to Base & Current Timer)"
+                        foreground: root.accent
+                        fontFamily: root.fontFamily
+                        onClicked: {
+                          root.applyWinappsBaseTimeout(root.winappsStepMinutes)
+                          if (projCol.proj.anyRunning) {
+                            root.applyWinappsCurrentTimeout(root.winappsStepMinutes)
+                          }
+                        }
+                      }
+                    }
+
+                    // WinApps Indefinite / Keep Alive Action
+                    PanelActionButton {
+                      visible: projCol.proj.name === "winapps" && projCol.proj.anyRunning
+                      iconText: "󰅒"
+                      tooltipText: root.winappsState.state === "disabled" ? "Auto-Shutdown Disabled (Infinite)" : "Keep Alive (Disable Auto-Shutdown for this session)"
+                      foreground: root.winappsState.state === "disabled" ? root.accent : root.dim
+                      fontFamily: root.fontFamily
+                      onClicked: {
+                        if (root.winappsState.state === "disabled") {
+                          root.resetWinappsIdle()
+                        } else {
+                          root.cancelWinappsIdle()
+                        }
+                      }
+                    }
+
                     // WinApps Idle Status Badge (if applicable)
                     Rectangle {
-                      visible: projCol.proj.name === "winapps" && root.winappsState.state === "idle"
+                      visible: projCol.proj.name === "winapps" && (root.winappsState.state === "idle" || root.winappsState.state === "disabled")
                       implicitWidth: winappsIdleText.implicitWidth + Style.space(8)
                       implicitHeight: Style.space(18)
                       radius: Style.cornerRadius
-                      color: Qt.rgba(0.9, 0.7, 0.2, 0.25)
+                      color: root.winappsState.state === "disabled" ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.25) : Qt.rgba(0.9, 0.7, 0.2, 0.25)
 
                       Text {
                         id: winappsIdleText
                         anchors.centerIn: parent
-                        text: "⏳ " + Math.ceil(root.winappsState.remaining / 60) + "m"
-                        color: "#EBCB8B"
+                        text: root.winappsState.state === "disabled" ? "⏳ ∞" : ("⏳ " + Math.ceil(root.winappsState.remaining / 60) + "m")
+                        color: root.winappsState.state === "disabled" ? root.accent : "#EBCB8B"
                         font.family: root.fontFamily
                         font.pixelSize: Style.font.caption
                         font.bold: true
@@ -427,7 +515,7 @@ Panel {
                     PanelActionButton {
                       visible: projCol.proj.name === "winapps" && root.winappsState.state === "idle"
                       iconText: "󱫌"
-                      tooltipText: "Reset Idle Timer (+30m)"
+                      tooltipText: "Reset Idle Timer (+" + Math.round((root.winappsState.base_timeout || 1800) / 60) + "m)"
                       foreground: "#EBCB8B"
                       fontFamily: root.fontFamily
                       onClicked: root.resetWinappsIdle()

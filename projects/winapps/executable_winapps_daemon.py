@@ -18,9 +18,11 @@ import threading
 from pathlib import Path
 
 IDLE_TIMEOUT_SECONDS = 1800  # 30 minutes
-WARN_TIMEOUT_SECONDS = 300   # 5 minutes remaining (at 25m)
+WARN_TIMEOUT_SECONDS = 300   # 5 minutes remaining
+CONFIG_DIR = Path.home() / ".config" / "winapps"
+CONFIG_FILE = CONFIG_DIR / "daemon_config.json"
 STATE_FILE = Path("/tmp/winapps_state.json")
-CMD_SOCK = Path("/tmp/winapps_daemon.sock")
+CMD_SOCK = CONFIG_DIR / "daemon.sock"
 PROJECT_DIR = Path(__file__).resolve().parent
 ICON_PATH = PROJECT_DIR / "winapps.png"
 
@@ -33,10 +35,29 @@ class WinAppsDaemon:
         self.running = True
         self.open_windows = set()
         self.state = "stopped"  # "active", "idle", "disabled", "stopped"
-        self.remaining_seconds = IDLE_TIMEOUT_SECONDS
+        self.base_timeout_seconds = self.load_base_timeout()
+        self.remaining_seconds = self.base_timeout_seconds
         self.warn_sent = False
         self.had_active_windows = False
         self.lock = threading.RLock()
+
+    def load_base_timeout(self) -> int:
+        try:
+            if CONFIG_FILE.exists():
+                cfg = json.loads(CONFIG_FILE.read_text())
+                val = int(cfg.get("base_timeout_seconds", IDLE_TIMEOUT_SECONDS))
+                return max(60, val)
+        except Exception as e:
+            print(f"[WARN] Failed to load config: {e}", file=sys.stderr)
+        return IDLE_TIMEOUT_SECONDS
+
+    def save_base_timeout(self, seconds: int):
+        try:
+            CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+            data = {"base_timeout_seconds": seconds}
+            CONFIG_FILE.write_text(json.dumps(data, indent=2))
+        except Exception as e:
+            print(f"[ERROR] Failed to save config: {e}", file=sys.stderr)
 
         # Clean old socket if exists
         if CMD_SOCK.exists():
@@ -68,6 +89,7 @@ class WinAppsDaemon:
             data = {
                 "state": self.state,
                 "remaining": self.remaining_seconds,
+                "base_timeout": self.base_timeout_seconds,
                 "active_windows": len(self.open_windows),
                 "timestamp": int(time.time()),
             }
@@ -127,7 +149,7 @@ class WinAppsDaemon:
             if not container_alive:
                 if self.state != "stopped":
                     self.state = "stopped"
-                    self.remaining_seconds = IDLE_TIMEOUT_SECONDS
+                    self.remaining_seconds = self.base_timeout_seconds
                     self.had_active_windows = False
                     self.write_state()
                 continue
@@ -138,7 +160,7 @@ class WinAppsDaemon:
                     self.had_active_windows = True
                     if self.state != "active":
                         self.state = "active"
-                        self.remaining_seconds = IDLE_TIMEOUT_SECONDS
+                        self.remaining_seconds = self.base_timeout_seconds
                         self.warn_sent = False
                         self.write_state()
                 else:
@@ -150,14 +172,15 @@ class WinAppsDaemon:
                         prev_state = self.state
                         # Transition to idle
                         self.state = "idle"
-                        self.remaining_seconds = IDLE_TIMEOUT_SECONDS
+                        self.remaining_seconds = self.base_timeout_seconds
                         self.warn_sent = False
                         self.write_state()
                         # Only notify if windows were actually open before and just closed
                         if self.had_active_windows or prev_state == "active":
+                            mins = max(1, round(self.base_timeout_seconds / 60))
                             self.send_notification(
                                 "Windows Apps Closed",
-                                "30-minute idle countdown started. Container will stop when timer expires.",
+                                f"{mins}-minute idle countdown started. Container will stop when timer expires.",
                                 urgency="normal",
                             )
 
@@ -180,64 +203,112 @@ class WinAppsDaemon:
                             self.stop_container()
 
     def handle_command(self, cmd: str):
-        cmd = cmd.strip().lower()
+        cmd = cmd.strip()
         print(f"[INFO] Received command: {cmd}")
+        lower_cmd = cmd.lower()
         with self.lock:
-            if cmd == "reset":
-                self.remaining_seconds = IDLE_TIMEOUT_SECONDS
+            if lower_cmd == "reset":
+                self.remaining_seconds = self.base_timeout_seconds
                 self.warn_sent = False
-                if self.state == "idle":
-                    self.send_notification(
-                        "Idle Timer Reset",
-                        "Shutdown timeout reset to 30 minutes.",
-                    )
-                self.write_state()
-            elif cmd == "cancel":
-                self.state = "disabled"
+                if self.state in ("disabled", "stopped"):
+                    if self.is_container_running():
+                        self.state = "idle"
+                mins = max(1, round(self.base_timeout_seconds / 60))
                 self.send_notification(
-                    "Auto-Shutdown Cancelled",
-                    "Windows VM container will remain running indefinitely.",
+                    "Idle Timer Reset",
+                    f"Shutdown timeout reset to {mins} minutes.",
                 )
                 self.write_state()
-            elif cmd == "stop":
+            elif lower_cmd == "cancel":
+                self.state = "disabled"
+                self.send_notification(
+                    "Auto-Shutdown Disabled (Indefinite)",
+                    "Windows VM container will remain running indefinitely for this session.",
+                )
+                self.write_state()
+            elif lower_cmd.startswith("set_timeout"):
+                # Format: set_timeout <minutes>
+                parts = lower_cmd.split()
+                if len(parts) >= 2:
+                    try:
+                        mins = int(parts[1])
+                        if mins > 0:
+                            new_sec = mins * 60
+                            self.base_timeout_seconds = new_sec
+                            self.save_base_timeout(new_sec)
+                            if self.state != "disabled":
+                                self.remaining_seconds = new_sec
+                                self.warn_sent = False
+                            self.send_notification(
+                                "Base Timeout Updated",
+                                f"Default idle timer set to {mins} minutes.",
+                            )
+                            self.write_state()
+                    except ValueError:
+                        pass
+            elif lower_cmd.startswith("set_current"):
+                # Format: set_current <minutes>
+                parts = lower_cmd.split()
+                if len(parts) >= 2:
+                    try:
+                        mins = int(parts[1])
+                        if mins > 0:
+                            new_sec = mins * 60
+                            if self.state == "disabled":
+                                self.state = "idle"
+                            self.remaining_seconds = new_sec
+                            self.warn_sent = False
+                            self.send_notification(
+                                "Timer Updated",
+                                f"Current session timer set to {mins} minutes.",
+                            )
+                            self.write_state()
+                    except ValueError:
+                        pass
+            elif lower_cmd == "stop":
                 self.stop_container()
 
     def command_listener_loop(self):
-        """Listens for manual reset / cancel commands via UNIX domain socket."""
-        while self.running:
-            server_sock = None
-            try:
-                if CMD_SOCK.exists():
-                    CMD_SOCK.unlink()
-                server_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-                server_sock.bind(str(CMD_SOCK))
-                server_sock.listen(5)
-                server_sock.settimeout(1.0)
+        """Listens for manual commands via UNIX domain socket."""
+        sock_file = str(CMD_SOCK)
+        CMD_SOCK.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            if os.path.exists(sock_file):
+                os.unlink(sock_file)
+        except Exception:
+            pass
 
-                while self.running:
-                    try:
-                        conn, _ = server_sock.accept()
-                        with conn:
-                            data = conn.recv(1024).decode("utf-8", errors="ignore")
-                            if data:
-                                self.handle_command(data)
-                    except socket.timeout:
-                        continue
-                    except Exception:
-                        pass
+        try:
+            server_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            server_sock.bind(sock_file)
+            os.chmod(sock_file, 0o666)
+            server_sock.listen(5)
+            server_sock.settimeout(1.0)
+        except Exception as e:
+            print(f"[ERROR] Failed to bind server socket {sock_file}: {e}", file=sys.stderr)
+            return
+
+        while self.running:
+            try:
+                conn, _ = server_sock.accept()
+                with conn:
+                    data = conn.recv(1024).decode("utf-8", errors="ignore")
+                    if data:
+                        self.handle_command(data)
+            except socket.timeout:
+                continue
             except Exception as e:
-                time.sleep(1)
-            finally:
-                if server_sock:
-                    try:
-                        server_sock.close()
-                    except Exception:
-                        pass
-                if CMD_SOCK.exists():
-                    try:
-                        CMD_SOCK.unlink()
-                    except Exception:
-                        pass
+                print(f"[WARN] Connection error in command listener: {e}", file=sys.stderr)
+
+        try:
+            server_sock.close()
+        except Exception:
+            pass
+        try:
+            if os.path.exists(sock_file):
+                os.unlink(sock_file)
+        except Exception:
+            pass
 
     def hyprland_event_loop(self):
         """Connects to Hyprland's UNIX domain socket (.socket2.sock) for instant events."""
@@ -299,7 +370,7 @@ class WinAppsDaemon:
                         self.open_windows.add(addr)
                         print(f"[INFO] WinApps window opened: {addr} ({cls})")
                         self.state = "active"
-                        self.remaining_seconds = IDLE_TIMEOUT_SECONDS
+                        self.remaining_seconds = self.base_timeout_seconds
                         self.warn_sent = False
                         self.write_state()
 

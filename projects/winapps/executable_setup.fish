@@ -8,7 +8,7 @@ set SECRETS_FILE "$HOME/.ssh/secrets/winapps.env"
 set ENV_FILE "$SCRIPT_DIR/.env"
 set DAEMON_SCRIPT "$SCRIPT_DIR/winapps_daemon.py"
 set STATE_FILE "/tmp/winapps_state.json"
-set CMD_SOCK "/tmp/winapps_daemon.sock"
+set CMD_SOCK "/home/unreal/.config/winapps/daemon.sock"
 set ICON_FILE "$SCRIPT_DIR/winapps.png"
 
 # تابع بارگذاری و اعتبارسنجی فایل .env محلی
