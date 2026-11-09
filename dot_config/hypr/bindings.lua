@@ -28,10 +28,9 @@
 -- o.bind("SUPER + H", nil, "voxtype record toggle")
 hl.unbind("SUPER + CTRL + E")
 o.bind("SUPER + PERIOD", "Emojis", "omarchy-shell shell toggle omarchy.emojis")
-o.bind("SUPER + E", "File Manager", "strata")
+o.bind("SUPER + E", "File Manager", "flea --gui")
 
--- Float Strata file manager on open
-o.window("io.github.lgse.Strata", { tag = "+floating-window" })
+-- Float Flea picker / dialogs if needed (managed by flea --picker)
 
 -- Open Omarchy menu by pressing Super alone
 o.bind("SUPER + SUPER_L", "Omarchy menu", "omarchy-menu toggle", { release = true })
@@ -98,11 +97,14 @@ if p then
   p:close()
 end
 
--- strata-installer: file-manager start
+-- flea --default: begin. Written by `flea --default`; `flea --default off` removes the block whole.
 hl.unbind("SUPER + SHIFT + F")
+o.bind("SUPER + SHIFT + F", "File manager", { launch = 'flea --gui' })
 hl.unbind("SUPER + ALT + SHIFT + F")
-o.bind("SUPER + SHIFT + F", "File manager", { launch = "/home/unreal/.local/bin/strata" })
-o.bind("SUPER + ALT + SHIFT + F", "File manager (cwd)",
-  "uwsm-app -- /home/unreal/.local/bin/strata \"$(omarchy-cmd-terminal-cwd)\"")
--- strata-installer: file-manager end
+o.bind("SUPER + ALT + SHIFT + F", "File manager (cwd)", { launch = 'flea --gui "$(omarchy-cmd-terminal-cwd)"' })
+-- flea --default: end.
+
+-- flea --picker: begin. Written by `flea --picker`; `flea --picker off` removes the block whole.
+o.window("com.thisisgm.flea.picker", { tag = "+floating-window" })
+-- flea --picker: end.
 

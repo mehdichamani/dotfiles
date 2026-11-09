@@ -116,11 +116,6 @@ function cm --description "Unified Chezmoi Dotfiles & Mesh Manager"
                 bash "$omarchy_plugins_script"
             end
 
-            set -l strata_script "$HOME/.config/scripts/setup-strata.sh"
-            if test -f "$strata_script"
-                bash "$strata_script"
-            end
-
             set -l symlinks_script "$HOME/.config/scripts/setup-repo-symlinks.sh"
             if test -f "$symlinks_script"
                 bash "$symlinks_script"
