@@ -4,7 +4,7 @@
   "name": "Shamsi & English Dual Clock",
   "version": "1.0.0",
   "author": "User",
-  "description": "Dual-row center clock displaying English datetime with keyboard layout and Persian Shamsi date",
+  "description": "Dual-row center clock displaying English datetime with Persian Shamsi date and calendar popup",
   "kinds": [
     "bar-widget"
   ],
@@ -13,8 +13,11 @@
   },
   "barWidget": {
     "displayName": "Shamsi Dual Clock",
-    "description": "Dual-row center clock displaying English datetime with keyboard layout and Persian Shamsi date",
-    "category": "System",
+    "description": "Dual-row center clock displaying English datetime with Persian Shamsi date and calendar popup",
+    "category": "Time",
     "allowMultiple": false
+  },
+  "omarchy": {
+    "clonedFrom": "omarchy.clock"
   }
 }

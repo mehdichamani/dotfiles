@@ -1,13 +1,45 @@
 {
   "bar": {
-    "centerAnchor": "mehdichamani.shamsi-clock",
+    "background": "opaque",
     "layout": {
       "center": [
         {
-          "id": "mehdichamani.indicators"
+          "id": "mehdichamani.shamsi-clock"
+        }
+      ],
+      "centerBegin": [
+        {
+          "id": "omarchy.indicators"
+        }
+      ],
+      "centerEnd": [
+        {
+          "id": "omarchy.elsewhen",
+          "cities": [
+            {
+              "name": "Tehran",
+              "zone": "Asia/Tehran"
+            },
+            {
+              "name": "Tokyo",
+              "zone": "Asia/Tokyo"
+            },
+            {
+              "name": "Los Angeles",
+              "zone": "America/Los_Angeles"
+            },
+            {
+              "name": "New York",
+              "zone": "America/New_York"
+            },
+            {
+              "name": "London",
+              "zone": "Europe/London"
+            }
+          ]
         },
         {
-          "id": "mehdichamani.shamsi-clock"
+          "id": "omarchy.weather"
         },
         {
           "id": "omarchy.system-update"
@@ -34,10 +66,10 @@
       ],
       "right": [
         {
-          "id": "mehdichamani.tray"
+          "id": "omarchy.tray"
         },
         {
-          "id": "mehdichamani.keyboard-layout"
+          "id": "omarchy.keyboard-layout"
         },
         {
           "id": "mehdichamani.docker"
@@ -89,8 +121,19 @@
         }
       ]
     },
-    "position": "top",
-    "transparent": false
+    "position": "top"
+  },
+  "dock": {
+    "pinned": [
+      "org.gnome.Nautilus",
+      "chromium",
+      "foot",
+      "omacalc",
+      "omawrite",
+      "X",
+      "YouTube"
+    ],
+    "position": "bottom"
   },
   "idle": {
     "lock": 300,
@@ -101,9 +144,5 @@
       "id": "io.github.codesmith28.omalt-tab"
     }
   ],
-  "version": 1,
-  "cloneSourceRestores": [
-    "omarchy-menu-omni"
-  ],
-  "disabledPlugins": []
+  "version": 1
 }

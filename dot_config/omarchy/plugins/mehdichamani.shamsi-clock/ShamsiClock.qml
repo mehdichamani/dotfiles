@@ -1,21 +1,22 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Io
 import qs.Commons
 import qs.Ui
+import "Model.js" as Model
 
 BarWidget {
   id: root
   moduleName: "mehdichamani.shamsi-clock"
 
+  property date displayDate: clock.date
+
   readonly property color fgColor: (root.bar && root.bar.barForeground) ? root.bar.barForeground : Color.foreground
   readonly property color accentColor: Color.accent
   readonly property color dimColor: Qt.rgba(fgColor.r, fgColor.g, fgColor.b, 0.82)
   readonly property string barFontFamily: (root.bar && root.bar.fontFamily) ? root.bar.fontFamily : Style.font.family
-  implicitWidth: Math.max(130, colLayout.implicitWidth + 16)
-  implicitHeight: root.bar ? root.bar.barSize : 38
-
-  property var currentDate: new Date()
+  readonly property string persianFontFamily: "Vazirmatn"
 
   // High precision Jalali (Solar Hijri) Calendar algorithm
   function gregorianToJalali(gy, gm, gd) {
@@ -65,86 +66,129 @@ BarWidget {
     return j.day + " " + persianMonths[j.month - 1] + " " + j.year;
   }
 
-  Timer {
-    interval: 1000
-    running: true
-    repeat: true
-    onTriggered: {
-      root.currentDate = new Date();
+  function refresh() {
+    displayDate = new Date()
+    if (panelLoader.item && panelLoader.item.refresh) panelLoader.item.refresh()
+  }
+
+  // ---- Calendar popup contract for Bar.findPanelWidget and shell summon/hide/toggle
+  readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
+
+  function open() {
+    if (panelLoader.item) panelLoader.item.open()
+  }
+
+  function close() {
+    if (panelLoader.item) panelLoader.item.close()
+  }
+
+  function togglePanel() {
+    if (panelLoader.item) panelLoader.item.toggle()
+  }
+
+  function toggleWeekStart() {
+    if (panelLoader.item) panelLoader.item.toggleWeekStart()
+  }
+
+  readonly property real openPanelIndicatorWidth: button.width
+  readonly property real openPanelIndicatorHeight: Math.max(Style.space(10), Math.round(Style.bar.iconSlot * 0.55))
+
+  readonly property bool popoutSwitchClosing: panelLoader.item ? panelLoader.item.popoutSwitchClosing === true : false
+
+  function closeForPopoutSwitch() {
+    if (panelLoader.item) panelLoader.item.closeForPopoutSwitch()
+  }
+
+  function injectPanel() {
+    var target = panelLoader.item
+    if (!target) return
+    if ("bar" in target) target.bar = root.bar
+    if ("settings" in target) target.settings = root.settings
+    if ("anchorItem" in target) target.anchorItem = button
+    if ("hostWidget" in target) target.hostWidget = root
+  }
+
+  onBarChanged: injectPanel()
+  onSettingsChanged: injectPanel()
+
+  WallClock {
+    id: clock
+    step: 1000
+    onDateChanged: root.displayDate = date
+  }
+
+  Loader {
+    id: panelLoader
+    active: true
+    source: Qt.resolvedUrl("Panel.qml")
+    visible: false
+    onLoaded: {
+      root.injectPanel()
+      Qt.callLater(root.injectPanel)
     }
   }
 
-  // Register click target with Omarchy bar
-  component ShamsiClickTarget: Item {
-    id: clickRoot
-    property var bar: root.bar
-    property bool interactive: true
-    property bool pressable: true
-    property bool concealed: false
-    property var registeredBar: null
-    property string tooltipText: ""
+  ShellIpc {
+    target: "mehdichamani.shamsi-clock"
 
-    signal clicked(int button)
-
-    function triggerPress(button) {
-      if (root.bar) root.bar.hideTooltip(clickRoot)
-      clickRoot.clicked(button)
-    }
-
-    function syncClickRegistration() {
-      if (registeredBar && registeredBar.unregisterClickTarget) registeredBar.unregisterClickTarget(clickRoot)
-      registeredBar = root.bar
-      if (registeredBar && registeredBar.registerClickTarget) registeredBar.registerClickTarget(clickRoot)
-    }
-
-    onBarChanged: syncClickRegistration()
-    Component.onCompleted: syncClickRegistration()
-    Component.onDestruction: if (registeredBar && registeredBar.unregisterClickTarget) registeredBar.unregisterClickTarget(clickRoot)
-
-    MouseArea {
-      id: mouseArea
-      anchors.fill: parent
-      hoverEnabled: true
-      cursorShape: Qt.PointingHandCursor
-      acceptedButtons: Qt.LeftButton | Qt.RightButton
-      onEntered: if (root.bar && clickRoot.tooltipText !== "") root.bar.showTooltip(clickRoot, clickRoot.tooltipText)
-      onExited: if (root.bar) root.bar.hideTooltip(clickRoot)
-      onClicked: function(mouse) { clickRoot.triggerPress(mouse.button) }
-    }
+    function refresh(): void { root.broadcast("refresh") }
+    function toggleWeekStart(): void { root.toggleWeekStart() }
+    function open(): void { root.open() }
+    function close(): void { root.close() }
+    function show(): void { root.open() }
+    function hide(): void { root.close() }
+    function toggle(): void { root.togglePanel() }
   }
 
-  ShamsiClickTarget {
+  implicitWidth: Math.max(130, colLayout.implicitWidth + 24)
+  implicitHeight: root.bar ? root.bar.barSize : 38
+
+  WidgetButton {
+    id: button
     anchors.fill: parent
-    tooltipText: Qt.formatDateTime(root.currentDate, "dddd, d MMMM yyyy HH:mm:ss") + " | " + root.getFullShamsiTooltip(root.currentDate)
-  }
+    bar: root.bar
+    text: ""
+    labelVisible: false
+    hasVisualContent: true
+    horizontalMargin: 8.75
+    verticalPadding: 4
+    tooltipText: Qt.formatDateTime(root.displayDate, "dddd, d MMMM yyyy HH:mm:ss") + " | " + root.getFullShamsiTooltip(root.displayDate)
+    pressFeedbackButtons: Qt.NoButton
 
-  readonly property string persianFontFamily: "Vazirmatn"
-
-  ColumnLayout {
-    id: colLayout
-    anchors.centerIn: parent
-    spacing: 0
-
-    // Row 1: Clock (Top)
-    Text {
-      Layout.alignment: Qt.AlignHCenter
-      text: Qt.formatDateTime(root.currentDate, "HH:mm")
-      color: root.fgColor
-      font.family: root.barFontFamily
-      font.pixelSize: 12
-      font.weight: Font.Bold
-      renderType: Text.NativeRendering
+    onPressed: function(b) {
+      if (b === Qt.MiddleButton) {
+        if (root.bar) root.bar.run("omarchy-menu-timezone")
+      } else if (b === Qt.LeftButton) {
+        root.togglePanel()
+      }
     }
 
-    // Row 2: جمعه 1 آبان (23 October)
-    Text {
-      Layout.alignment: Qt.AlignHCenter
-      text: root.getShamsiString(root.currentDate) + " (" + Qt.formatDateTime(root.currentDate, "d MMMM") + ")"
-      color: root.dimColor
-      font.family: root.persianFontFamily
-      font.pixelSize: 11
-      font.weight: Font.Normal
-      renderType: Text.NativeRendering
+    ColumnLayout {
+      id: colLayout
+      anchors.centerIn: parent
+      spacing: 0
+
+      // Row 1: Time
+      Text {
+        Layout.alignment: Qt.AlignHCenter
+        text: Qt.formatDateTime(root.displayDate, "HH:mm")
+        color: root.fgColor
+        font.family: root.barFontFamily
+        font.pixelSize: 12
+        font.weight: Font.Bold
+        renderType: Text.NativeRendering
+      }
+
+      // Row 2: Shamsi + Gregorian Date
+      Text {
+        Layout.alignment: Qt.AlignHCenter
+        text: root.getShamsiString(root.displayDate) + " (" + Qt.formatDateTime(root.displayDate, "d MMMM") + ")"
+        color: root.dimColor
+        font.family: root.persianFontFamily
+        font.pixelSize: 11
+        font.weight: Font.Normal
+        renderType: Text.NativeRendering
+      }
     }
   }
 }
