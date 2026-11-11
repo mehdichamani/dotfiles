@@ -3,6 +3,7 @@
 
 -- Window rules: float and size into scratchpad (Super+S)
 o.window("PattN", { float = true, center = true, size = { 1048, 734 }, workspace = "special:scratchpad silent" })
+o.window("Windscribe", { float = true, center = true, size = { 1048, 734 }, workspace = "special:scratchpad silent" })
 o.window("com.arman.firefoxvpn", { float = true, center = true, size = { 1048, 734 }, workspace = "special:scratchpad silent" })
 
 -- Workspace assignments
