@@ -69,7 +69,7 @@ ROOT_MOUNT="${ROOT_MOUNT:-/}"
 HOME_MOUNT="${HOME_MOUNT:-/home}"
 LOCAL_SNAP_DIR="${LOCAL_SNAP_DIR:-/.snapshots}"
 LOG_FILE="${LOG_FILE:-/var/log/btrfs-backup.log}"
-SSOT_STATE_FILE="${SSOT_STATE_FILE:-${USER_HOME}/Notes/SSoT/WorkBtrfsBackup/state.json}"
+SSOT_STATE_FILE="${SSOT_STATE_FILE:-${USER_HOME}/Notes/SSoT/BtrfsBackup/hosts/${HOST_NAME}/state.json}"
 
 STATUS_STATE_DIR="${USER_HOME}/.local/state/btrfs-backup"
 STATUS_JSON="${STATUS_STATE_DIR}/status.json"
