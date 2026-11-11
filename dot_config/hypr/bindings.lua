@@ -28,9 +28,11 @@
 -- o.bind("SUPER + H", nil, "voxtype record toggle")
 hl.unbind("SUPER + CTRL + E")
 o.bind("SUPER + PERIOD", "Emojis", "omarchy-shell shell toggle omarchy.emojis")
-o.bind("SUPER + E", "File Manager", "flea --gui")
+o.bind("SUPER + E", "File Manager", "nautilus")
 
--- Float Flea picker / dialogs if needed (managed by flea --picker)
+-- Float Nautilus file manager on open
+o.window("org.gnome.Nautilus", { tag = "+floating-window" })
+
 
 -- Open Omarchy menu by pressing Super alone
 o.bind("SUPER + SUPER_L", "Omarchy menu", "omarchy-menu toggle", { release = true })
@@ -96,15 +98,4 @@ if p then
   end
   p:close()
 end
-
--- flea --default: begin. Written by `flea --default`; `flea --default off` removes the block whole.
-hl.unbind("SUPER + SHIFT + F")
-o.bind("SUPER + SHIFT + F", "File manager", { launch = 'flea --gui' })
-hl.unbind("SUPER + ALT + SHIFT + F")
-o.bind("SUPER + ALT + SHIFT + F", "File manager (cwd)", { launch = 'flea --gui "$(omarchy-cmd-terminal-cwd)"' })
--- flea --default: end.
-
--- flea --picker: begin. Written by `flea --picker`; `flea --picker off` removes the block whole.
-o.window("com.thisisgm.flea.picker", { tag = "+floating-window" })
--- flea --picker: end.
 
