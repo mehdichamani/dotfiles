@@ -480,7 +480,7 @@ update_standby_bootable_system() {
     # 1. Refresh @ (Root)
     if [[ -d "${bootable_root}" ]]; then
         log_info "Removing outdated standby root subvolume..."
-        btrfs subvolume delete "${bootable_root}" || rm -rf "${bootable_root}"
+        btrfs subvolume delete --recursive "${bootable_root}" 2>/dev/null || btrfs subvolume delete "${bootable_root}" 2>/dev/null || rm -rf "${bootable_root}"
     fi
     log_info "Creating fresh RW clone of root (${root_snap} -> @)..."
     btrfs subvolume snapshot "${SNAPSHOT_DIR}/${root_snap}" "${bootable_root}"
@@ -518,7 +518,7 @@ EOF
     # 3. Refresh @home
     if [[ -d "${bootable_home}" ]]; then
         log_info "Removing outdated standby home subvolume..."
-        btrfs subvolume delete "${bootable_home}" || rm -rf "${bootable_home}"
+        btrfs subvolume delete --recursive "${bootable_home}" 2>/dev/null || btrfs subvolume delete "${bootable_home}" 2>/dev/null || rm -rf "${bootable_home}"
     fi
     log_info "Creating fresh RW clone of home (${home_snap} -> @home)..."
     btrfs subvolume snapshot "${SNAPSHOT_DIR}/${home_snap}" "${bootable_home}"
@@ -594,7 +594,7 @@ prune_old_cycles() {
                 if [[ "${snap_cycle}" != "${active_cycle_id}" ]]; then
                     log_info "Pruning old snapshot: ${snap}"
                     if [[ "${DRY_RUN}" == "false" ]]; then
-                        btrfs subvolume delete "${snap}" || rm -rf "${snap}"
+                        btrfs subvolume delete --recursive "${snap}" 2>/dev/null || btrfs subvolume delete "${snap}" 2>/dev/null || rm -rf "${snap}"
                     else
                         echo "[DRY-RUN] Would prune old snapshot: ${snap}"
                     fi
