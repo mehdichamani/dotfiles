@@ -89,6 +89,9 @@ o.bind("SUPER + SHIFT + L", "Toggle screensaver", "omarchy-toggle-screensaver")
 hl.unbind("SUPER + ALT + RETURN")
 o.bind("SUPER + ALT + RETURN", "WezTerm", "setsid uwsm-app -- wezterm start --cwd \"$(omarchy-cmd-terminal-cwd)\"")
 
+-- Theme switcher menu (SUPER + ALT + T)
+o.bind("SUPER + ALT + T", "Theme menu", { menu = "theme" })
+
 -- Auto-load keybindings from installed Omarchy plugins (including omalt-tab: io.github.codesmith28.omalt-tab)
 local plugins_dir = os.getenv("HOME") .. "/.config/omarchy/plugins"
 local p = io.popen("find " .. plugins_dir .. " -maxdepth 3 -name 'bindings.lua' 2>/dev/null")
