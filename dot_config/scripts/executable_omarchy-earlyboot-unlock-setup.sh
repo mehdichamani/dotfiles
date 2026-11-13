@@ -25,6 +25,7 @@ LIMINE_CONF="/etc/limine-entry-tool.d/remote-unlock.conf"
 AUTOLOGIN_SERVICE="/etc/systemd/system/remote-unlock-no-autologin.service"
 HOOK_REMOTE_UNLOCK_INSTALL="/etc/initcpio/install/remote-unlock"
 HOOK_REMOTE_UNLOCK_RUN="/etc/initcpio/hooks/remote-unlock"
+HOOK_NETCONF_RUN="/etc/initcpio/hooks/netconf"
 TINYSSH_DIR="/etc/tinyssh"
 PACMAN_HOOK="/etc/pacman.d/hooks/mkinitcpio-tailscale.hook"
 
@@ -38,8 +39,54 @@ check_root() {
     fi
 }
 
+# Auto-detect physical ethernet interface & kernel driver module
+detect_network_hardware() {
+    DETECTED_INTERFACE=""
+    DETECTED_DRIVER=""
+
+    # 1. Search /sys/class/net for active physical ethernet interfaces
+    for iface in /sys/class/net/*; do
+        local name="${iface##*/}"
+        # Skip loopback, wireless, virtual interfaces
+        [ "$name" = "lo" ] && continue
+        [ -e "$iface/wireless" ] && continue
+        [[ "$name" =~ ^(wl|ww|docker|br-|veth|wg|tailscale) ]] && continue
+
+        local driver_link="$iface/device/driver"
+        if [ -d "$driver_link" ]; then
+            local drv
+            drv="$(basename "$(readlink -f "$driver_link")")"
+            local carrier="0"
+            [ -f "$iface/carrier" ] && carrier="$(cat "$iface/carrier" 2>/dev/null || echo 0)"
+
+            # Prioritize cable-connected interface (carrier=1)
+            if [ "$carrier" = "1" ]; then
+                DETECTED_INTERFACE="$name"
+                DETECTED_DRIVER="$drv"
+                break
+            elif [ -z "$DETECTED_INTERFACE" ]; then
+                DETECTED_INTERFACE="$name"
+                DETECTED_DRIVER="$drv"
+            fi
+        fi
+    done
+
+    # 2. Fallback to lspci if driver not found
+    if [ -z "$DETECTED_DRIVER" ] && command -v lspci >/dev/null 2>&1; then
+        local pci_driver
+        pci_driver="$(lspci -nnk 2>/dev/null | grep -iA3 -E "Ethernet controller" | grep "Kernel driver in use:" | head -n1 | awk '{print $5}')"
+        [ -n "$pci_driver" ] && DETECTED_DRIVER="$pci_driver"
+    fi
+
+    # 3. Fallback defaults
+    DETECTED_INTERFACE="${DETECTED_INTERFACE:-eno1}"
+    DETECTED_DRIVER="${DETECTED_DRIVER:-e1000e}"
+}
+
 # Detect Host Profile
 detect_profile() {
+    detect_network_hardware
+
     local host_name=""
     local user_name="${SUDO_USER:-$USER}"
     local user_home
@@ -57,29 +104,29 @@ detect_profile() {
     case "$host_name" in
         home|Home*|homeomarchy)
             PROFILE="home"
-            INTERFACE="eth0"
-            DRIVER_MODULE="r8169"
-            HOSTNAME="homeomarchy"
-            STATIC_IP=""
-            GATEWAY=""
-            NETMASK=""
-            KERNEL_NET_CMD="ip=::::${HOSTNAME}:${INTERFACE}:dhcp netconf_timeout=30"
+            INTERFACE="${DETECTED_INTERFACE}"
+            DRIVER_MODULE="${DETECTED_DRIVER}"
+            HOSTNAME="HomeOmarchy"
+            STATIC_IP="192.168.0.100"
+            GATEWAY="192.168.0.1"
+            NETMASK="255.255.255.0"
+            KERNEL_NET_CMD="ip=${STATIC_IP}::${GATEWAY}:${NETMASK}:${HOSTNAME}:${INTERFACE}:none netconf_timeout=30"
             ;;
         work|Work*|workomarchy|WorkOmarchy)
             PROFILE="work"
-            INTERFACE="eth0"
-            DRIVER_MODULE="e1000e"
+            INTERFACE="${DETECTED_INTERFACE}"
+            DRIVER_MODULE="${DETECTED_DRIVER}"
             STATIC_IP="192.168.1.100"
             GATEWAY="192.168.1.1"
             NETMASK="255.255.255.0"
-            HOSTNAME="workomarchy"
+            HOSTNAME="WorkOmarchy"
             KERNEL_NET_CMD="ip=${STATIC_IP}::${GATEWAY}:${NETMASK}:${HOSTNAME}:${INTERFACE}:none netconf_timeout=30"
             ;;
         *)
             PROFILE="custom"
             HOSTNAME="omarchy"
-            INTERFACE="eth0"
-            DRIVER_MODULE="r8169"
+            INTERFACE="${DETECTED_INTERFACE}"
+            DRIVER_MODULE="${DETECTED_DRIVER}"
             STATIC_IP=""
             GATEWAY=""
             NETMASK=""
@@ -232,6 +279,182 @@ run_cleanuphook ()
   umount /dev/pts 2>/dev/null || true
 }
 EOF
+}
+
+# Resilient netconf runner that waits for physical link carrier and directly configures IP
+setup_netconf_carrier_wait() {
+    printf "${CYAN}▷ ایجاد هوک مقاوم netconf با راه‌اندازی مستقیم کارت شبکه در ${HOOK_NETCONF_RUN}...${NC}\n"
+    mkdir -p /etc/initcpio/hooks
+    cat > "${HOOK_NETCONF_RUN}" << 'EOF'
+#!/usr/bin/ash
+
+# Auto-detect which ethernet device is physically present and has cable carrier
+find_and_prepare_eth() {
+    local target=""
+    # Check potential names (eno1, eth0, or any non-virtual/non-wifi ethernet)
+    for iface in /sys/class/net/*; do
+        local name="${iface##*/}"
+        [ "$name" = "lo" ] && continue
+        [ -e "$iface/wireless" ] && continue
+        case "$name" in
+            wl*|ww*|docker*|br-*|veth*|wg*|tailscale*) continue ;;
+        esac
+
+        # Set administrative link UP
+        /sbin/ip link set dev "$name" up 2>/dev/null || true
+
+        # Wait up to 6 seconds for carrier Handshake
+        local count=0
+        while [ $count -lt 6 ]; do
+            if [ -f "$iface/carrier" ] && [ "$(cat "$iface/carrier" 2>/dev/null)" = "1" ]; then
+                target="$name"
+                break 2
+            fi
+            sleep 1
+            count=$((count + 1))
+        done
+        [ -z "$target" ] && target="$name"
+    done
+
+    echo "${target:-eno1}"
+}
+
+configure_device ()
+{
+    local line i address netmask gateway dns0 dns1 rootserver rootpath defaultrootpath defaultserver
+
+    : > /ip_opts
+
+    if [ -n "${ip_dev}" ]; then
+        # Parse standard ip= fields: client-ip:server-ip:gw-ip:netmask:hostname:device:autoconf:dns0:dns1
+        local parsed_client parsed_server parsed_gw parsed_mask parsed_host parsed_dev parsed_proto
+        parsed_client="$(echo "${ip_dev}" | cut -d: -f1)"
+        parsed_server="$(echo "${ip_dev}" | cut -d: -f2)"
+        parsed_gw="$(echo "${ip_dev}" | cut -d: -f3)"
+        parsed_mask="$(echo "${ip_dev}" | cut -d: -f4)"
+        parsed_host="$(echo "${ip_dev}" | cut -d: -f5)"
+        parsed_dev="$(echo "${ip_dev}" | cut -d: -f6)"
+        parsed_proto="$(echo "${ip_dev}" | cut -d: -f7)"
+
+        # Find active physical device with link carrier
+        local active_dev
+        active_dev="$(find_and_prepare_eth)"
+        [ -n "$active_dev" ] && parsed_dev="$active_dev"
+        [ -z "$parsed_dev" ] && parsed_dev="eno1"
+
+        echo "Configuring network on interface ${parsed_dev}..."
+
+        # If static IP parameters are present, configure directly using /sbin/ip
+        if [ -n "${parsed_client}" ] && [ "${parsed_proto}" != "dhcp" ]; then
+            local prefix="24"
+            [ "${parsed_mask}" = "255.255.255.0" ] && prefix="24"
+            [ "${parsed_mask}" = "255.255.0.0" ] && prefix="16"
+
+            /sbin/ip addr flush dev "${parsed_dev}" 2>/dev/null || true
+            /sbin/ip addr add "${parsed_client}/${prefix}" dev "${parsed_dev}" 2>/dev/null || true
+            /sbin/ip link set dev "${parsed_dev}" up 2>/dev/null || true
+            [ -n "${parsed_gw}" ] && /sbin/ip route replace default via "${parsed_gw}" dev "${parsed_dev}" 2>/dev/null || true
+
+            echo "address=${parsed_client}" >> /ip_opts
+            echo "netmask=${parsed_mask}" >> /ip_opts
+            echo "gateway=${parsed_gw}" >> /ip_opts
+            echo "device=${parsed_dev}" >> /ip_opts
+            echo "${parsed_dev}" >> /ip_devices
+
+            echo "IP-Config: ${parsed_dev} configured statically: ${parsed_client}/${prefix} (GW: ${parsed_gw})"
+            return 0
+        fi
+
+        # Otherwise fallback to ipconfig for DHCP
+        if [ -n "$netconf_timeout" ]; then
+            ipconfig_cmd="ipconfig -t $netconf_timeout ip=${ip_dev}"
+        else
+            ipconfig_cmd="ipconfig ip=${ip_dev}"
+        fi
+
+        $ipconfig_cmd | while read line; do
+            if [ "${line#"IP-Config:"}" != "${line}" ]; then
+                continue
+            fi
+
+            line="$(echo ${line} | sed -e 's/ :/:/g;s/: /=/g')"
+
+            for i in ${line}; do
+                case "${i}" in
+                    address=*)
+                        echo "${i}" >> /ip_opts
+                        ;;
+                    netmask=*)
+                        echo "${i}" >> /ip_opts
+                        ;;
+                    gateway=*)
+                        echo "${i}" >> /ip_opts
+                        ;;
+                    dns0=*)
+                        echo "${i}" >> /ip_opts
+                        ;;
+                    dns1=*)
+                        echo "${i}" >> /ip_opts
+                        ;;
+                    rootserver=*)
+                        echo "${i}" >> /ip_opts
+                        ;;
+                    rootpath=*)
+                        echo "${i}" >> /ip_opts
+                        ;;
+                esac
+            done
+        done
+
+        echo "device=${parsed_dev}" >> /ip_opts
+        echo "${parsed_dev}" >> /ip_devices
+
+        . /ip_opts
+        echo "IP-Config: ${device}: ${address}/${netmask}"
+        echo "IP-Config: ${device}: gw: ${gateway}    dns0: ${dns0}    dns1: ${dns1}"
+
+        return 0
+    fi
+}
+
+run_hook ()
+{
+  : > /ip_devices
+
+  if [ -z "${ip}" -a -n "${nfsaddrs}" ]; then
+    ip="${nfsaddrs}"
+  fi
+
+  if [ -n "${ip}" ]; then
+      case ${ip} in
+          ip=*)
+              for ip_dev in $(echo ${ip} | sed -e 's/ip=/\n/g' | sed -e 's/:$//g' | sed '/^$/d'); do
+                  configure_device
+              done
+              ;;
+          *)
+              ip_dev="${ip}"
+              configure_device
+              ;;
+      esac
+  fi
+
+  # set link up for lo
+  /sbin/ip link set up lo
+}
+
+run_cleanuphook ()
+{
+    for device in $(cat /ip_devices); do
+        /sbin/ip addr flush dev "$device" 2>/dev/null || true
+        /sbin/ip link set down "$device" 2>/dev/null || true
+    done
+
+    # set ip link down for lo
+    /sbin/ip link set down lo
+}
+EOF
+    printf "${GREEN}[✓] هوک netconf اختصاصی ثبت شد.${NC}\n"
 }
 
 # Hook Drop-in
@@ -496,7 +719,7 @@ EOF
     fi
 }
 
-# Rebuild UKI
+# Rebuild UKI and strip Limine verification hash mismatches
 rebuild_boot_image() {
     printf "\n${YELLOW}▷ در حال بازسازی تصویر بوت (UKI) با limine-mkinitcpio...${NC}\n"
     if command -v limine-mkinitcpio >/dev/null 2>&1; then
@@ -504,7 +727,13 @@ rebuild_boot_image() {
     else
         mkinitcpio -P
     fi
-    printf "${GREEN}[✓] تصویر بوت با موفقیت بازسازی شد.${NC}\n"
+
+    # Fix Limine Hash Mismatch prompt (strip #hash from /boot/limine.conf paths)
+    if [ -f "/boot/limine.conf" ]; then
+        sed -i -E 's|^( +path: +boot\(\):/[^#]+)#[a-f0-9]+|\1|g' /boot/limine.conf
+    fi
+
+    printf "${GREEN}[✓] تصویر بوت و کانفیگ Limine با موفقیت بازسازی شدند.${NC}\n"
 }
 
 # Clean Uninstall
@@ -518,6 +747,7 @@ uninstall() {
     rm -f "${LIMINE_CONF}" /etc/limine-entry-tool.d/99-earlyboot-unlock.conf /etc/limine-entry-tool.d/omarchy-network.conf
     rm -f "${HOOK_REMOTE_UNLOCK_INSTALL}"
     rm -f "${HOOK_REMOTE_UNLOCK_RUN}"
+    rm -f "${HOOK_NETCONF_RUN}"
     rm -f /etc/initcpio/hooks/tinyssh
     rm -f "${PACMAN_HOOK}"
     rm -rf "${TINYSSH_DIR}"
@@ -579,6 +809,7 @@ main() {
     if [ "$selected_mode" = "lan" ] || [ "$selected_mode" = "hybrid" ]; then
         setup_tinyssh_keys
     fi
+    setup_netconf_carrier_wait
     setup_limine_network
     setup_network_driver
     setup_remote_unlock_hook "${selected_mode}"
