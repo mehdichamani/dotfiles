@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Shutdown (Clean VM & Host)
+Comment=Safely unpause and shut down Windows VM before powering off Omarchy
+Exec=fish -c "/home/unreal/projects/winapps/setup.fish shutdown"
+Icon=system-shutdown
+Terminal=false
+Categories=System;Utility;
+Keywords=shutdown;poweroff;halt;vm;windows;winapps;system;
+StartupNotify=true

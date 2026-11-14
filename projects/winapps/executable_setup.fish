@@ -271,9 +271,50 @@ end
 
 function vm_down
     _log_info "در حال توقف کانتینر Windows VM..."
+    if test (docker inspect -f '{{.State.Status}}' WinApps 2>/dev/null) = "paused"
+        docker unpause WinApps &>/dev/null
+    end
     docker compose -f "$SCRIPT_DIR/compose.yml" down
     stop_daemon
     _log_success "کانتینر و دیمن متوقف شدند."
+end
+
+function vm_pause
+    _log_info "در حال فریز کردن (pause) کانتینر Windows VM..."
+    docker pause WinApps &>/dev/null
+    _log_success "کانتینر با موفقیت معلق شد."
+end
+
+function vm_unpause
+    _log_info "در حال از سرگیری (unpause) کانتینر Windows VM..."
+    docker unpause WinApps &>/dev/null
+    _log_success "کانتینر فعال شد."
+end
+
+function vm_clean_exit
+    set -l target_action $argv[1] # "reboot" or "shutdown"
+    set -l cont_status (docker inspect -f '{{.State.Status}}' WinApps 2>/dev/null)
+
+    if test "$cont_status" = "paused"
+        _log_info "کانتینر معلق است، در حال خارج کردن از فریز..."
+        docker unpause WinApps &>/dev/null
+        cont_status="running"
+    end
+
+    if test "$cont_status" = "running"
+        _log_info "در حال توقف منظم کانتینر و ذخیره ایمن دیسک Windows VM..."
+        docker compose -f "$SCRIPT_DIR/compose.yml" stop -t 15
+        stop_daemon
+        _log_success "کانتینر با موفقیت خاموش شد."
+    end
+
+    if test "$target_action" = "shutdown"
+        _log_info "در حال اجرای خاموشی تمیز Omarchy..."
+        omarchy system shutdown
+    else
+        _log_info "در حال اجرای راه‌اندازی مجدد تمیز Omarchy..."
+        omarchy system reboot
+    end
 end
 
 function vm_status
@@ -300,8 +341,12 @@ function vm_rdp
     set -l user (get_secret USERNAME)
     set -l pass (get_secret PASSWORD)
 
-    # اگر کانتینر روشن نیست ابتدا آن را استارت کنیم
-    if not docker inspect -f '{{.State.Running}}' WinApps 2>/dev/null | grep -q "true"
+    # اگر کانتینر در حالت pause است، ابتدا unpause می‌کنیم
+    set -l cont_status (docker inspect -f '{{.State.Status}}' WinApps 2>/dev/null)
+    if test "$cont_status" = "paused"
+        _log_info "کانتینر معلق (paused) است، در حال خارج کردن از فریز (unpause)..."
+        docker unpause WinApps &>/dev/null
+    else if test "$cont_status" != "running"
         _log_info "کانتینر خاموش است، ابتدا در حال روشن کردن..."
         vm_up
     end
@@ -452,6 +497,14 @@ switch "$action"
         vm_up
     case "down" "stop"
         vm_down
+    case "pause"
+        vm_pause
+    case "unpause" "resume"
+        vm_unpause
+    case "reboot" "clean-reboot"
+        vm_clean_exit "reboot"
+    case "shutdown" "poweroff" "clean-shutdown"
+        vm_clean_exit "shutdown"
     case "status"
         vm_status
     case "logs"

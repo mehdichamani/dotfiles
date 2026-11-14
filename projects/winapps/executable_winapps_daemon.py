@@ -34,7 +34,7 @@ class WinAppsDaemon:
     def __init__(self):
         self.running = True
         self.open_windows = set()
-        self.state = "stopped"  # "active", "idle", "disabled", "stopped"
+        self.state = "stopped"  # "active", "idle", "disabled", "paused", "stopped"
         self.base_timeout_seconds = self.load_base_timeout()
         self.remaining_seconds = self.base_timeout_seconds
         self.warn_sent = False
@@ -100,25 +100,46 @@ class WinAppsDaemon:
             except Exception:
                 pass
 
-    def is_container_running(self) -> bool:
+    def get_container_status(self) -> str:
+        """Returns container status: 'running', 'paused', 'exited' or 'none'."""
         try:
             res = subprocess.run(
-                ["docker", "inspect", "-f", "{{.State.Running}}", "WinApps"],
+                ["docker", "inspect", "-f", "{{.State.Status}}", "WinApps"],
                 capture_output=True,
                 text=True,
                 check=False,
             )
-            return res.stdout.strip().lower() == "true"
+            return res.stdout.strip().lower() or "none"
         except Exception:
-            return False
+            return "none"
 
-    def stop_container(self):
-        print("[INFO] 30m idle timeout reached. Stopping Windows VM container...")
+    def is_container_running(self) -> bool:
+        return self.get_container_status() == "running"
+
+    def pause_container(self):
+        print(f"[INFO] Idle timeout reached ({self.base_timeout_seconds}s). Pausing Windows VM container...")
         self.send_notification(
-            "Windows VM Stopped",
-            "Container stopped due to 30 minutes of inactivity to release resources.",
+            "Windows VM Paused",
+            f"Container paused after inactivity to free CPU resources. Resume is instantaneous.",
             urgency="normal",
         )
+        subprocess.run(
+            ["docker", "pause", "WinApps"],
+            check=False,
+        )
+        self.state = "paused"
+        self.write_state()
+
+    def stop_container(self):
+        print("[INFO] Stopping Windows VM container...")
+        self.send_notification(
+            "Windows VM Stopped",
+            "Windows container stopped.",
+            urgency="normal",
+        )
+        # If paused, unpause first so docker stop/compose down can terminate it cleanly
+        if self.get_container_status() == "paused":
+            subprocess.run(["docker", "unpause", "WinApps"], check=False)
         subprocess.run(
             ["docker", "compose", "-f", str(PROJECT_DIR / "compose.yml"), "stop"],
             cwd=str(PROJECT_DIR),
@@ -144,9 +165,16 @@ class WinAppsDaemon:
     def timer_loop(self):
         while self.running:
             time.sleep(1)
-            container_alive = self.is_container_running()
+            status = self.get_container_status()
 
-            if not container_alive:
+            if status == "paused":
+                if self.state != "paused":
+                    self.state = "paused"
+                    self.remaining_seconds = 0
+                    self.write_state()
+                continue
+
+            if status != "running":
                 if self.state != "stopped":
                     self.state = "stopped"
                     self.remaining_seconds = self.base_timeout_seconds
@@ -180,7 +208,7 @@ class WinAppsDaemon:
                             mins = max(1, round(self.base_timeout_seconds / 60))
                             self.send_notification(
                                 "Windows Apps Closed",
-                                f"{mins}-minute idle countdown started. Container will stop when timer expires.",
+                                f"{mins}-minute idle countdown started. Container will pause when timer expires.",
                                 urgency="normal",
                             )
 
@@ -191,8 +219,8 @@ class WinAppsDaemon:
                         if self.remaining_seconds == WARN_TIMEOUT_SECONDS and not self.warn_sent:
                             self.warn_sent = True
                             self.send_notification(
-                                "Windows VM Shutdown Warning",
-                                "Only 5 minutes remaining before Windows container stops due to inactivity.",
+                                "Windows VM Pause Warning",
+                                "Only 5 minutes remaining before Windows container pauses due to inactivity.",
                                 urgency="critical",
                             )
 
@@ -200,7 +228,7 @@ class WinAppsDaemon:
                             self.write_state()
 
                         if self.remaining_seconds <= 0:
-                            self.stop_container()
+                            self.pause_container()
 
     def handle_command(self, cmd: str):
         cmd = cmd.strip()
@@ -265,6 +293,8 @@ class WinAppsDaemon:
                             self.write_state()
                     except ValueError:
                         pass
+            elif lower_cmd == "pause":
+                self.pause_container()
             elif lower_cmd == "stop":
                 self.stop_container()
 

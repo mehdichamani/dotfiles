@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Reboot (Clean VM & Host)
+Comment=Safely unpause and shut down Windows VM before rebooting Omarchy
+Exec=fish -c "/home/unreal/projects/winapps/setup.fish reboot"
+Icon=system-reboot
+Terminal=false
+Categories=System;Utility;
+Keywords=reboot;restart;vm;windows;winapps;system;
+StartupNotify=true
