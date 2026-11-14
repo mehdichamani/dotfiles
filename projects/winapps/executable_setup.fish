@@ -298,7 +298,7 @@ function vm_clean_exit
     if test "$cont_status" = "paused"
         _log_info "کانتینر معلق است، در حال خارج کردن از فریز..."
         docker unpause WinApps &>/dev/null
-        cont_status="running"
+        set cont_status "running"
     end
 
     if test "$cont_status" = "running"
