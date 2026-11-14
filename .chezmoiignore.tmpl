@@ -36,3 +36,7 @@ Documents/**
 *.sh
 *.sh.tmpl
 {{ end }}
+
+{{ if ne .deviceName "home" }}
+Downloads/Aria2
+{{ end }}
