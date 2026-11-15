@@ -188,12 +188,35 @@ def extract_cloud_target(vault_url: str, version: Optional[int], target_dir: Pat
         passphrase_cache["pass"] = passphrase
     return success
 
+def resolve_ssh_host(target: str) -> str:
+    """
+    Resolves host name using mesh_core.py and devices.toml if available.
+    For example, 's24' will probe and resolve to 's24-500' or fastest active route.
+    """
+    scripts_dir = Path.home() / ".config" / "scripts"
+    mesh_script = scripts_dir / "mesh_core.py"
+    if mesh_script.exists():
+        try:
+            cmd = [sys.executable, str(mesh_script), "resolve", target]
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            if res.returncode == 0:
+                data = json.loads(res.stdout)
+                route = data.get("route")
+                if route:
+                    return route
+        except Exception:
+            pass
+    return target
+
 def extract_remote_target(host: str, target_dir: Path) -> bool:
     """Extracts ~/.ssh from a live remote host over SSH without touching disk on remote."""
-    print(f"{CYAN}📡 Fetching ~/.ssh from live host '{host}' via SSH...{RESET}")
+    resolved_route = resolve_ssh_host(host)
+    route_display = f"'{host}' (via {resolved_route})" if resolved_route != host else f"'{host}'"
+    print(f"{CYAN}📡 Fetching ~/.ssh from live host {route_display} via SSH...{RESET}")
+
     # Run tar on remote and stream archive to stdout
     remote_cmd = "tar -cz -C \"$HOME/.ssh\" --exclude 'known_hosts*' ."
-    ssh_cmd = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=7", host, remote_cmd]
+    ssh_cmd = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=7", resolved_route, remote_cmd]
 
     try:
         proc = subprocess.Popen(ssh_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
