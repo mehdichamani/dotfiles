@@ -110,50 +110,76 @@ def decrypt_payload(ciphertext_bytes: bytes, target_dir: Path, passphrase: Optio
         return False
 
     with tempfile.NamedTemporaryFile("wb", delete=False) as enc_file, \
-         tempfile.NamedTemporaryFile("wb", delete=False) as tar_file:
+         tempfile.NamedTemporaryFile("wb", delete=False) as dec_file:
         enc_path = enc_file.name
-        tar_path = tar_file.name
+        dec_path = dec_file.name
         enc_file.write(ciphertext_bytes)
 
     try:
+        # Match exact flags used by get.sh / send.sh:
+        # openssl enc -d -aes-256-cbc -pbkdf2 -salt -pass pass:"$PASSPHRASE"
         cmd_decrypt = [
             "openssl", "enc", "-d", "-aes-256-cbc",
-            "-pbkdf2", "-iter", "100000",
+            "-pbkdf2", "-salt",
             "-in", enc_path,
-            "-out", tar_path,
+            "-out", dec_path,
             "-pass", f"pass:{passphrase}"
         ]
         res = subprocess.run(cmd_decrypt, capture_output=True)
         if res.returncode != 0:
-            print(f"{RED}❌ Decryption failed. Incorrect passphrase or corrupted payload.{RESET}", file=sys.stderr)
-            return False
+            # Fallback attempt without -salt or with older defaults if needed
+            fallback_cmd = [
+                "openssl", "enc", "-d", "-aes-256-cbc",
+                "-pbkdf2",
+                "-in", enc_path,
+                "-out", dec_path,
+                "-pass", f"pass:{passphrase}"
+            ]
+            res = subprocess.run(fallback_cmd, capture_output=True)
+            if res.returncode != 0:
+                print(f"{RED}❌ Decryption failed. Incorrect passphrase or corrupted payload.{RESET}", file=sys.stderr)
+                return False
 
-        # Extract tar
-        cmd_untar = ["tar", "-xzf", tar_path, "-C", str(target_dir)]
-        res_tar = subprocess.run(cmd_untar, capture_output=True)
-        if res_tar.returncode != 0:
-            print(f"{RED}❌ Failed to unpack tar archive.{RESET}", file=sys.stderr)
-            return False
+        # Detect archive format (tar.gz, tar, zip)
+        dec_bytes = Path(dec_path).read_bytes()[:4]
+        if dec_bytes.startswith(b"\x1f\x8b"):
+            cmd_untar = ["tar", "-xzf", dec_path, "-C", str(target_dir)]
+            res_tar = subprocess.run(cmd_untar, capture_output=True)
+            if res_tar.returncode != 0:
+                print(f"{RED}❌ Failed to unpack tar.gz archive.{RESET}", file=sys.stderr)
+                return False
+        elif dec_bytes.startswith(b"PK\x03\x04"):
+            shutil.unpack_archive(dec_path, str(target_dir), "zip")
+        else:
+            cmd_untar = ["tar", "-xf", dec_path, "-C", str(target_dir)]
+            res_tar = subprocess.run(cmd_untar, capture_output=True)
+            if res_tar.returncode != 0:
+                print(f"{RED}❌ Failed to unpack tar archive.{RESET}", file=sys.stderr)
+                return False
 
-        # If archive contains a nested .ssh or ssh folder, normalize it
-        nested_ssh = target_dir / ".ssh"
-        if nested_ssh.is_dir():
-            for item in nested_ssh.iterdir():
-                dest = target_dir / item.name
-                if dest.exists():
-                    if dest.is_dir():
-                        shutil.rmtree(dest)
-                    else:
-                        dest.unlink()
-                shutil.move(str(item), str(target_dir))
-            nested_ssh.rmdir()
+        # Normalize directory: handle nested 'ssh' or '.ssh' directories created by send.sh
+        for sub in ("ssh", ".ssh"):
+            nested = target_dir / sub
+            if nested.is_dir():
+                for item in nested.iterdir():
+                    dest = target_dir / item.name
+                    if dest.exists():
+                        if dest.is_dir():
+                            shutil.rmtree(dest)
+                        else:
+                            dest.unlink()
+                    shutil.move(str(item), str(target_dir))
+                nested.rmdir()
 
         return True
+    except Exception as e:
+        print(f"{RED}❌ Extraction error: {e}{RESET}", file=sys.stderr)
+        return False
     finally:
         if os.path.exists(enc_path):
             os.unlink(enc_path)
-        if os.path.exists(tar_path):
-            os.unlink(tar_path)
+        if os.path.exists(dec_path):
+            os.unlink(dec_path)
 
 def extract_cloud_target(vault_url: str, version: Optional[int], target_dir: Path, passphrase_cache: dict) -> bool:
     """Downloads encrypted vault from cloud and unpacks it."""
