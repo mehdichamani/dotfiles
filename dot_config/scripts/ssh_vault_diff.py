@@ -41,9 +41,24 @@ IGNORE_PATTERNS = {
     "authorized_keys.old",
 }
 
-def load_vault_url() -> str:
-    """Reads VAULT_URL from ~/.ssh/secrets/cf-ssh-sync.env if present."""
+def get_current_host_name() -> str:
+    """Reads current host name from ~/.config/name or platform fallback."""
+    name_file = Path.home() / ".config" / "name"
+    if name_file.exists():
+        try:
+            val = name_file.read_text(encoding="utf-8").strip()
+            if val:
+                return val
+        except Exception:
+            pass
+    import socket
+    return socket.gethostname().split(".")[0]
+
+def load_vault_config() -> Tuple[str, Optional[str]]:
+    """Reads VAULT_URL and optional SYNC_TOKEN from ~/.ssh/secrets/cf-ssh-sync.env."""
     env_file = Path.home() / ".ssh" / "secrets" / "cf-ssh-sync.env"
+    vault_url = "https://ssh.ajbv.ir"
+    sync_token = None
     if env_file.exists():
         try:
             for line in env_file.read_text(encoding="utf-8").splitlines():
@@ -51,10 +66,14 @@ def load_vault_url() -> str:
                 if line.startswith("VAULT_URL="):
                     val = line.split("=", 1)[1].strip().strip('"').strip("'")
                     if val:
-                        return val
+                        vault_url = val
+                elif line.startswith("SYNC_TOKEN="):
+                    val = line.split("=", 1)[1].strip().strip('"').strip("'")
+                    if val:
+                        sync_token = val
         except Exception:
             pass
-    return "https://ssh.ajbv.ir"
+    return vault_url, sync_token
 
 def should_ignore(rel_path: str) -> bool:
     name = Path(rel_path).name
@@ -274,7 +293,10 @@ def parse_target(target_str: str, default_is_local: bool = False) -> Tuple[str, 
       ('remote:<host>', None)
     """
     s = target_str.strip()
-    if s in ("local", "self", "me", "home") and (s != "home" or default_is_local):
+    current_host = get_current_host_name()
+
+    # If user explicitly asks for current host name (e.g. 'work' when running on work), or 'local', 'self', '.'
+    if s in ("local", "self", "me", ".", "") or (s == current_host and default_is_local):
         return ("local", None)
     if s == "cloud" or s == "vault":
         return ("cloud", None)
@@ -283,12 +305,179 @@ def parse_target(target_str: str, default_is_local: bool = False) -> Tuple[str, 
         return ("cloud", v)
     if s.startswith("v") and s[1:].isdigit():
         return ("cloud", int(s[1:]))
-    if s == "." or s == "":
-        return ("local", None)
     return (f"remote:{s}", None)
 
-def compare_directories(left_name: str, left_dir: Path, right_name: str, right_dir: Path, interactive_diff: bool = False):
-    """Compares two extracted directories and displays summary & diffs."""
+def apply_permissions(ssh_dir: Path):
+    """Applies strict security permissions (700 for directories, 600 for secrets/keys, 644 for pub)."""
+    try:
+        ssh_dir.chmod(0o700)
+        for root, dirs, files in os.walk(ssh_dir):
+            for d in dirs:
+                (Path(root) / d).chmod(0o700)
+            for f in files:
+                p = Path(root) / f
+                if p.suffix == ".pub":
+                    p.chmod(0o644)
+                else:
+                    p.chmod(0o600)
+    except Exception as e:
+        print(f"{YELLOW}⚠️ Notice applying permissions: {e}{RESET}")
+
+def restore_cloud_to_local(cloud_dir: Path):
+    """Restores/merges extracted cloud vault into local ~/.ssh."""
+    local_ssh = Path.home() / ".ssh"
+    print(f"\n{BOLD}{CYAN}📥 Restoring Cloud Vault to local {local_ssh}...{RESET}")
+
+    # Copy files
+    for item in cloud_dir.iterdir():
+        if should_ignore(item.name):
+            continue
+        dest = local_ssh / item.name
+        if item.is_dir():
+            shutil.copytree(str(item), str(dest), dirs_exist_ok=True)
+        else:
+            shutil.copy2(str(item), str(dest))
+
+    apply_permissions(local_ssh)
+    print(f"{GREEN}✔ Successfully restored vault files into {local_ssh} and applied strict permissions (700/600).{RESET}\n")
+
+def upload_local_to_cloud(vault_url: str, sync_token: Optional[str], passphrase_cache: dict) -> bool:
+    """Encrypts local ~/.ssh and uploads payload to Cloudflare KV."""
+    local_ssh = Path.home() / ".ssh"
+    if not local_ssh.is_dir():
+        print(f"{RED}❌ Local directory {local_ssh} does not exist.{RESET}", file=sys.stderr)
+        return False
+
+    passphrase = passphrase_cache.get("pass")
+    if not passphrase:
+        try:
+            passphrase = getpass.getpass(f"{CYAN}🔒 Enter encryption passphrase for uploading to cloud: {RESET}")
+        except (KeyboardInterrupt, EOFError):
+            print("\nAborted.")
+            return False
+
+    if not passphrase:
+        print(f"{RED}❌ Passphrase cannot be empty.{RESET}", file=sys.stderr)
+        return False
+
+    token = sync_token
+    if not token:
+        try:
+            token = getpass.getpass(f"{YELLOW}🔑 Enter SYNC_TOKEN (press Enter if not required): {RESET}").strip()
+        except (KeyboardInterrupt, EOFError):
+            print("\nAborted.")
+            return False
+
+    print(f"\n{BOLD}{CYAN}🚀 Archiving & encrypting ~/.ssh with AES-256-CBC...{RESET}")
+    with tempfile.TemporaryDirectory(prefix="ssh_upload_") as temp_stage:
+        stage_ssh = Path(temp_stage) / "ssh"
+        stage_ssh.mkdir(parents=True, exist_ok=True)
+
+        # Copy local .ssh excluding known_hosts
+        for item in local_ssh.iterdir():
+            if should_ignore(item.name):
+                continue
+            dest = stage_ssh / item.name
+            if item.is_dir():
+                shutil.copytree(str(item), str(dest), dirs_exist_ok=True)
+            else:
+                shutil.copy2(str(item), str(dest))
+
+        enc_path = Path(temp_stage) / "payload.enc"
+
+        # tar -> openssl enc
+        tar_cmd = ["tar", "--exclude=.git", "--exclude=known_hosts*", "-C", temp_stage, "-czf", "-", "."]
+        enc_cmd = [
+            "openssl", "enc", "-aes-256-cbc", "-pbkdf2", "-salt",
+            "-pass", f"pass:{passphrase}",
+            "-out", str(enc_path)
+        ]
+
+        try:
+            p_tar = subprocess.Popen(tar_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            p_enc = subprocess.Popen(enc_cmd, stdin=p_tar.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            p_tar.stdout.close()
+            _, enc_err = p_enc.communicate()
+            _, tar_err = p_tar.communicate()
+
+            if p_tar.returncode != 0 or p_enc.returncode != 0:
+                print(f"{RED}❌ Encryption failed: {enc_err.decode().strip() or tar_err.decode().strip()}{RESET}")
+                return False
+
+            payload_bytes = enc_path.read_bytes()
+            upload_url = f"{vault_url.rstrip('/')}/data"
+            if token:
+                import urllib.parse
+                upload_url += f"?token={urllib.parse.quote(token)}"
+
+            headers = {"Content-Type": "application/octet-stream"}
+            if token:
+                headers["X-Sync-Token"] = token
+
+            print(f"{CYAN}🌐 Uploading encrypted payload to {vault_url}...{RESET}")
+            req = urllib.request.Request(upload_url, data=payload_bytes, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                if resp.status in (200, 201):
+                    print(f"{GREEN}✔ Successfully uploaded encrypted vault payload to Cloudflare KV!{RESET}\n")
+                    return True
+                else:
+                    print(f"{RED}❌ Upload returned HTTP {resp.status}{RESET}")
+                    return False
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                print(f"{RED}❌ Unauthorized (401): Invalid or missing SYNC_TOKEN.{RESET}")
+            else:
+                print(f"{RED}❌ HTTP Error {e.code}: {e.reason}{RESET}")
+            return False
+        except Exception as e:
+            print(f"{RED}❌ Upload error: {e}{RESET}")
+            return False
+
+def prompt_sync_action(
+    left_kind: str,
+    left_name: str,
+    left_dir: Path,
+    right_kind: str,
+    right_name: str,
+    right_dir: Path,
+    vault_url: str,
+    sync_token: Optional[str],
+    passphrase_cache: dict
+):
+    """Offers interactive synchronization options between local and cloud when applicable."""
+    is_local_cloud = (left_kind == "local" and right_kind == "cloud") or (left_kind == "cloud" and right_kind == "local")
+    if not is_local_cloud or not sys.stdout.isatty():
+        return
+
+    local_side = "left" if left_kind == "local" else "right"
+    cloud_dir = right_dir if local_side == "left" else left_dir
+
+    print(f"\n{BOLD}⚡ Available Actions:{RESET}")
+    print(f"  {CYAN}[1]{RESET} Send from local to cloud  (Encrypt & Push local ~/.ssh to Cloud Vault)")
+    print(f"  {CYAN}[2]{RESET} Get from cloud to local   (Restore Cloud Vault into local ~/.ssh)")
+    print(f"  {DIM}[q]{RESET} Quit / No action")
+
+    try:
+        choice = input(f"\n{BOLD}Select an action [1/2/q] (default: q): {RESET}").strip().lower()
+    except (KeyboardInterrupt, EOFError):
+        print("")
+        return
+
+    if choice == "1":
+        confirm = input(f"{YELLOW}⚠️  Are you sure you want to overwrite Cloud Vault with local ~/.ssh? [y/N]: {RESET}").strip().lower()
+        if confirm in ("y", "yes"):
+            upload_local_to_cloud(vault_url, sync_token, passphrase_cache)
+        else:
+            print("Cancelled.")
+    elif choice == "2":
+        confirm = input(f"{YELLOW}⚠️  Are you sure you want to restore Cloud Vault to local ~/.ssh? [y/N]: {RESET}").strip().lower()
+        if confirm in ("y", "yes"):
+            restore_cloud_to_local(cloud_dir)
+        else:
+            print("Cancelled.")
+
+def compare_directories(left_name: str, left_dir: Path, right_name: str, right_dir: Path, interactive_diff: bool = False) -> bool:
+    """Compares two extracted directories and displays summary & diffs. Returns True if identical."""
     left_files = get_dir_file_hashes(left_dir)
     right_files = get_dir_file_hashes(right_dir)
 
@@ -386,7 +575,8 @@ Examples:
     parser.add_argument("-l", "--history", action="store_true", help="List cloud snapshot history versions and exit")
 
     args = parser.parse_args()
-    vault_url = load_vault_url()
+    vault_url, sync_token = load_vault_config()
+    current_host = get_current_host_name()
 
     # Mode 1: List Cloud Snapshot History
     if args.history:
@@ -440,9 +630,9 @@ Examples:
         # Resolve target 1
         name1 = t1_str
         if k1 == "local":
-            name1 = "local (home)"
+            name1 = f"local ({current_host})"
             local_ssh = Path.home() / ".ssh"
-            # Copy or reference local files
+            # Reference local files
             dir1 = local_ssh
         elif k1 == "cloud":
             name1 = f"cloud (v{v1})" if v1 else "cloud (latest)"
@@ -457,7 +647,7 @@ Examples:
         # Resolve target 2
         name2 = t2_str
         if k2 == "local":
-            name2 = "local (home)"
+            name2 = f"local ({current_host})"
             local_ssh = Path.home() / ".ssh"
             dir2 = local_ssh
         elif k2 == "cloud":
@@ -472,6 +662,13 @@ Examples:
 
         # Perform comparison
         compare_directories(name1, dir1, name2, dir2, interactive_diff=args.diff)
+
+        # Offer interactive sync actions when applicable
+        prompt_sync_action(
+            k1, name1, dir1,
+            k2, name2, dir2,
+            vault_url, sync_token, passphrase_cache
+        )
 
 if __name__ == "__main__":
     try:
