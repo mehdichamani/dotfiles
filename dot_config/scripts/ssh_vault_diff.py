@@ -410,7 +410,10 @@ def upload_local_to_cloud(vault_url: str, sync_token: Optional[str], passphrase_
                 import urllib.parse
                 upload_url += f"?token={urllib.parse.quote(token)}"
 
-            headers = {"Content-Type": "application/octet-stream"}
+            headers = {
+                "Content-Type": "application/octet-stream",
+                "User-Agent": "Mozilla/5.0 (cf-ssh-sync/client)",
+            }
             if token:
                 headers["X-Sync-Token"] = token
 
