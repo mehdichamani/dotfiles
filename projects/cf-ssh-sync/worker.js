@@ -13,20 +13,31 @@
 
 export default {
   async fetch(request, env, ctx) {
-    const url = new URL(request.url);
-    const pathname = url.pathname;
-    const origin = url.origin;
+    try {
+      const url = new URL(request.url);
+      const pathname = url.pathname;
+      const origin = url.origin;
 
-    // Helper to validate Sync Token if configured on worker
-    const validateToken = (req) => {
-      const serverToken = env.SYNC_TOKEN;
-      if (!serverToken) {
-        // If no token configured in worker secrets, allow for backward compatibility
-        return true;
+      // Handle common bot / browser probes gracefully
+      if (pathname === '/favicon.ico') {
+        return new Response(null, { status: 204 });
       }
-      const clientToken = url.searchParams.get('token') || req.headers.get('X-Sync-Token');
-      return clientToken && clientToken === serverToken;
-    };
+      if (pathname === '/robots.txt') {
+        return new Response('User-agent: *\nDisallow: /\n', {
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+        });
+      }
+
+      // Helper to validate Sync Token if configured on worker
+      const validateToken = (req) => {
+        const serverToken = env.SYNC_TOKEN;
+        if (!serverToken) {
+          // If no token configured in worker secrets, allow for backward compatibility
+          return true;
+        }
+        const clientToken = url.searchParams.get('token') || req.headers.get('X-Sync-Token');
+        return clientToken && clientToken === serverToken;
+      };
 
     // 1. GET /send.sh (Requires token if SYNC_TOKEN is set)
     if (pathname === '/send.sh') {
@@ -1575,5 +1586,17 @@ DEPLOYMENT INSTRUCTIONS:
         headers: { 'Content-Type': 'text/html; charset=utf-8' },
       });
     }
-  },
+
+    // 8. Default fallback for unmatched routes
+    return new Response('404 Not Found: The requested endpoint does not exist.\n', {
+      status: 404,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    });
+  } catch (error) {
+    return new Response(`500 Internal Server Error: ${error.message || error}\n`, {
+      status: 500,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    });
+  }
+},
 };
