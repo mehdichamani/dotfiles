@@ -165,29 +165,6 @@ Panel {
           fontSize: Style.bar.iconFont
           color: root.isError ? root.urgent : ((root.cycleDay > 0 || root.isMounted) ? root.foreground : root.dim)
         }
-
-        BorderSurface {
-          visible: root.cycleDay > 0
-          width: Math.max(10, badgeText.implicitWidth + Style.space(3))
-          height: 10
-          radius: height / 2
-          color: (root.bar && root.bar.accent) ? root.bar.accent : Color.accent
-          anchors.right: parent.right
-          anchors.top: parent.top
-          anchors.topMargin: -Style.space(2)
-          anchors.rightMargin: -Style.space(4)
-          borderSpec: Border.none
-
-          Text {
-            id: badgeText
-            anchors.centerIn: parent
-            text: String(root.cycleDay)
-            color: Color.background
-            font.family: root.fontFamily
-            font.pixelSize: 7
-            font.bold: true
-          }
-        }
       }
     }
 
