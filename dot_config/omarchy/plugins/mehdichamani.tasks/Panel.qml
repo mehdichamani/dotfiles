@@ -154,50 +154,45 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: root.barSize
 
-  BarIconButton {
+  WidgetButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: "󰄲"
+    text: ""
+    labelVisible: false
+    hasVisualContent: true
+    fixedWidth: root.taskCount > 0 ? (contentRow.implicitWidth + Style.space(12)) : Style.bar.iconSlot
+    fixedHeight: root.barSize
     useActiveColor: false
     tooltipText: root.taskCount > 0 ?
                  root.taskCount + " pending task" + (root.taskCount > 1 ? "s" : "") + " (Todoist · S24 & Watch Synced)" :
                  "Todoist (Synced with S24 & Watch)"
 
-    iconComponent: Component {
-      Item {
-        anchors.fill: parent
+    Row {
+      id: contentRow
+      anchors.centerIn: parent
+      spacing: Style.space(4)
+      scale: button.pressScale
 
-        OpticalGlyph {
-          anchors.fill: parent
-          text: "󰄲"
-          fontFamily: root.fontFamily
-          fontSize: Style.bar.iconFont
-          color: root.taskCount > 0 ? root.foreground : root.dim
-        }
+      OpticalGlyph {
+        anchors.verticalCenter: parent.verticalCenter
+        width: Style.bar.iconCanvas
+        height: Style.bar.iconCanvas
+        paintedSize: Style.bar.iconSize
+        text: "󰄲"
+        fontFamily: root.fontFamily
+        fontSize: Style.bar.iconFont
+        color: root.taskCount > 0 ? root.foreground : root.dim
+      }
 
-        BorderSurface {
-          visible: root.taskCount > 0
-          width: Math.max(10, badgeText.implicitWidth + Style.space(3))
-          height: 10
-          radius: height / 2
-          color: (root.bar && root.bar.accent) ? root.bar.accent : Color.accent
-          anchors.right: parent.right
-          anchors.top: parent.top
-          anchors.topMargin: -Style.space(2)
-          anchors.rightMargin: -Style.space(4)
-          borderSpec: Border.none
-
-          Text {
-            id: badgeText
-            anchors.centerIn: parent
-            text: String(root.taskCount)
-            color: Color.background
-            font.family: root.fontFamily
-            font.pixelSize: 7
-            font.bold: true
-          }
-        }
+      Text {
+        visible: root.taskCount > 0
+        anchors.verticalCenter: parent.verticalCenter
+        text: String(root.taskCount)
+        font.family: root.fontFamily
+        font.pixelSize: Style.bar.iconFont
+        font.bold: true
+        color: root.foreground
       }
     }
 
