@@ -15,6 +15,10 @@ trigger: always_on
 - **محیط:** Omarchy Linux (`arch` based), Hyprland (کانفیگ در `dot_config/hypr/`), ترمینال پیش‌فرض WezTerm (`dot_wezterm.lua`).
 - **ابزارها:** Chezmoi (`~/.local/share/chezmoi`), Mise, UFW.
 - **پروکسی:** وضعیت در `~/.config/proxy_state` با اسکریپت `dot_config/scripts/proxy.sh`.
+- **پروتکل مدیریت پروکسی و خطاهای شبکه ایجنت:**
+  - هنگام اجرای دستورات وابسته به شبکه (مانند `git`, `curl`, `npm`, `pnpm`, `uv`, `yay`, `pacman`) در صورت وقوع خطای اتصال (Timeout, Connection refused, 403 Forbidden, SSL error یا تحریم):
+    1. ایجنت موظف است وضعیت زنده سلامت و اینترنت پروکسی‌ها را با `proxy check --json` یا `proxy check` بسنجد.
+    2. به نزدیک‌ترین پروکسی سالم با سوئیچ سریع `proxy next` (یا مستقیماً با نام مستعار مثل `proxy firefox` یا `proxy pattn`) تغییر مسیر داده و دستور را مجدداً تکرار کند.
 - **دسترسی Sudo برای ایجنت:** کاربر دسترسی کامل دارد، اما برای ایجنت خودکار نیست. در صورت نیاز به روت، از کاربر بخواهید دستور زیر را اجرا کند:
   `omarchy sudo passwordless 30`
 

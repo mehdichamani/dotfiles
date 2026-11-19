@@ -65,9 +65,130 @@ except Exception:
 " 2>/dev/null
 }
 
+_proxy_check_all() {
+    local json_output=0
+    if [ "$1" = "--json" ] || [ "$2" = "--json" ]; then
+        json_output=1
+    fi
+
+    # Pass presets into python to perform concurrent latency and connectivity tests
+    python3 -c "
+import urllib.request, time, json, sys
+from concurrent.futures import ThreadPoolExecutor
+
+presets = [
+$([ -n "$_proxy_default_presets" ] && for p in "${_proxy_default_presets[@]}"; do echo "    \"$p\","; done)
+]
+
+def test_preset(entry):
+    parts = entry.split('|')
+    url = parts[0]
+    desc = parts[1] if len(parts) > 1 else ''
+    proxy_handler_url = url.replace('socks5h://', 'socks5://')
+    handler = urllib.request.ProxyHandler({'http': proxy_handler_url, 'https': proxy_handler_url})
+    opener = urllib.request.build_opener(handler)
+    start = time.time()
+    ok = False
+    latency = None
+    try:
+        req = urllib.request.Request('https://cp.cloudflare.com/', headers={'User-Agent': 'curl/8.0'})
+        with opener.open(req, timeout=1.8) as resp:
+            if resp.status in (200, 204):
+                ok = True
+                latency = int((time.time() - start) * 1000)
+    except Exception:
+        pass
+    return {'url': url, 'desc': desc, 'ok': ok, 'latency': latency}
+
+with ThreadPoolExecutor(max_workers=len(presets) or 1) as ex:
+    results = list(ex.map(test_preset, presets))
+
+if $json_output == 1:
+    print(json.dumps(results, indent=2))
+else:
+    c_cyan = '\033[36m'
+    c_green = '\033[32m'
+    c_red = '\033[31m'
+    c_dim = '\033[90m'
+    c_reset = '\033[0m'
+
+    print(f'{c_cyan}=== Proxy Live Health & Latency Check ==={c_reset}\n')
+    print(f'  {c_dim}{'#':<3} {'Status':<8} {'Latency':<9} {'Description':<26} {'URL'}{c_reset}')
+    print(f'  {c_dim}{'-'*3} {'-'*8} {'-'*9} {'-'*26} {'-'*28}{c_reset}')
+    for idx, r in enumerate(results, 1):
+        if r['ok']:
+            status = f'{c_green}● PASS{c_reset}'
+            lat = f'{c_green}{r[\"latency\"]} ms{c_reset}'
+        else:
+            status = f'{c_red}✗ FAIL{c_reset}'
+            lat = f'{c_dim}---{c_reset}'
+        print(f'  [{idx}] {status:<17} {lat:<18} {r[\"desc\"]:<26} {c_dim}-> {r[\"url\"]}{c_reset}')
+    print('')
+"
+}
+
+_proxy_rotate_next() {
+    # Find the next healthy proxy and switch to it
+    local next_target
+    next_target=$(python3 -c "
+import urllib.request, json, sys, os
+from concurrent.futures import ThreadPoolExecutor
+
+presets = [
+$([ -n "$_proxy_default_presets" ] && for p in "${_proxy_default_presets[@]}"; do echo "    \"$p\","; done)
+]
+
+# Read current proxy
+current = os.environ.get('http_proxy') or os.environ.get('HTTP_PROXY') or ''
+state_file = os.path.expanduser('$_proxy_state_file')
+if not current and os.path.isfile(state_file):
+    try:
+        with open(state_file) as f:
+            current = f.read().strip()
+    except Exception:
+        pass
+
+def test_preset(entry):
+    url = entry.split('|')[0]
+    proxy_handler_url = url.replace('socks5h://', 'socks5://')
+    handler = urllib.request.ProxyHandler({'http': proxy_handler_url, 'https': proxy_handler_url})
+    opener = urllib.request.build_opener(handler)
+    try:
+        req = urllib.request.Request('https://cp.cloudflare.com/', headers={'User-Agent': 'curl/8.0'})
+        with opener.open(req, timeout=1.8) as resp:
+            if resp.status in (200, 204):
+                return (url, True)
+    except Exception:
+        pass
+    return (url, False)
+
+with ThreadPoolExecutor(max_workers=len(presets) or 1) as ex:
+    tested = list(ex.map(test_preset, presets))
+
+working = [u for u, ok in tested if ok]
+if not working:
+    sys.exit(1)
+
+# Pick next working proxy that is NOT current
+candidates = [u for u in working if u != current]
+if candidates:
+    print(candidates[0])
+else:
+    print(working[0])
+" 2>/dev/null)
+
+    if [ -n "$next_target" ]; then
+        echo "$next_target"
+        return 0
+    fi
+    return 1
+}
+
 _proxy_help() {
     printf "${_proxy_c_cyan}Usage:${_proxy_c_reset}\n"
-    printf "  proxy [URL|PORT]            Set proxy for CLI (Shell, NPM, Git) [Default]\n"
+    printf "  proxy [URL|PORT|ALIAS]      Set proxy for CLI (Shell, NPM, Git) [Default]\n"
+    printf "  proxy check [--json]        Test all proxies for real internet connectivity & latency\n"
+    printf "  proxy next [flags]          Auto-switch to the next healthy working proxy\n"
     printf "  proxy --gui [URL|PORT]      Set proxy for GUI (GSettings / Desktop apps)\n"
     printf "  proxy --systemd [URL|PORT]  Set proxy for systemd (Docker daemon & system services)\n"
     printf "  proxy --all [URL|PORT]      Set proxy for All (CLI + GUI + systemd + APT)\n"
@@ -85,6 +206,10 @@ _proxy_help() {
     printf "  -s, --systemd, --system     Target systemd (Docker daemon & system services)\n"
     printf "  -a, --all                   Target All (CLI + GUI + systemd + APT)\n\n"
     printf "${_proxy_c_cyan}Examples:${_proxy_c_reset}\n"
+    printf "  proxy check                 -> Test internet connection through all proxies\n"
+    printf "  proxy next                  -> Auto-switch to next healthy proxy\n"
+    printf "  proxy pattn                 -> Set to PattN (http://localhost:10808)\n"
+    printf "  proxy firefox               -> Set to FirefoxVPN (http://localhost:10810)\n"
     printf "  proxy 3067                  -> CLI (Shell, NPM, Git): http://localhost:3067\n"
     printf "  proxy --gui 3067            -> GUI (GSettings): 127.0.0.1:3067\n"
     printf "  proxy --all 3067            -> All: http://localhost:3067\n"
@@ -520,6 +645,10 @@ proxy() {
     local is_status=0
     local target_arg=""
 
+    local is_check=0
+    local is_check_json=0
+    local is_next=0
+
     for arg in "$@"; do
         case "$arg" in
             -h|--help|help)
@@ -537,6 +666,15 @@ proxy() {
                 target_gui=1
                 target_systemd=1
                 ;;
+            check|test)
+                is_check=1
+                ;;
+            --json)
+                is_check_json=1
+                ;;
+            next|rotate)
+                is_next=1
+                ;;
             off|clear|disable)
                 is_off=1
                 ;;
@@ -549,6 +687,15 @@ proxy() {
         esac
     done
 
+    if [ "$is_check" -eq 1 ]; then
+        if [ "$is_check_json" -eq 1 ]; then
+            _proxy_check_all --json
+        else
+            _proxy_check_all
+        fi
+        return $?
+    fi
+
     # Default to CLI if no specific target flag was passed in non-interactive invocation
     if [ "$target_cli" -eq 0 ] && [ "$target_gui" -eq 0 ] && [ "$target_systemd" -eq 0 ]; then
         target_cli=1
@@ -556,6 +703,28 @@ proxy() {
 
     if [ "$is_status" -eq 1 ]; then
         _proxy_status
+        return 0
+    fi
+
+    if [ "$is_next" -eq 1 ]; then
+        printf "${_proxy_c_cyan}Finding next healthy proxy...${_proxy_c_reset}\n"
+        local next_p
+        next_p=$(_proxy_rotate_next)
+        if [ -z "$next_p" ]; then
+            printf "${_proxy_c_red}✗ No healthy working proxies found!${_proxy_c_reset}\n"
+            return 1
+        fi
+        printf "${_proxy_c_green}● Switching to healthy proxy -> %s${_proxy_c_reset}\n" "$next_p"
+        if [ "$target_cli" -eq 1 ]; then
+            _proxy_cli_set "$next_p"
+        fi
+        if [ "$target_gui" -eq 1 ]; then
+            _proxy_gui_set "$next_p"
+        fi
+        if [ "$target_systemd" -eq 1 ]; then
+            _proxy_systemd_services_set "$next_p"
+            _proxy_apt_set "$next_p"
+        fi
         return 0
     fi
 
