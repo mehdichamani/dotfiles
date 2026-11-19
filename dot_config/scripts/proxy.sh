@@ -5,11 +5,13 @@
 # ==============================================================================
 
 _proxy_default_presets=(
-    "http://localhost:10808"
-    "http://localhost:3067"
-    "socks5h://127.0.0.1:10808"
-    "socks5h://127.0.0.1:3067"
-    "http://192.168.0.101:10808"
+    "http://localhost:10808|PattN (Xray / v2ray)"
+    "http://localhost:10810|FirefoxVPN (Arman Core)"
+    "http://localhost:3067|Karing (3067)"
+    "socks5h://127.0.0.1:10808|PattN SOCKS5"
+    "socks5h://127.0.0.1:10810|FirefoxVPN SOCKS5"
+    "socks5h://127.0.0.1:3067|Karing SOCKS5 (3067)"
+    "http://192.168.0.101:10808|Phone LAN (S24 Ultra)"
 )
 _proxy_default_no_proxy="localhost,127.0.0.1,::1,localaddress,.local,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12"
 _proxy_state_file="$HOME/.config/proxy_state"
@@ -25,7 +27,43 @@ _proxy_c_green="\033[32m"
 _proxy_c_yellow="\033[33m"
 _proxy_c_red="\033[31m"
 _proxy_c_blue="\033[34m"
+_proxy_c_dim="\033[90m"
+_proxy_c_bold="\033[1m"
 _proxy_c_reset="\033[0m"
+
+_proxy_preset_url() {
+    local entry="$1"
+    echo "${entry%%|*}"
+}
+
+_proxy_preset_desc() {
+    local entry="$1"
+    if [[ "$entry" == *"|"* ]]; then
+        echo "${entry#*|}"
+    else
+        echo ""
+    fi
+}
+
+_proxy_is_port_open() {
+    local host="$1"
+    local port="$2"
+    if command -v nc >/dev/null 2>&1; then
+        nc -z -w 1 "$host" "$port" >/dev/null 2>&1
+        return $?
+    fi
+    python3 -c "
+import socket, sys
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.settimeout(0.1)
+try:
+    s.connect(('$host', int('$port')))
+    s.close()
+    sys.exit(0)
+except Exception:
+    sys.exit(1)
+" 2>/dev/null
+}
 
 _proxy_help() {
     printf "${_proxy_c_cyan}Usage:${_proxy_c_reset}\n"
@@ -64,6 +102,22 @@ _proxy_normalize() {
     if [ -z "$val" ]; then
         return 1
     fi
+
+    # Aliases
+    case "${val,,}" in
+        pattn|xray|v2ray)
+            echo "http://localhost:10808"
+            return 0
+            ;;
+        firefox|firefoxvpn|arman)
+            echo "http://localhost:10810"
+            return 0
+            ;;
+        phone|s24|mobile)
+            echo "http://192.168.0.101:10808"
+            return 0
+            ;;
+    esac
 
     # Upgrade socks:// or socks5:// to socks5h://
     if echo "$val" | grep -qE '^socks(5)?://'; then
@@ -578,8 +632,27 @@ proxy() {
     printf "\n${_proxy_c_cyan}Select Proxy Preset or Action:${_proxy_c_reset}\n"
     printf "  [0] Turn proxy OFF\n"
     local idx=1
-    for preset in "${_proxy_default_presets[@]}"; do
-        printf "  [%d] %s\n" "$idx" "$preset"
+    for preset_entry in "${_proxy_default_presets[@]}"; do
+        local p_url
+        local p_desc
+        p_url="$(_proxy_preset_url "$preset_entry")"
+        p_desc="$(_proxy_preset_desc "$preset_entry")"
+
+        # Check live status of the preset port
+        local p_scheme p_host p_port
+        read -r p_scheme p_host p_port < <(_proxy_parse_url "$p_url")
+        local p_status_badge="${_proxy_c_dim}○ off${_proxy_c_reset}"
+        if [ -n "$p_host" ] && [ -n "$p_port" ]; then
+            if _proxy_is_port_open "$p_host" "$p_port"; then
+                p_status_badge="${_proxy_c_green}● on ${_proxy_c_reset}"
+            fi
+        fi
+
+        if [ -n "$p_desc" ]; then
+            printf "  [%d] %b %-26s ${_proxy_c_dim}-> %s${_proxy_c_reset}\n" "$idx" "$p_status_badge" "$p_desc" "$p_url"
+        else
+            printf "  [%d] %b %s\n" "$idx" "$p_status_badge" "$p_url"
+        fi
         idx=$((idx + 1))
     done
     printf "  [c] Enter custom address / port\n"
@@ -611,7 +684,7 @@ proxy() {
             ;;
         c|custom)
             local custom_input
-            read -r -p "Enter proxy address or port (e.g. 3068, 127.0.0.1:3068, http://...): " custom_input
+            read -r -p "Enter proxy address, port, or alias (e.g. 10810, pattn, firefox): " custom_input
             if [ -n "$custom_input" ]; then
                 selected_target=$(_proxy_normalize "$custom_input")
             else
@@ -619,9 +692,13 @@ proxy() {
                 return 1
             fi
             ;;
-        1|2|3|4)
-            local arr_idx=$((choice - 1))
-            selected_target="${_proxy_default_presets[$arr_idx]}"
+        [1-9]|[1-9][0-9])
+            if [ "$choice" -ge 1 ] && [ "$choice" -le "${#_proxy_default_presets[@]}" ]; then
+                local arr_idx=$((choice - 1))
+                selected_target="$(_proxy_preset_url "${_proxy_default_presets[$arr_idx]}")"
+            else
+                selected_target=$(_proxy_normalize "$choice")
+            fi
             ;;
         *)
             selected_target=$(_proxy_normalize "$choice")
@@ -666,7 +743,7 @@ withproxy() {
     fi
 
     if [ -z "$target_p" ]; then
-        target_p="${_proxy_default_presets[0]}"
+        target_p="$(_proxy_preset_url "${_proxy_default_presets[0]}")"
     fi
 
     local git_ssh_cmd=""
