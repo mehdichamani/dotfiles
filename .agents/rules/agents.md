@@ -8,10 +8,9 @@ trigger: always_on
 - **تشخیص محیط فعلی:** منحصراً از روی مقدار `~/.config/name` (مانند `home`, `work`, `s24`).
 - **دستگاه‌ها و مشخصات:** تعریف‌شده در `~/.ssh/devices.toml` و `~/.ssh/config`.
 - **اولویت شل:**
-  - لینوکس (`home`) و اندروید (`s24`): منحصراً **Fish**. (سوئیچ به Bash فقط در صورت اجبار قطعی).
-  - ویندوز (`work`): منحصراً **PowerShell 7 (`pwsh`)** (محیط ویندوز فعلاً معلق است).
+  - لینوکس (`home` و `work`) و اندروید (`s24`): منحصراً **Fish**. (سوئیچ به Bash فقط در صورت اجبار قطعی).
 
-## 🖥️ پلتفرم اصلی (`home` - Omarchy Linux)
+## 🖥️ پلتفرم اصلی (`home` و `work` - Omarchy Linux)
 - **محیط:** Omarchy Linux (`arch` based), Hyprland (کانفیگ در `dot_config/hypr/`), ترمینال پیش‌فرض WezTerm (`dot_wezterm.lua`).
 - **ابزارها:** Chezmoi (`~/.local/share/chezmoi`), Mise, UFW.
 - **پروکسی:** وضعیت در `~/.config/proxy_state` با اسکریپت `dot_config/scripts/proxy.sh`.
