@@ -36,8 +36,8 @@ function sm {
             Write-Host "Usage: sm <subcommand> [options]" -ForegroundColor Yellow
             Write-Host ""
             Write-Host "Subcommands:"
-            Write-Host "  sync [<peer>] [-n]  P2P Mesh sync ~/.ssh with peer device(s)"
-            Write-Host "  push | send         Encrypt and push local ~/.ssh & secrets to Cloud Vault"
+            Write-Host "  sync [<peer>] [-n|-m]  P2P Mesh sync ~/.ssh with peer(s) (-m: push & mirror)"
+            Write-Host "  push | send            Encrypt and push local ~/.ssh & secrets to Cloud Vault"
             Write-Host "  pull | get [-v N]   Download, diff and pull Cloud Vault snapshot into local ~/.ssh"
             Write-Host "  diff [t1] [t2]      Compare ~/.ssh between local, cloud snapshots, or peer hosts"
             Write-Host "  status              Quick dirty check of local files against latest Cloud Vault"

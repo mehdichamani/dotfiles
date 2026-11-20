@@ -18,6 +18,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shlex
 import shutil
 import socket
 import subprocess
@@ -444,8 +445,17 @@ def fetch_history(vault_url: str) -> List[dict]:
         return []
 
 
-def compare_directories(left_name: str, left_dir: Path, right_name: str, right_dir: Path, interactive_diff: bool = False) -> bool:
-    """Compares two extracted directories and displays summary & diffs. Returns True if identical."""
+def compare_directories(
+    left_name: str,
+    left_dir: Path,
+    right_name: str,
+    right_dir: Path,
+    interactive_diff: bool = False
+) -> Tuple[bool, Dict[str, List[str]]]:
+    """
+    Compares two extracted directories and displays summary & diffs.
+    Returns (is_identical, diff_summary_dict).
+    """
     left_files = get_dir_file_hashes(left_dir)
     right_files = get_dir_file_hashes(right_dir)
 
@@ -470,13 +480,20 @@ def compare_directories(left_name: str, left_dir: Path, right_name: str, right_d
         else:
             only_right.append(k)
 
+    diff_summary = {
+        "synced": synced,
+        "modified": modified,
+        "only_left": only_left,
+        "only_right": only_right,
+    }
+
     print(f"\n{BOLD}{'=' * 65}{RESET}")
     print(f"{BOLD}📊 Comparison Summary: {CYAN}{left_name}{RESET} {BOLD}vs{RESET} {CYAN}{right_name}{RESET}")
     print(f"{BOLD}{'=' * 65}{RESET}\n")
 
     if not modified and not only_left and not only_right:
         print(f"  {GREEN}✔ 100% IDENTICAL - Both sides match completely ({len(synced)} files).{RESET}\n")
-        return True
+        return True, diff_summary
 
     print(f"  {GREEN}● Synced (Identical):{RESET}   {len(synced)}")
     print(f"  {YELLOW}● Modified (Changed):{RESET}   {len(modified)}")
@@ -520,7 +537,7 @@ def compare_directories(left_name: str, left_dir: Path, right_name: str, right_d
                 cmd = ["git", "diff", "--no-index", "--color=always", str(l_file), str(r_file)]
                 subprocess.run(cmd)
 
-    return False
+    return False, diff_summary
 
 
 def parse_target(target_str: str, default_is_local: bool = False) -> Tuple[str, Optional[int]]:
@@ -579,7 +596,7 @@ def cmd_pull(args: argparse.Namespace) -> int:
         if not extract_cloud_target(vault_url, ver, stage_dir, passphrase_cache):
             return 1
 
-        is_identical = compare_directories(f"local ({current_host})", local_ssh, f"cloud ({ver_label})", stage_dir, interactive_diff=args.diff)
+        is_identical, _ = compare_directories(f"local ({current_host})", local_ssh, f"cloud ({ver_label})", stage_dir, interactive_diff=args.diff)
 
         if is_identical:
             print(f"{GREEN}✔ Local ~/.ssh is already completely up to date with cloud ({ver_label}).{RESET}")
@@ -603,7 +620,12 @@ def cmd_pull(args: argparse.Namespace) -> int:
         return 0
 
 
-def sync_peer_p2p(peer: str, dry_run: bool = False, interactive_diff: bool = False) -> bool:
+def sync_peer_p2p(
+    peer: str,
+    dry_run: bool = False,
+    interactive_diff: bool = False,
+    mirror_mode: bool = False,
+) -> bool:
     """Syncs ~/.ssh with a specific live peer device over SSH."""
     current_host = get_current_host_name()
     local_ssh = Path.home() / ".ssh"
@@ -615,7 +637,13 @@ def sync_peer_p2p(peer: str, dry_run: bool = False, interactive_diff: bool = Fal
         if not extract_remote_target(peer, remote_stage):
             return False
 
-        is_identical = compare_directories(f"local ({current_host})", local_ssh, f"peer:{peer}", remote_stage, interactive_diff=interactive_diff)
+        is_identical, diff_summary = compare_directories(
+            f"local ({current_host})",
+            local_ssh,
+            f"peer:{peer}",
+            remote_stage,
+            interactive_diff=interactive_diff,
+        )
 
         if is_identical:
             print(f"{GREEN}✔ Local ~/.ssh and peer '{peer}' are already identical.{RESET}\n")
@@ -625,13 +653,27 @@ def sync_peer_p2p(peer: str, dry_run: bool = False, interactive_diff: bool = Fal
             print(f"{YELLOW}Dry-run: changes between local and {peer} displayed above.{RESET}\n")
             return True
 
+        only_remote_files = diff_summary.get("only_right", [])
+
+        # Direct mirror push via CLI flag --mirror
+        if mirror_mode:
+            return execute_peer_push(peer, local_ssh, only_remote_files, mirror=True)
+
         print(f"\n{BOLD}⚡ P2P Sync Options for {peer}:{RESET}")
         print(f"  {CYAN}[1]{RESET} Pull: Update local ~/.ssh from {peer}")
-        print(f"  {CYAN}[2]{RESET} Push: Update remote {peer} from local ~/.ssh")
+        print(f"  {CYAN}[2]{RESET} Push: Update remote {peer} from local ~/.ssh (additive)")
+        if only_remote_files:
+            print(f"  {MAGENTA}[3]{RESET} Push & Mirror: Overwrite and delete {len(only_remote_files)} extra file(s) on {peer}")
         print(f"  {DIM}[q]{RESET} Skip / No action")
 
+        valid_choices = ["1", "2", "q"]
+        prompt_choices = "1/2/q"
+        if only_remote_files:
+            valid_choices.append("3")
+            prompt_choices = "1/2/3/q"
+
         try:
-            choice = input(f"\n{BOLD}Select sync action with {peer} [1/2/q] (default: q): {RESET}").strip().lower()
+            choice = input(f"\n{BOLD}Select sync action with {peer} [{prompt_choices}] (default: q): {RESET}").strip().lower()
         except (KeyboardInterrupt, EOFError):
             print("")
             return True
@@ -645,25 +687,65 @@ def sync_peer_p2p(peer: str, dry_run: bool = False, interactive_diff: bool = Fal
         elif choice == "2":
             confirm = input(f"{YELLOW}⚠️  Push local ~/.ssh to overwrite files on '{peer}'? [y/N]: {RESET}").strip().lower()
             if confirm in ("y", "yes"):
-                resolved = resolve_ssh_host(peer)
-                print(f"{CYAN}🚀 Streaming local ~/.ssh to remote {peer} ({resolved})...{RESET}")
-                tar_cmd = ["tar", "-cz", "--exclude=known_hosts*", "-C", str(local_ssh), "."]
-                remote_cmd = 'tar -xz -C "$HOME/.ssh"'
-                ssh_cmd = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", resolved, remote_cmd]
-                try:
-                    p1 = subprocess.Popen(tar_cmd, stdout=subprocess.PIPE)
-                    p2 = subprocess.Popen(ssh_cmd, stdin=p1.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    p1.stdout.close()
-                    out, err = p2.communicate()
-                    if p2.returncode == 0:
-                        print(f"{GREEN}✔ Successfully synced local ~/.ssh to peer '{peer}'!{RESET}\n")
-                    else:
-                        print(f"{RED}❌ Push to peer '{peer}' failed: {err.decode().strip()}{RESET}\n")
-                except Exception as e:
-                    print(f"{RED}❌ Sync push error: {e}{RESET}\n")
+                execute_peer_push(peer, local_ssh, only_remote_files, mirror=False)
+            else:
+                print("Cancelled.")
+        elif choice == "3" and only_remote_files:
+            print(f"\n{MAGENTA}{BOLD}Files to be deleted on '{peer}':{RESET}")
+            for f in only_remote_files:
+                print(f"  {RED}✖  {f}{RESET}")
+            confirm = input(f"{RED}{BOLD}⚠️  Are you sure you want to PUSH & MIRROR (this deletes {len(only_remote_files)} file(s) on '{peer}')? [y/N]: {RESET}").strip().lower()
+            if confirm in ("y", "yes"):
+                execute_peer_push(peer, local_ssh, only_remote_files, mirror=True)
             else:
                 print("Cancelled.")
         return True
+
+
+def execute_peer_push(peer: str, local_ssh: Path, prune_files: List[str], mirror: bool = False) -> bool:
+    """Streams local files to remote peer and optionally deletes extra files on remote."""
+    resolved = resolve_ssh_host(peer)
+    action_label = "Push & Mirror" if mirror else "Push"
+    print(f"{CYAN}🚀 Streaming local ~/.ssh to remote {peer} ({resolved}) [{action_label}]...{RESET}")
+
+    tar_cmd = ["tar", "-cz", "--exclude=known_hosts*", "-C", str(local_ssh), "."]
+    remote_cmd = 'tar -xz -C "$HOME/.ssh"'
+    ssh_cmd = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", resolved, remote_cmd]
+
+    try:
+        p1 = subprocess.Popen(tar_cmd, stdout=subprocess.PIPE)
+        p2 = subprocess.Popen(ssh_cmd, stdin=p1.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        p1.stdout.close()
+        _, err = p2.communicate()
+        if p2.returncode != 0:
+            print(f"{RED}❌ Push to peer '{peer}' failed: {err.decode().strip()}{RESET}\n")
+            return False
+
+        if mirror and prune_files:
+            print(f"{MAGENTA}🧹 Pruning {len(prune_files)} extra file(s) on remote '{peer}'...{RESET}")
+            quoted_files = " ".join(shlex.quote(f) for f in prune_files)
+            dirs = sorted(
+                list(set(str(Path(f).parent) for f in prune_files if "/" in f)),
+                key=lambda x: len(x),
+                reverse=True,
+            )
+            rm_dirs = " && ".join(f"rmdir -p {shlex.quote(d)} 2>/dev/null || true" for d in dirs)
+            prune_cmd = f'cd "$HOME/.ssh" && rm -f {quoted_files}'
+            if rm_dirs:
+                prune_cmd += f" && {rm_dirs}"
+
+            del_ssh = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", resolved, prune_cmd]
+            res_del = subprocess.run(del_ssh, capture_output=True, text=True)
+            if res_del.returncode == 0:
+                print(f"{GREEN}✔ Extra files deleted on '{peer}'.{RESET}")
+            else:
+                print(f"{YELLOW}⚠️ Notice during file deletion on '{peer}': {res_del.stderr.strip()}{RESET}")
+
+        print(f"{GREEN}✔ Successfully synced local ~/.ssh to peer '{peer}'!{RESET}\n")
+        return True
+    except Exception as e:
+        print(f"{RED}❌ Sync push error: {e}{RESET}\n")
+        return False
 
 
 def cmd_sync(args: argparse.Namespace) -> int:
@@ -691,7 +773,12 @@ def cmd_sync(args: argparse.Namespace) -> int:
 
     overall_success = True
     for peer in target_peers:
-        ok = sync_peer_p2p(peer, dry_run=args.dry_run, interactive_diff=args.diff)
+        ok = sync_peer_p2p(
+            peer,
+            dry_run=args.dry_run,
+            interactive_diff=args.diff,
+            mirror_mode=getattr(args, "mirror", False),
+        )
         if not ok:
             overall_success = False
 
@@ -844,6 +931,7 @@ def main():
     p_sync.add_argument("peer", nargs="?", default="", help="Specific peer host (e.g. s24, work) or empty for all mesh peers")
     p_sync.add_argument("-n", "--dry-run", action="store_true", help="Preview differences without writing")
     p_sync.add_argument("-d", "--diff", action="store_true", help="Show detailed line-by-line diff directly")
+    p_sync.add_argument("-m", "--mirror", action="store_true", help="Directly push and mirror (delete files on peer that do not exist locally)")
 
     # diff
     p_diff = subparsers.add_parser("diff", help="Compare ~/.ssh between local, cloud snapshots, or peer devices")

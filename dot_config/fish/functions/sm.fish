@@ -8,8 +8,8 @@ function sm --description 'Unified SSH & Secrets Vault Manager'
             echo -e "\033[1;33mUsage:\033[0m sm <subcommand> [options]"
             echo ""
             echo "Subcommands:"
-            echo "  sync [<peer>] [-n]  P2P Mesh sync ~/.ssh with peer device(s) (s24, work, winvm)"
-            echo "  push | send         Encrypt and push local ~/.ssh & secrets to Cloud Vault"
+            echo "  sync [<peer>] [-n|-m]  P2P Mesh sync ~/.ssh with peer(s) (-m: push & mirror)"
+            echo "  push | send            Encrypt and push local ~/.ssh & secrets to Cloud Vault"
             echo "  pull | get [-v N]   Download, diff and pull Cloud Vault snapshot into local ~/.ssh"
             echo "  diff [t1] [t2]      Compare ~/.ssh between local, cloud snapshots, or peer hosts"
             echo "  status              Quick dirty check of local files against latest Cloud Vault"
@@ -54,6 +54,7 @@ complete -c sm -n '__fish_is_first_token' -a "history" -d "List cloud snapshot v
 
 # Flags for push/pull/sync/diff
 complete -c sm -n '__fish_seen_subcommand_from sync pull get diff' -s n -l dry-run -d "Preview changes without applying"
+complete -c sm -n '__fish_seen_subcommand_from sync' -s m -l mirror -d "Push and mirror (delete extra files on peer)"
 complete -c sm -n '__fish_seen_subcommand_from pull get diff' -s v -l version -d "Cloud snapshot version number (1 to 5)"
 complete -c sm -n '__fish_seen_subcommand_from pull get sync diff' -s d -l diff -d "Show detailed line diff"
 complete -c sm -n '__fish_seen_subcommand_from pull get' -s y -l yes -d "Apply changes without confirmation prompt"
