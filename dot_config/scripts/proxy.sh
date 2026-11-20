@@ -5,13 +5,17 @@
 # ==============================================================================
 
 _proxy_default_presets=(
-    "http://localhost:10808|PattN (Xray / v2ray)"
-    "http://localhost:10810|FirefoxVPN (Arman Core)"
-    "http://localhost:3067|Karing (3067)"
+    "http://localhost:10808|PattN"
     "socks5h://127.0.0.1:10808|PattN SOCKS5"
+    "http://localhost:10810|FirefoxVPN"
     "socks5h://127.0.0.1:10810|FirefoxVPN SOCKS5"
-    "socks5h://127.0.0.1:3067|Karing SOCKS5 (3067)"
-    "http://192.168.0.101:10808|Phone LAN (S24 Ultra)"
+    "http://localhost:12334|Hiddify"
+    "socks5h://127.0.0.1:12334|Hiddify SOCKS5"
+    "http://localhost:3067|Karing"
+    "socks5h://127.0.0.1:3067|Karing SOCKS5"
+    "http://192.168.0.101:10808|S24 HomeLAN"
+    "http://192.168.1.101:10808|S24 WorkFiber"
+    "http://172.20.0.101:10808|S24 WorkPishgaman"
 )
 _proxy_default_no_proxy="localhost,127.0.0.1,::1,localaddress,.local,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12"
 _proxy_state_file="$HOME/.config/proxy_state"
@@ -71,9 +75,9 @@ _proxy_check_all() {
         json_output=1
     fi
 
-    # Pass presets into python to perform concurrent latency and connectivity tests
+    # Pass presets into python to perform concurrent port check and health/connectivity tests
     python3 -c "
-import urllib.request, time, json, sys
+import urllib.request, time, json, sys, socket
 from concurrent.futures import ThreadPoolExecutor
 
 presets = [
@@ -84,21 +88,51 @@ def test_preset(entry):
     parts = entry.split('|')
     url = parts[0]
     desc = parts[1] if len(parts) > 1 else ''
-    proxy_handler_url = url.replace('socks5h://', 'socks5://')
-    handler = urllib.request.ProxyHandler({'http': proxy_handler_url, 'https': proxy_handler_url})
-    opener = urllib.request.build_opener(handler)
-    start = time.time()
-    ok = False
-    latency = None
+
+    # Parse host & port
+    raw_host_port = url.split('://', 1)[-1].split('/')[0]
+    if ':' in raw_host_port:
+        host, port_str = raw_host_port.rsplit(':', 1)
+        port = int(port_str)
+    else:
+        host, port = raw_host_port, 8080
+
+    # 1. Port Open Check
+    port_open = False
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(0.2)
     try:
-        req = urllib.request.Request('https://cp.cloudflare.com/', headers={'User-Agent': 'curl/8.0'})
-        with opener.open(req, timeout=1.8) as resp:
-            if resp.status in (200, 204):
-                ok = True
-                latency = int((time.time() - start) * 1000)
+        s.connect((host, port))
+        s.close()
+        port_open = True
     except Exception:
         pass
-    return {'url': url, 'desc': desc, 'ok': ok, 'latency': latency}
+
+    # 2. Internet / Health Check
+    internet_ok = False
+    latency = None
+    if port_open:
+        proxy_handler_url = url.replace('socks5h://', 'socks5://')
+        handler = urllib.request.ProxyHandler({'http': proxy_handler_url, 'https': proxy_handler_url})
+        opener = urllib.request.build_opener(handler)
+        start = time.time()
+        try:
+            req = urllib.request.Request('https://cp.cloudflare.com/', headers={'User-Agent': 'curl/8.0'})
+            with opener.open(req, timeout=1.8) as resp:
+                if resp.status in (200, 204):
+                    internet_ok = True
+                    latency = int((time.time() - start) * 1000)
+        except Exception:
+            pass
+
+    return {
+        'url': url,
+        'desc': desc,
+        'port_open': port_open,
+        'internet_ok': internet_ok,
+        'ok': internet_ok,
+        'latency': latency
+    }
 
 with ThreadPoolExecutor(max_workers=len(presets) or 1) as ex:
     results = list(ex.map(test_preset, presets))
@@ -113,16 +147,25 @@ else:
     c_reset = '\033[0m'
 
     print(f'{c_cyan}=== Proxy Live Health & Latency Check ==={c_reset}\n')
-    print(f'  {c_dim}{'#':<3} {'Status':<8} {'Latency':<9} {'Description':<26} {'URL'}{c_reset}')
-    print(f'  {c_dim}{'-'*3} {'-'*8} {'-'*9} {'-'*26} {'-'*28}{c_reset}')
+    print(f'  {c_dim}{\"#\":<3} {\"Port\":<8} {\"Net\":<8} {\"Latency\":<9} {\"Description\":<20} {\"URL\"}{c_reset}')
+    print(f'  {c_dim}{\"-\"*3} {\"-\"*8} {\"-\"*8} {\"-\"*9} {\"-\"*20} {\"-\"*28}{c_reset}')
     for idx, r in enumerate(results, 1):
-        if r['ok']:
-            status = f'{c_green}● PASS{c_reset}'
-            lat = f'{c_green}{r[\"latency\"]} ms{c_reset}'
+        if r['port_open']:
+            p_badge = f'{c_green}● OPEN{c_reset}'
         else:
-            status = f'{c_red}✗ FAIL{c_reset}'
+            p_badge = f'{c_dim}○ DOWN{c_reset}'
+
+        if r['internet_ok']:
+            n_badge = f'{c_green}● PASS{c_reset}'
+            lat = f'{c_green}{r[\"latency\"]} ms{c_reset}'
+        elif r['port_open']:
+            n_badge = f'{c_red}✗ FAIL{c_reset}'
             lat = f'{c_dim}---{c_reset}'
-        print(f'  [{idx}] {status:<17} {lat:<18} {r[\"desc\"]:<26} {c_dim}-> {r[\"url\"]}{c_reset}')
+        else:
+            n_badge = f'{c_dim}---{c_reset}'
+            lat = f'{c_dim}---{c_reset}'
+
+        print(f'  [{idx}] {p_badge:<17} {n_badge:<17} {lat:<18} {r[\"desc\"]:<20} {c_dim}-> {r[\"url\"]}{c_reset}')
     print('')
 "
 }
@@ -800,30 +843,65 @@ proxy() {
 
     printf "\n${_proxy_c_cyan}Select Proxy Preset or Action:${_proxy_c_reset}\n"
     printf "  [0] Turn proxy OFF\n"
-    local idx=1
-    for preset_entry in "${_proxy_default_presets[@]}"; do
-        local p_url
-        local p_desc
-        p_url="$(_proxy_preset_url "$preset_entry")"
-        p_desc="$(_proxy_preset_desc "$preset_entry")"
 
-        # Check live status of the preset port
-        local p_scheme p_host p_port
-        read -r p_scheme p_host p_port < <(_proxy_parse_url "$p_url")
-        local p_status_badge="${_proxy_c_dim}○ off${_proxy_c_reset}"
-        if [ -n "$p_host" ] && [ -n "$p_port" ]; then
-            if _proxy_is_port_open "$p_host" "$p_port"; then
-                p_status_badge="${_proxy_c_green}● on ${_proxy_c_reset}"
-            fi
-        fi
+    # Concurrently check port status and internet connectivity for interactive menu
+    python3 -c "
+import urllib.request, socket, sys
+from concurrent.futures import ThreadPoolExecutor
 
-        if [ -n "$p_desc" ]; then
-            printf "  [%d] %b %-26s ${_proxy_c_dim}-> %s${_proxy_c_reset}\n" "$idx" "$p_status_badge" "$p_desc" "$p_url"
-        else
-            printf "  [%d] %b %s\n" "$idx" "$p_status_badge" "$p_url"
-        fi
-        idx=$((idx + 1))
-    done
+presets = [
+$([ -n "$_proxy_default_presets" ] && for p in "${_proxy_default_presets[@]}"; do echo "    \"$p\","; done)
+]
+
+def check(entry):
+    parts = entry.split('|')
+    url = parts[0]
+    desc = parts[1] if len(parts) > 1 else ''
+    raw = url.split('://', 1)[-1].split('/')[0]
+    host, port_str = raw.rsplit(':', 1) if ':' in raw else (raw, '8080')
+    port = int(port_str)
+
+    port_open = False
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(0.15)
+    try:
+        s.connect((host, port))
+        s.close()
+        port_open = True
+    except Exception:
+        pass
+
+    net_ok = False
+    if port_open:
+        p_url = url.replace('socks5h://', 'socks5://')
+        h = urllib.request.ProxyHandler({'http': p_url, 'https': p_url})
+        op = urllib.request.build_opener(h)
+        try:
+            req = urllib.request.Request('https://cp.cloudflare.com/', headers={'User-Agent': 'curl/8.0'})
+            with op.open(req, timeout=1.2) as r:
+                if r.status in (200, 204):
+                    net_ok = True
+        except Exception:
+            pass
+    return (desc, url, port_open, net_ok)
+
+with ThreadPoolExecutor(max_workers=len(presets) or 1) as ex:
+    results = list(ex.map(check, presets))
+
+c_green = '\033[32m'
+c_red = '\033[31m'
+c_dim = '\033[90m'
+c_reset = '\033[0m'
+
+for idx, (desc, url, port_open, net_ok) in enumerate(results, 1):
+    p_dot = f'{c_green}●{c_reset}' if port_open else f'{c_dim}○{c_reset}'
+    n_dot = f'{c_green}●{c_reset}' if net_ok else (f'{c_red}✗{c_reset}' if port_open else f'{c_dim}○{c_reset}')
+    badge = f'{p_dot} port {n_dot} net'
+    if desc:
+        print(f'  [{idx}] {badge}  {desc:<18} {c_dim}-> {url}{c_reset}')
+    else:
+        print(f'  [{idx}] {badge}  {url}')
+"
     printf "  [c] Enter custom address / port\n"
     printf "  [q] Cancel / Quit\n\n"
 
