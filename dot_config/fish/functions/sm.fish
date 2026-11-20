@@ -10,14 +10,13 @@ function sm --description 'Unified SSH & Secrets Vault Manager'
             echo "Subcommands:"
             echo "  sync [<peer>] [-n|-m]  P2P Mesh sync ~/.ssh with peer(s) (-m: push & mirror)"
             echo "  push | send            Encrypt and push local ~/.ssh & secrets to Cloud Vault"
-            echo "  pull | get [-v N]   Download, diff and pull Cloud Vault snapshot into local ~/.ssh"
-            echo "  diff [t1] [t2]      Compare ~/.ssh between local, cloud snapshots, or peer hosts"
-            echo "  status              Quick dirty check of local files against latest Cloud Vault"
-            echo "  history             List available snapshot versions stored in Cloud Vault"
-            echo "  -h, --help          Show this help message"
+            echo "  pull | get [-v N]      Download, diff and pull Cloud Vault snapshot into local ~/.ssh"
+            echo "  status                 Quick dirty check of local files against latest Cloud Vault"
+            echo "  history                List available snapshot versions stored in Cloud Vault"
+            echo "  -h, --help             Show this help message"
             return 0
 
-        case sync push send pull get diff status history
+        case sync push send pull get status history
             set -l script_path "$HOME/.config/scripts/ssh_vault_core.py"
             if not test -f "$script_path"
                 set script_path "$HOME/.local/share/chezmoi/dot_config/scripts/ssh_vault_core.py"
@@ -48,18 +47,15 @@ complete -c sm -n '__fish_is_first_token' -a "push" -d "Push and encrypt local v
 complete -c sm -n '__fish_is_first_token' -a "send" -d "Alias for push"
 complete -c sm -n '__fish_is_first_token' -a "pull" -d "Pull and decrypt Cloud vault to local"
 complete -c sm -n '__fish_is_first_token' -a "get" -d "Alias for pull"
-complete -c sm -n '__fish_is_first_token' -a "diff" -d "Compare between local, cloud, or peers"
 complete -c sm -n '__fish_is_first_token' -a "status" -d "Check local status against cloud"
 complete -c sm -n '__fish_is_first_token' -a "history" -d "List cloud snapshot versions"
 
-# Flags for push/pull/sync/diff
-complete -c sm -n '__fish_seen_subcommand_from sync pull get diff' -s n -l dry-run -d "Preview changes without applying"
+# Flags for push/pull/sync
+complete -c sm -n '__fish_seen_subcommand_from sync pull get' -s n -l dry-run -d "Preview changes without applying"
 complete -c sm -n '__fish_seen_subcommand_from sync' -s m -l mirror -d "Push and mirror (delete extra files on peer)"
-complete -c sm -n '__fish_seen_subcommand_from pull get diff' -s v -l version -d "Cloud snapshot version number (1 to 5)"
-complete -c sm -n '__fish_seen_subcommand_from pull get sync diff' -s d -l diff -d "Show detailed line diff"
+complete -c sm -n '__fish_seen_subcommand_from pull get' -s v -l version -d "Cloud snapshot version number (1 to 5)"
+complete -c sm -n '__fish_seen_subcommand_from pull get sync' -s d -l diff -d "Show detailed line diff"
 complete -c sm -n '__fish_seen_subcommand_from pull get' -s y -l yes -d "Apply changes without confirmation prompt"
 
-# Targets completion for sync and diff
-set -l standard_targets "local\tCurrent local ~/.ssh" "cloud\tLatest Cloud Vault snapshot" "cloud:v1\tCloud Vault snapshot v1" "cloud:v2\tCloud Vault snapshot v2"
-complete -c sm -n '__fish_seen_subcommand_from diff' -a "$standard_targets"
-complete -c sm -n '__fish_seen_subcommand_from diff sync' -a '(python3 ~/.config/scripts/mesh_core.py complete 2>/dev/null)' -d "Peer Node"
+# Targets completion for sync
+complete -c sm -n '__fish_seen_subcommand_from sync' -a '(python3 ~/.config/scripts/mesh_core.py complete 2>/dev/null)' -d "Peer Node"

@@ -518,26 +518,57 @@ def compare_directories(
 
     print(f"\n{BOLD}{'=' * 65}{RESET}")
 
-    if interactive_diff or (modified and sys.stdout.isatty()):
-        prompt = f"\n{BOLD}🔍 View line-by-line diff for modified files? [y/N]: {RESET}"
-        if interactive_diff:
-            confirm = "y"
-        else:
-            try:
-                confirm = input(prompt).strip().lower()
-            except (KeyboardInterrupt, EOFError):
-                confirm = "n"
-
-        if confirm in ("y", "yes"):
-            for f in modified:
-                l_file = left_dir / f
-                r_file = right_dir / f
-                print(f"\n{CYAN}--- {left_name}/{f}{RESET}")
-                print(f"{CYAN}+++ {right_name}/{f}{RESET}")
-                cmd = ["git", "diff", "--no-index", "--color=always", str(l_file), str(r_file)]
-                subprocess.run(cmd)
+    if interactive_diff:
+        show_diff_details(left_name, left_dir, right_name, right_dir, diff_summary)
 
     return False, diff_summary
+
+
+def show_diff_details(
+    left_name: str,
+    left_dir: Path,
+    right_name: str,
+    right_dir: Path,
+    diff_summary: Dict[str, List[str]],
+):
+    """Displays detailed file-by-file contents and git diff for differences."""
+    modified = diff_summary.get("modified", [])
+    only_left = diff_summary.get("only_left", [])
+    only_right = diff_summary.get("only_right", [])
+
+    if not modified and not only_left and not only_right:
+        print(f"\n{GREEN}✔ No differences to display.{RESET}")
+        return
+
+    print(f"\n{BOLD}{'=' * 65}{RESET}")
+    print(f"{BOLD}🔍 Detailed Inspection: {CYAN}{left_name}{RESET} {BOLD}vs{RESET} {CYAN}{right_name}{RESET}")
+    print(f"{BOLD}{'=' * 65}{RESET}")
+
+    if modified:
+        print(f"\n{YELLOW}{BOLD}📝 Line-by-line Diff for Modified Files:{RESET}")
+        for f in modified:
+            l_file = left_dir / f
+            r_file = right_dir / f
+            print(f"\n{CYAN}--- {left_name}/{f}{RESET}")
+            print(f"{CYAN}+++ {right_name}/{f}{RESET}")
+            cmd = ["git", "diff", "--no-index", "--color=always", str(l_file), str(r_file)]
+            subprocess.run(cmd)
+
+    if only_left:
+        print(f"\n{MAGENTA}{BOLD}➕ Exists only in {left_name}:{RESET}")
+        for f in only_left:
+            l_file = left_dir / f
+            sz = l_file.stat().st_size if l_file.exists() else 0
+            print(f"  {MAGENTA}● {f}{RESET} ({sz:,} bytes)")
+
+    if only_right:
+        print(f"\n{CYAN}{BOLD}➕ Exists only in {right_name}:{RESET}")
+        for f in only_right:
+            r_file = right_dir / f
+            sz = r_file.stat().st_size if r_file.exists() else 0
+            print(f"  {CYAN}● {f}{RESET} ({sz:,} bytes)")
+
+    print(f"\n{BOLD}{'=' * 65}{RESET}\n")
 
 
 def parse_target(target_str: str, default_is_local: bool = False) -> Tuple[str, Optional[int]]:
@@ -659,46 +690,64 @@ def sync_peer_p2p(
         if mirror_mode:
             return execute_peer_push(peer, local_ssh, only_remote_files, mirror=True)
 
-        print(f"\n{BOLD}⚡ P2P Sync Options for {peer}:{RESET}")
-        print(f"  {CYAN}[1]{RESET} Pull: Update local ~/.ssh from {peer}")
-        print(f"  {CYAN}[2]{RESET} Push: Update remote {peer} from local ~/.ssh (additive)")
-        if only_remote_files:
-            print(f"  {MAGENTA}[3]{RESET} Push & Mirror: Overwrite and delete {len(only_remote_files)} extra file(s) on {peer}")
-        print(f"  {DIM}[q]{RESET} Skip / No action")
+        has_diff_details = bool(diff_summary.get("modified") or diff_summary.get("only_left") or only_remote_files)
 
-        valid_choices = ["1", "2", "q"]
-        prompt_choices = "1/2/q"
-        if only_remote_files:
-            valid_choices.append("3")
-            prompt_choices = "1/2/3/q"
+        while True:
+            print(f"\n{BOLD}⚡ P2P Sync Options for {peer}:{RESET}")
+            print(f"  {CYAN}[1]{RESET} Pull: Update local ~/.ssh from {peer}")
+            print(f"  {CYAN}[2]{RESET} Push: Update remote {peer} from local ~/.ssh (additive)")
+            if only_remote_files:
+                print(f"  {MAGENTA}[3]{RESET} Push & Mirror: Overwrite and delete {len(only_remote_files)} extra file(s) on {peer}")
+            if has_diff_details:
+                print(f"  {YELLOW}[d]{RESET} Details: Show full line-by-line diff and file breakdown")
+            print(f"  {DIM}[q]{RESET} Skip / No action")
 
-        try:
-            choice = input(f"\n{BOLD}Select sync action with {peer} [{prompt_choices}] (default: q): {RESET}").strip().lower()
-        except (KeyboardInterrupt, EOFError):
-            print("")
-            return True
+            options_list = ["1", "2"]
+            if only_remote_files:
+                options_list.append("3")
+            if has_diff_details:
+                options_list.append("d")
+            options_list.append("q")
+            prompt_choices = "/".join(options_list)
 
-        if choice == "1":
-            confirm = input(f"{YELLOW}⚠️  Overwrite local files with copies from '{peer}'? [y/N]: {RESET}").strip().lower()
-            if confirm in ("y", "yes"):
-                restore_cloud_to_local(remote_stage)
+            try:
+                choice = input(f"\n{BOLD}Select sync action with {peer} [{prompt_choices}] (default: q): {RESET}").strip().lower()
+            except (KeyboardInterrupt, EOFError):
+                print("")
+                return True
+
+            if choice in ("d", "diff", "details") and has_diff_details:
+                show_diff_details(f"local ({current_host})", local_ssh, f"peer:{peer}", remote_stage, diff_summary)
+                continue
+
+            if choice == "1":
+                confirm = input(f"{YELLOW}⚠️  Overwrite local files with copies from '{peer}'? [y/N]: {RESET}").strip().lower()
+                if confirm in ("y", "yes"):
+                    restore_cloud_to_local(remote_stage)
+                else:
+                    print("Cancelled.")
+                break
+            elif choice == "2":
+                confirm = input(f"{YELLOW}⚠️  Push local ~/.ssh to overwrite files on '{peer}'? [y/N]: {RESET}").strip().lower()
+                if confirm in ("y", "yes"):
+                    execute_peer_push(peer, local_ssh, only_remote_files, mirror=False)
+                else:
+                    print("Cancelled.")
+                break
+            elif choice == "3" and only_remote_files:
+                print(f"\n{MAGENTA}{BOLD}Files to be deleted on '{peer}':{RESET}")
+                for f in only_remote_files:
+                    print(f"  {RED}✖  {f}{RESET}")
+                confirm = input(f"{RED}{BOLD}⚠️  Are you sure you want to PUSH & MIRROR (this deletes {len(only_remote_files)} file(s) on '{peer}')? [y/N]: {RESET}").strip().lower()
+                if confirm in ("y", "yes"):
+                    execute_peer_push(peer, local_ssh, only_remote_files, mirror=True)
+                else:
+                    print("Cancelled.")
+                break
             else:
-                print("Cancelled.")
-        elif choice == "2":
-            confirm = input(f"{YELLOW}⚠️  Push local ~/.ssh to overwrite files on '{peer}'? [y/N]: {RESET}").strip().lower()
-            if confirm in ("y", "yes"):
-                execute_peer_push(peer, local_ssh, only_remote_files, mirror=False)
-            else:
-                print("Cancelled.")
-        elif choice == "3" and only_remote_files:
-            print(f"\n{MAGENTA}{BOLD}Files to be deleted on '{peer}':{RESET}")
-            for f in only_remote_files:
-                print(f"  {RED}✖  {f}{RESET}")
-            confirm = input(f"{RED}{BOLD}⚠️  Are you sure you want to PUSH & MIRROR (this deletes {len(only_remote_files)} file(s) on '{peer}')? [y/N]: {RESET}").strip().lower()
-            if confirm in ("y", "yes"):
-                execute_peer_push(peer, local_ssh, only_remote_files, mirror=True)
-            else:
-                print("Cancelled.")
+                # Quit or skip
+                break
+
         return True
 
 
@@ -785,72 +834,6 @@ def cmd_sync(args: argparse.Namespace) -> int:
     return 0 if overall_success else 1
 
 
-def cmd_diff(args: argparse.Namespace) -> int:
-    """Multi-way comparison between local, peers, and cloud snapshots."""
-    vault_url, sync_token = load_vault_config()
-    current_host = get_current_host_name()
-
-    t1_str = args.target1
-    t2_str = args.target2
-
-    if t2_str is None:
-        if t1_str == "local":
-            t2_str = f"cloud:v{args.version}" if args.version else "cloud"
-        elif t1_str.startswith("cloud"):
-            t2_str = "local"
-        else:
-            t2_str = f"cloud:v{args.version}" if args.version else "local"
-
-    k1, v1 = parse_target(t1_str, default_is_local=True)
-    k2, v2 = parse_target(t2_str, default_is_local=False)
-
-    if args.version:
-        if k1 == "cloud" and v1 is None:
-            v1 = args.version
-        if k2 == "cloud" and v2 is None:
-            v2 = args.version
-
-    with tempfile.TemporaryDirectory(prefix="ssh_diff_") as temp_base:
-        temp_path = Path(temp_base)
-        dir1 = temp_path / "target1"
-        dir2 = temp_path / "target2"
-        dir1.mkdir(parents=True, exist_ok=True)
-        dir2.mkdir(parents=True, exist_ok=True)
-
-        passphrase_cache = {}
-
-        name1 = t1_str
-        if k1 == "local":
-            name1 = f"local ({current_host})"
-            dir1 = Path.home() / ".ssh"
-        elif k1 == "cloud":
-            name1 = f"cloud (v{v1})" if v1 else "cloud (latest)"
-            if not extract_cloud_target(vault_url, v1, dir1, passphrase_cache):
-                return 1
-        elif k1.startswith("remote:"):
-            host = k1.split(":", 1)[1]
-            name1 = f"remote:{host}"
-            if not extract_remote_target(host, dir1):
-                return 1
-
-        name2 = t2_str
-        if k2 == "local":
-            name2 = f"local ({current_host})"
-            dir2 = Path.home() / ".ssh"
-        elif k2 == "cloud":
-            name2 = f"cloud (v{v2})" if v2 else "cloud (latest)"
-            if not extract_cloud_target(vault_url, v2, dir2, passphrase_cache):
-                return 1
-        elif k2.startswith("remote:"):
-            host = k2.split(":", 1)[1]
-            name2 = f"remote:{host}"
-            if not extract_remote_target(host, dir2):
-                return 1
-
-        compare_directories(name1, dir1, name2, dir2, interactive_diff=args.diff)
-        return 0
-
-
 def cmd_status(args: argparse.Namespace) -> int:
     """Quick dirty check of local files against latest Cloud Vault snapshot."""
     vault_url, _ = load_vault_config()
@@ -904,14 +887,14 @@ def cmd_history(args: argparse.Namespace) -> int:
         ts = h.get("timestamp", "-")
         sz = f"{h.get('size', 0):,} bytes"
         print(f"{BOLD}{ver_label:<8}{RESET} {ts:<28} {sz:<12}")
-    print("\n💡 Tip: Pull or diff any snapshot using: sm pull -v <num>  or  sm diff -v <num>")
+    print("\n💡 Tip: Pull any snapshot using: sm pull -v <num>")
     return 0
 
 
 def main():
     parser = argparse.ArgumentParser(
         prog="sm",
-        description="Unified SSH & Secrets Vault Manager (Mesh Sync, Cloud Push/Pull, Zero-Knowledge Diff)",
+        description="Unified SSH & Secrets Vault Manager (Mesh Sync, Cloud Push/Pull)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     subparsers = parser.add_subparsers(dest="subcommand", help="Subcommand to execute")
@@ -933,13 +916,6 @@ def main():
     p_sync.add_argument("-d", "--diff", action="store_true", help="Show detailed line-by-line diff directly")
     p_sync.add_argument("-m", "--mirror", action="store_true", help="Directly push and mirror (delete files on peer that do not exist locally)")
 
-    # diff
-    p_diff = subparsers.add_parser("diff", help="Compare ~/.ssh between local, cloud snapshots, or peer devices")
-    p_diff.add_argument("target1", nargs="?", default="local", help="First target (local, cloud, cloud:v1, or host name like s24)")
-    p_diff.add_argument("target2", nargs="?", default=None, help="Second target (default: cloud or local)")
-    p_diff.add_argument("-v", "--version", type=int, default=None, help="Cloud version number (1 to 5)")
-    p_diff.add_argument("-d", "--diff", action="store_true", help="Show line-by-line diff immediately")
-
     # status
     subparsers.add_parser("status", help="Quick dirty check of local files against latest Cloud Vault snapshot")
 
@@ -959,8 +935,6 @@ def main():
         return cmd_pull(args)
     elif sub == "sync":
         return cmd_sync(args)
-    elif sub == "diff":
-        return cmd_diff(args)
     elif sub == "status":
         return cmd_status(args)
     elif sub == "history":
