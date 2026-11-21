@@ -346,7 +346,9 @@ def upload_local_to_cloud(vault_url: str, sync_token: Optional[str], passphrase_
             return False
 
     print(f"\n{BOLD}{CYAN}🚀 Archiving & encrypting ~/.ssh with AES-256-CBC...{RESET}")
-    with tempfile.TemporaryDirectory(prefix="ssh_upload_") as temp_stage:
+    with tempfile.TemporaryDirectory(prefix="ssh_upload_") as temp_stage, \
+         tempfile.NamedTemporaryFile(prefix="payload_", suffix=".enc", delete=False) as enc_file:
+        enc_path = Path(enc_file.name)
         stage_ssh = Path(temp_stage) / "ssh"
         stage_ssh.mkdir(parents=True, exist_ok=True)
 
@@ -359,9 +361,7 @@ def upload_local_to_cloud(vault_url: str, sync_token: Optional[str], passphrase_
             else:
                 shutil.copy2(str(item), str(dest))
 
-        enc_path = Path(temp_stage) / "payload.enc"
-
-        tar_cmd = ["tar", "--exclude=.git", "--exclude=known_hosts*", "-C", temp_stage, "-czf", "-", "."]
+        tar_cmd = ["tar", "--warning=no-file-changed", "--exclude=.git", "--exclude=known_hosts*", "-C", temp_stage, "-czf", "-", "."]
         enc_cmd = [
             "openssl", "enc", "-aes-256-cbc", "-pbkdf2", "-salt",
             "-pass", f"pass:{passphrase}",
@@ -409,6 +409,9 @@ def upload_local_to_cloud(vault_url: str, sync_token: Optional[str], passphrase_
         except Exception as e:
             print(f"{RED}❌ Upload error: {e}{RESET}")
             return False
+        finally:
+            if enc_path.exists():
+                enc_path.unlink()
 
 
 def restore_cloud_to_local(cloud_dir: Path):
