@@ -494,21 +494,72 @@ def cmd_dotsync(args: argparse.Namespace) -> int:
             print(
                 f"\033[1;33m⚠️ Diverged history! Ahead: {ahead}, Behind: {behind}\033[0m"
             )
+            # Display single-line commit summaries for ahead / behind
+            if ahead > 0:
+                print(f"  \033[1;36mLocal commits (ahead {ahead}):\033[0m")
+                ahead_log = subprocess.run(
+                    [
+                        "git",
+                        "-C",
+                        str(repo_dir),
+                        "log",
+                        "--oneline",
+                        "--no-decorate",
+                        f"{remote_ref}..HEAD",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                ).stdout.strip()
+                for line in ahead_log.splitlines():
+                    print(f"    \033[1;32m+\033[0m {line}")
+
+            if behind > 0:
+                print(f"  \033[1;35mRemote commits on {peer_key} (behind {behind}):\033[0m")
+                behind_log = subprocess.run(
+                    [
+                        "git",
+                        "-C",
+                        str(repo_dir),
+                        "log",
+                        "--oneline",
+                        "--no-decorate",
+                        f"HEAD..{remote_ref}",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                ).stdout.strip()
+                for line in behind_log.splitlines():
+                    print(f"    \033[1;31m-\033[0m {line}")
+
             print("  [1] Rebase & Push")
             print("  [2] Push Force (overwrite remote)")
             print("  [3] Pull Force (overwrite local)")
             print("  [4] Abort (default)")
             choice = input("  Select action [1/2/3/4]: ").strip()
             if choice in ("1", "rebase"):
-                subprocess.run(
-                    ["git", "-C", str(repo_dir), "rebase", remote_ref],
-                    check=True,
+                rebase_res = subprocess.run(
+                    [
+                        "git",
+                        "-C",
+                        str(repo_dir),
+                        "rebase",
+                        "--autostash",
+                        remote_ref,
+                    ]
                 )
-                subprocess.run(
-                    ["git", "-C", str(repo_dir), "push", peer_key, branch],
-                    check=True,
+                if rebase_res.returncode != 0:
+                    print(
+                        f"  \033[1;31m❌ Rebase failed. Resolve conflicts or run 'git rebase --abort'.\033[0m"
+                    )
+                    continue
+
+                push_res = subprocess.run(
+                    ["git", "-C", str(repo_dir), "push", peer_key, branch]
                 )
-                print(f"  \033[1;32m✓ Rebase and sync complete.\033[0m")
+                if push_res.returncode == 0:
+                    print(f"  \033[1;32m✓ Rebase and sync complete.\033[0m")
             elif choice in ("2", "push"):
                 subprocess.run(
                     [
