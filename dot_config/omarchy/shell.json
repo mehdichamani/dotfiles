@@ -136,8 +136,8 @@
     "position": "bottom"
   },
   "idle": {
-    "lock": 300,
-    "screensaver": 150
+    "lock": 1800,
+    "screensaver": 600
   },
   "plugins": [
     {
