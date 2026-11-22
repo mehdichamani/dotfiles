@@ -67,5 +67,5 @@ if test -n "$TERMUX_VERSION"
     # Full Termux backup & restore (interactive selection & progress bar)
     abbr -a tbackup '~/.config/scripts/termux-backup-tool.sh backup'
     abbr -a trestore '~/.config/scripts/termux-backup-tool.sh restore'
-    alias wake-home='wol b4:2e:99:5b:ac:3c'
+    alias wake-home='~/.config/scripts/wake-home.sh'
 end
