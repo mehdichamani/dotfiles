@@ -24,12 +24,16 @@ function sc --description "Control and mirror Android device via scrcpy"
                 echo "  sc --apps               Select and launch installed app via fzf"
                 echo ""
                 echo -e "\033[1;33mOptions:\033[0m"
+                echo "  -q, --quiet                Keep audio playing on device (do not forward audio)"
                 echo "  -f, --stay, --foreground   Do not detach to background"
                 echo "  -h, --help                 Show this help message"
                 return 0
 
             case -f --stay --foreground
                 set foreground 1
+
+            case -q --quiet
+                set -a extra_args --no-audio
 
             case --off -off off
                 set mode "off"
@@ -120,4 +124,5 @@ complete -c sc -l off -d "Mirror with device screen turned off"
 complete -c sc -l dex -d "Virtual 1080p desktop display"
 complete -c sc -l apps -d "Select and launch app via fzf"
 complete -c sc -s f -l stay -l foreground -d "Run in foreground (keep terminal attached)"
+complete -c sc -s q -l quiet -d "Play audio on device (disable audio forwarding)"
 complete -c sc -s h -l help -d "Show help and usage"
