@@ -60,6 +60,11 @@ abbr -a aria2c 'aria2c -c -x 16 -s 16 -k 1M'
 
 
 
+# Remote Wake
+alias wk='~/.config/scripts/wk'
+
+
+
 # Termux
 if test -n "$TERMUX_VERSION"
     # pkg is the preferred wrapper in Termux
@@ -67,5 +72,4 @@ if test -n "$TERMUX_VERSION"
     # Full Termux backup & restore (interactive selection & progress bar)
     abbr -a tbackup '~/.config/scripts/termux-backup-tool.sh backup'
     abbr -a trestore '~/.config/scripts/termux-backup-tool.sh restore'
-    alias wake-home='~/.config/scripts/wake-home.sh'
 end

@@ -1,0 +1,199 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Smart Wake-on-LAN & Early-Boot Unlock Orchestrator (wk)
+# Supports: homepc | workpc
+# ==============================================================================
+
+set -uo pipefail
+
+TARGET="${1:-}"
+
+# Colors & Formatting
+BOLD="\033[1m"
+RESET="\033[0m"
+GREEN="\033[38;5;48m"
+RED="\033[38;5;196m"
+YELLOW="\033[38;5;220m"
+CYAN="\033[38;5;51m"
+BLUE="\033[38;5;39m"
+GRAY="\033[38;5;245m"
+
+# Show usage if invalid target
+if [[ -z "$TARGET" || ( "$TARGET" != "homepc" && "$TARGET" != "workpc" ) ]]; then
+    echo -e "${BOLD}${CYAN}Usage:${RESET} wk ${YELLOW}<homepc | workpc>${RESET}"
+    exit 1
+fi
+
+TIMEOUT_SECONDS=45
+
+if [[ "$TARGET" == "homepc" ]]; then
+    TARGET_LABEL="Home PC"
+    TARGET_MAC="bc:fc:e7:3b:8f:44"
+    BROADCAST_IP="192.168.0.255"
+    CHECK_IPS=("192.168.0.100" "100.74.60.10")
+    TINYSSH_CHECK_IPS=("192.168.0.100" "100.72.15.120")
+    UNLOCK_NODE="home-unlock"
+else
+    TARGET_LABEL="Work PC"
+    TARGET_MAC="10:E7:C6:33:CB:5C"
+    BROADCAST_IP="192.168.1.255"
+    CHECK_IPS=("192.168.1.100" "172.20.0.100" "100.90.140.22")
+    TINYSSH_CHECK_IPS=("192.168.1.100" "100.105.161.58")
+    UNLOCK_NODE="work-unlock"
+fi
+
+# Function to send L2 UDP Magic Packet using Python stdlib (no wol package needed)
+send_local_broadcast_magic_packet() {
+    local mac="$1"
+    local bcast="$2"
+    python3 -c "
+import socket
+mac_bytes = bytes.fromhex('$mac'.replace(':', '').replace('-', ''))
+packet = b'\xff' * 6 + mac_bytes * 16
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+sock.settimeout(1.0)
+try:
+    sock.sendto(packet, ('$bcast', 9))
+    sock.sendto(packet, ('$bcast', 7))
+except Exception:
+    pass
+sock.close()
+" 2>/dev/null || true
+}
+
+# Function to test if PC is responding to ping
+is_pc_online() {
+    for ip in "${CHECK_IPS[@]}"; do
+        if ping -c 1 -W 1 "$ip" >/dev/null 2>&1; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Function to execute command via fish 's' function or mesh_core directly
+run_s() {
+    local node="$1"
+    local action="$2"
+    if command -v fish >/dev/null 2>&1 && fish -c 'functions -q s' >/dev/null 2>&1; then
+        fish -c "s $node $action"
+    else
+        # Fallback to direct Python mesh_core resolution
+        local script_path="$HOME/.config/scripts/mesh_core.py"
+        [ ! -f "$script_path" ] && script_path="$HOME/.local/share/chezmoi/dot_config/scripts/mesh_core.py"
+        
+        local json_res
+        json_res=$(python3 "$script_path" resolve "$node" "$action" 2>/dev/null || echo "")
+        if [ -n "$json_res" ]; then
+            local route
+            route=$(python3 -c "import json, sys; d=json.loads(sys.stdin.read()); print(d.get('route', ''))" <<< "$json_res")
+            local args
+            args=$(python3 -c "import json, sys; d=json.loads(sys.stdin.read()); print(' '.join(d.get('ssh_args', [])))" <<< "$json_res")
+            if [ -n "$route" ]; then
+                # shellcheck disable=SC2086
+                ssh -o ConnectTimeout=4 -o BatchMode=yes "$route" $args
+            fi
+        fi
+    fi
+}
+
+clear 2>/dev/null || true
+echo -e "${BOLD}${BLUE}====================================================${RESET}"
+echo -e "${BOLD}${CYAN}          ⚡ SMART WAKE-ON-LAN CONTROLLER ⚡        ${RESET}"
+echo -e "${BOLD}${BLUE}====================================================${RESET}"
+echo -e "${GRAY}Target Host:${RESET} ${TARGET_LABEL} (${BOLD}${TARGET_MAC}${RESET})\n"
+
+# Step 0: Check if PC is already awake
+echo -ne "${GRAY}[*] Checking if ${TARGET_LABEL} is already online... ${RESET}"
+if is_pc_online; then
+    echo -e "${GREEN}${BOLD}ALREADY ONLINE!${RESET}"
+    echo -e "\n${GREEN}✔ ${TARGET_LABEL} is already up and running.${RESET}"
+else
+    echo -e "${YELLOW}OFFLINE${RESET}"
+
+    # Step 1: Send Magic Packet via Local Broadcast + Routers (s)
+    echo -e "\n${BOLD}[1/2] Dispatching Magic Packet...${RESET}"
+
+    echo -ne "  ${GRAY}↳ Sending direct L2 broadcast (${BROADCAST_IP})... ${RESET}"
+    send_local_broadcast_magic_packet "$TARGET_MAC" "$BROADCAST_IP"
+    echo -e "${GREEN}${BOLD}SENT!${RESET}"
+
+    if [[ "$TARGET" == "homepc" ]]; then
+        echo -ne "  ${GRAY}↳ Triggering via home router (s x28 wake)... ${RESET}"
+        run_s "x28" "wake" >/dev/null 2>&1 &
+        echo -e "${GREEN}${BOLD}DISPATCHED!${RESET}"
+    else
+        echo -ne "  ${GRAY}↳ Triggering via routers (Mastermind & Pishgaman)... ${RESET}"
+        run_s "router-mastermind" "wake-workpc" >/dev/null 2>&1 &
+        run_s "router-pishgaman" "wake-workpc" >/dev/null 2>&1 &
+        echo -e "${GREEN}${BOLD}DISPATCHED!${RESET}"
+    fi
+
+    # Step 2: Verification & Ping Watcher
+    echo -e "\n${BOLD}[2/2] Awaiting system startup (Timeout: ${TIMEOUT_SECONDS}s)...${RESET}"
+    START_TIME=$(date +%s)
+    AWAKE=0
+
+    SPINNER=("⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏")
+    SPIN_IDX=0
+
+    while true; do
+        CURRENT_TIME=$(date +%s)
+        ELAPSED=$((CURRENT_TIME - START_TIME))
+
+        if [ "$ELAPSED" -ge "$TIMEOUT_SECONDS" ]; then
+            break
+        fi
+
+        SPIN_CHAR=${SPINNER[$SPIN_IDX]}
+        SPIN_IDX=$(( (SPIN_IDX + 1) % 10 ))
+
+        echo -ne "\r  ${CYAN}${SPIN_CHAR}${RESET} Waiting for reply... [${ELAPSED}s / ${TIMEOUT_SECONDS}s] "
+
+        if is_pc_online; then
+            AWAKE=1
+            break
+        fi
+
+        sleep 1
+    done
+
+    echo ""
+
+    if [ "$AWAKE" -ne 1 ]; then
+        echo -e "\n${YELLOW}${BOLD}⚠ WARNING: Timeout reached (${TIMEOUT_SECONDS}s).${RESET}"
+        echo -e "${GRAY}Magic Packet was successfully delivered, but PC has not answered ping yet.${RESET}"
+        echo -e "${GRAY}(Booting, OS decrypt, or BIOS resume might take longer).${RESET}"
+        exit 2
+    fi
+
+    ELAPSED=$(($(date +%s) - START_TIME))
+    echo -e "\n${GREEN}${BOLD}====================================================${RESET}"
+    echo -e "${GREEN}${BOLD}       ✔ SUCCESS: ${TARGET_LABEL} is ONLINE! (${ELAPSED}s)      ${RESET}"
+    echo -e "${GREEN}${BOLD}====================================================${RESET}"
+fi
+
+# Step 3: Early-boot unlock prompt
+echo ""
+read -r -p "$(echo -e "${BOLD}${CYAN}🔐 Connect to Early-Boot unlock prompt? [Y/n]: ${RESET}")" CHOICE
+CHOICE=${CHOICE:-Y}
+if [[ "$CHOICE" =~ ^[Yy]$ ]]; then
+    echo -e "${GRAY}[*] Checking TinySSH port (22456)...${RESET}"
+    for _ in {1..10}; do
+        for tip in "${TINYSSH_CHECK_IPS[@]}"; do
+            if nc -z -w 1 "$tip" 22456 >/dev/null 2>&1; then
+                break 2
+            fi
+        done
+        sleep 1
+    done
+
+    if command -v fish >/dev/null 2>&1 && fish -c 'functions -q s' >/dev/null 2>&1; then
+        exec fish -c "s $UNLOCK_NODE"
+    else
+        exec ssh "$UNLOCK_NODE"
+    fi
+fi
+
+exit 0
