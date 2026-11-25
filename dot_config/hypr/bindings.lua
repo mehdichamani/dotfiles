@@ -30,9 +30,6 @@ hl.unbind("SUPER + CTRL + E")
 o.bind("SUPER + PERIOD", "Emojis", "omarchy-shell shell toggle omarchy.emojis")
 o.bind("SUPER + E", "File Manager", "nautilus")
 
--- Float Nautilus file manager on open
-o.window("org.gnome.Nautilus", { tag = "+floating-window" })
-
 
 -- Open Omarchy menu by pressing Super alone
 o.bind("SUPER + SUPER_L", "Omarchy menu", "omarchy-menu toggle", { release = true })
@@ -63,10 +60,9 @@ o.bind("SUPER + N", "Obsidian", "obsidian")
 hl.unbind("SUPER + SHIFT + T")
 o.bind("SUPER + SHIFT + T", "Telegram", { launch = "Telegram" })
 
--- LocalSend (SUPER + SHIFT + S, float with current/remembered size)
+-- LocalSend (SUPER + SHIFT + S)
 hl.unbind("SUPER + SHIFT + S")
 o.bind("SUPER + SHIFT + S", "LocalSend", { launch = "localsend" })
-o.window("org.localsend.localsend_app", { float = true })
 
 -- WinApps Windows RDP (SUPER + SHIFT + W, replaces default Omawrite binding)
 hl.unbind("SUPER + SHIFT + W")

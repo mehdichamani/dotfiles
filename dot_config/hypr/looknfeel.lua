@@ -44,9 +44,3 @@ hl.config({
 --     column_width = 0.97,
 --   },
 -- })
-
--- Float Remmina Main Management Window
-o.window({ class = "^org\\.remmina\\.Remmina$", title = "^Remmina Remote Desktop Client$" }, {
-  float = true,
-  center = true,
-})
