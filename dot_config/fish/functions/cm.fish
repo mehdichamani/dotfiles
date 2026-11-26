@@ -9,7 +9,7 @@ function cm --description "Unified Chezmoi Dotfiles & Mesh Manager"
             echo "Subcommands:"
             echo "  sync [<peer>] [-n]  Sync dotfiles P2P with all or a specific peer device"
             echo "  apply [deep|none]   Apply dotfiles changes to system (deep=auto reload desktop, none=skip reload)"
-            echo "  patch [status]      Apply or inspect system patches (omarchy icon-font)"
+            echo "  patch [num|status]  List/apply system patches (1: icon-font, 2: plymouth)"
             echo "  install             Run package verification & installer scripts"
             echo "  diff                Show differences between target and destination (chezmoi diff)"
             echo "  status              Show status of managed files (chezmoi status)"
@@ -84,22 +84,88 @@ function cm --description "Unified Chezmoi Dotfiles & Mesh Manager"
             return 0
 
         case patch
-            set -l patch_action "install"
+            set -l arg1 ""
+            set -l arg2 "install"
             if test (count $argv) -ge 2
-                set patch_action $argv[2]
+                set arg1 $argv[2]
+            end
+            if test (count $argv) -ge 3
+                set arg2 $argv[3]
             end
 
-            set -l patch_script "$HOME/.config/scripts/patch-omarchy-icon-font.sh"
-            if not test -f "$patch_script"
-                set patch_script (dirname (status filename))/../../scripts/executable_patch-omarchy-icon-font.sh
+            set -l patches_dir "$HOME/.config/scripts/patches"
+            if not test -d "$patches_dir"
+                set patches_dir (dirname (status filename))/../../scripts/patches
             end
 
-            if not test -f "$patch_script"
-                echo -e "\033[1;31m❌ Patch script not found:\033[0m $patch_script"
+            if not test -d "$patches_dir"
+                echo -e "\033[1;31m❌ Patches directory not found:\033[0m $patches_dir"
                 return 1
             end
 
-            bash "$patch_script" "$patch_action"
+            set -l patch_files
+            for f in "$patches_dir"/*
+                if test -f "$f"
+                    set -a patch_files "$f"
+                end
+            end
+
+            if test (count $patch_files) -eq 0
+                echo -e "\033[1;33mNo patches found in:\033[0m $patches_dir"
+                return 0
+            end
+
+            if test "$arg1" = "status"
+                echo -e "\033[1;35m== System Patches Status ==\033[0m"
+                set -l idx 1
+                for f in $patch_files
+                    set -l pname (string replace -r '^executable_' '' (basename "$f"))
+                    echo -e "\033[1;33m[$idx] $pname:\033[0m"
+                    bash "$f" status
+                    echo ""
+                    set idx (math $idx + 1)
+                end
+                return 0
+            end
+
+            set -l selected "$arg1"
+            if test -z "$selected" -o "$selected" = "list"
+                echo -e "\033[1;35m== Available System Patches ==\033[0m"
+                set -l idx 1
+                for f in $patch_files
+                    set -l pname (string replace -r '^executable_' '' (basename "$f"))
+                    echo "  $idx) $pname"
+                    set idx (math $idx + 1)
+                end
+                echo ""
+                read -P "Select patch number [1-"(count $patch_files)"] (or q to quit): " selected
+                if test "$selected" = "q" -o -z "$selected"
+                    return 0
+                end
+            end
+
+            set -l target_script ""
+            if string match -qr '^[0-9]+$' "$selected"
+                if test "$selected" -ge 1 -a "$selected" -le (count $patch_files)
+                    set target_script $patch_files[$selected]
+                end
+            else
+                for f in $patch_files
+                    set -l pname (string replace -r '^executable_' '' (basename "$f"))
+                    if string match -q "*$selected*" "$pname"
+                        set target_script "$f"
+                        break
+                    end
+                end
+            end
+
+            if test -z "$target_script"
+                echo -e "\033[1;31m❌ Unknown patch:\033[0m '$selected'"
+                echo "Run 'cm patch' to see available patches."
+                return 1
+            end
+
+            bash "$target_script" "$arg2"
             return $status
 
         case install
@@ -155,4 +221,6 @@ complete -c cm -f -n '__fish_seen_subcommand_from apply' -a 'deep' -d 'Apply and
 complete -c cm -f -n '__fish_seen_subcommand_from apply' -a 'none' -d 'Apply dotfiles without reloading desktop components'
 
 # Subcommand: patch
-complete -c cm -f -n '__fish_seen_subcommand_from patch' -a 'status' -d 'Check patch installation status'
+complete -c cm -f -n '__fish_seen_subcommand_from patch' -a '1' -d 'Patch 1: omarchy-icon-font'
+complete -c cm -f -n '__fish_seen_subcommand_from patch' -a '2' -d 'Patch 2: plymouth-branding'
+complete -c cm -f -n '__fish_seen_subcommand_from patch' -a 'status' -d 'Check all patches status'
