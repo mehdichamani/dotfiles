@@ -1,0 +1,23 @@
+{
+  "sound-alerts": {
+    "Stop": [
+      {
+        "type": "command",
+        "command": "python3 ./hooks/notify_sound.py",
+        "timeout": 5
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "ask_question",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ./hooks/notify_sound.py",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
