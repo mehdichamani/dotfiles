@@ -579,8 +579,10 @@ EOF
     cat > "${HOOK_REMOTE_UNLOCK_INSTALL}" << 'EOF'
 #!/bin/bash
 build() {
-    # Bundle stty binary from coreutils so password echo suppression works cleanly over SSH PTY
+    # Bundle coreutils helpers needed by cryptsetup_shell in minimal initramfs
     add_binary "stty"
+    add_binary "rm"
+    add_binary "mkdir"
 
     add_file - /bin/cryptsetup_shell 0755 < <(
         cat << 'INSIDE_SHELL'
@@ -632,14 +634,14 @@ while [ $attempt -le $max_attempts ]; do
         continue
     fi
 
-    if printf '%s' "$pass" | cryptsetup open --type luks "$cryptdev" "$cryptname" $cryptargs --key-file=- ; then
-        echo > /.done
+    if printf '%s' "$pass" | cryptsetup open --type luks --test-passphrase "$cryptdev" $cryptargs --key-file=- ; then
         echo ""
-        echo "Disk unlocked! Select boot mode:"
+        echo "Passphrase accepted! Select boot mode:"
         echo "  [1] Secure (Skip SDDM autologin - default)"
         echo "  [2] Normal (Allow SDDM autologin)"
         printf "Choice [1/2]: "
         read -r boot_mode
+        mkdir -p /run
         case "$boot_mode" in
             2|n|N|normal|Normal)
                 rm -f /run/luks-remote-unlock
@@ -650,13 +652,20 @@ while [ $attempt -le $max_attempts ]; do
                 echo "Mode: Secure (SDDM autologin disabled)."
                 ;;
         esac
-        killall -q cryptsetup 2>/dev/null || true
-        if command -v plymouth >/dev/null 2>&1 && plymouth --ping 2>/dev/null; then
-            plymouth display-message --text="Disk unlocked remotely; boot continues..." 2>/dev/null || true
-            killall -q plymouth 2>/dev/null || true
+
+        if printf '%s' "$pass" | cryptsetup open --type luks "$cryptdev" "$cryptname" $cryptargs --key-file=- ; then
+            echo > /.done
+            killall -q cryptsetup 2>/dev/null || true
+            if command -v plymouth >/dev/null 2>&1 && plymouth --ping 2>/dev/null; then
+                plymouth display-message --text="Disk unlocked remotely; boot continues..." 2>/dev/null || true
+                killall -q plymouth 2>/dev/null || true
+            fi
+            echo "Disk unlocked successfully! Boot continues."
+            exit 0
+        else
+            echo "[!] Failed to open LUKS volume."
+            attempt=$((attempt + 1))
         fi
-        echo "Disk unlocked successfully! Boot continues."
-        exit 0
     else
         echo "[!] Passphrase incorrect."
         attempt=$((attempt + 1))
@@ -804,12 +813,15 @@ main() {
     read -r method_choice
     method_choice="${method_choice:-3}"
 
-    # Clean up previous names and conflicting legacy network configs if present
+    # Clean up previous names and conflicting legacy network/encryptssh configs if present
     rm -f /etc/mkinitcpio.conf.d/99-earlyboot-unlock.conf \
           /etc/mkinitcpio.conf.d/99-earlyboot-driver.conf \
           /etc/mkinitcpio.conf.d/omarchy_network.conf \
           /etc/limine-entry-tool.d/99-earlyboot-unlock.conf \
-          /etc/limine-entry-tool.d/omarchy-network.conf 2>/dev/null || true
+          /etc/limine-entry-tool.d/omarchy-network.conf \
+          /etc/initcpio/install/encryptssh \
+          /etc/initcpio/hooks/encryptssh \
+          /etc/initcpio/shells/cryptsetup_shell 2>/dev/null || true
 
     local selected_mode="hybrid"
     case "$method_choice" in
