@@ -3,8 +3,21 @@
 # Omarchy environment (OMARCHY_PATH + PATH), needed for non-interactive SSH commands
 [[ -r /usr/share/omarchy/default/bash/env-bootstrap ]] && source /usr/share/omarchy/default/bash/env-bootstrap
 
-# Auto-launch fish for interactive sessions if available
-if [[ $- == *i* ]] && command -v fish >/dev/null 2>&1; then
+# Load persistent proxy state (also needed for non-interactive SSH commands)
+proxy_state_file="$HOME/.config/proxy_state"
+if [ -s "$proxy_state_file" ]; then
+    _p_val=$(cat "$proxy_state_file" 2>/dev/null)
+    if [ -n "$_p_val" ]; then
+        export http_proxy="$_p_val"; export HTTP_PROXY="$_p_val"
+        export https_proxy="$_p_val"; export HTTPS_PROXY="$_p_val"
+        export all_proxy="$_p_val"; export ALL_PROXY="$_p_val"
+        export no_proxy="localhost,127.0.0.1,::1,localaddress,.local,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12"
+        export NO_PROXY="$no_proxy"
+    fi
+fi
+
+# Auto-launch fish for interactive sessions if available (skip when invoked via -c)
+if [[ $- == *i* ]] && [[ -z "${BASH_EXECUTION_STRING:-}" ]] && command -v fish >/dev/null 2>&1; then
     _ppid_name=$(cat /proc/$PPID/comm 2>/dev/null)
     if [[ "$_ppid_name" != "fish" ]]; then
         exec fish
@@ -26,19 +39,6 @@ esac
 if [[ $- == *i* ]]; then
     # Lightweight colored prompt
     PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
-
-    # Load persistent proxy state
-    proxy_state_file="$HOME/.config/proxy_state"
-    if [ -s "$proxy_state_file" ]; then
-        _p_val=$(cat "$proxy_state_file" 2>/dev/null)
-        if [ -n "$_p_val" ]; then
-            export http_proxy="$_p_val"; export HTTP_PROXY="$_p_val"
-            export https_proxy="$_p_val"; export HTTPS_PROXY="$_p_val"
-            export all_proxy="$_p_val"; export ALL_PROXY="$_p_val"
-            export no_proxy="localhost,127.0.0.1,::1,localaddress,.local,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12"
-            export NO_PROXY="$no_proxy"
-        fi
-    fi
 
     # Termux SSH Automation (start on local shell open, stop on exit)
     if [ -n "$TERMUX_VERSION" ]; then
