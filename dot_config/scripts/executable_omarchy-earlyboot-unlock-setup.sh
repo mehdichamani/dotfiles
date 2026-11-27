@@ -634,7 +634,22 @@ while [ $attempt -le $max_attempts ]; do
 
     if printf '%s' "$pass" | cryptsetup open --type luks "$cryptdev" "$cryptname" $cryptargs --key-file=- ; then
         echo > /.done
-        : > /run/luks-remote-unlock
+        echo ""
+        echo "Disk unlocked! Select boot mode:"
+        echo "  [1] Secure (Skip SDDM autologin - default)"
+        echo "  [2] Normal (Allow SDDM autologin)"
+        printf "Choice [1/2]: "
+        read -r boot_mode
+        case "$boot_mode" in
+            2|n|N|normal|Normal)
+                rm -f /run/luks-remote-unlock
+                echo "Mode: Normal (SDDM autologin enabled)."
+                ;;
+            *)
+                : > /run/luks-remote-unlock
+                echo "Mode: Secure (SDDM autologin disabled)."
+                ;;
+        esac
         killall -q cryptsetup 2>/dev/null || true
         if command -v plymouth >/dev/null 2>&1 && plymouth --ping 2>/dev/null; then
             plymouth display-message --text="Disk unlocked remotely; boot continues..." 2>/dev/null || true
