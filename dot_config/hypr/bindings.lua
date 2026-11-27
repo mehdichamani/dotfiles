@@ -39,7 +39,11 @@ hl.unbind("SUPER + SPACE")
 
 -- Antigravity App (with proxy)
 hl.unbind("SUPER + A")
-o.bind("SUPER + A", "Antigravity App", { launch = "withproxy /home/unreal/.local/bin/antigravity" })
+o.bind("SUPER + A", "Antigravity App", { launch = "withproxy /usr/bin/antigravity" })
+
+-- Zuno (with proxy)
+hl.unbind("SUPER + M")
+o.bind("SUPER + M", "Zuno", { launch = "withproxy /usr/bin/zuno" })
 
 -- VS Code (replaces default ChatGPT webapp)
 hl.unbind("SUPER + SHIFT + A")
@@ -87,6 +91,9 @@ o.bind("SUPER + ALT + RETURN", "WezTerm", "setsid uwsm-app -- wezterm start --cw
 
 -- Theme switcher menu (SUPER + ALT + T)
 o.bind("SUPER + ALT + T", "Theme menu", { menu = "theme" })
+
+-- Theme background switcher (SUPER + ALT + B)
+o.bind("SUPER + ALT + B", "Background switcher", { menu = "background" })
 
 -- Auto-load keybindings from installed Omarchy plugins (including omalt-tab: io.github.codesmith28.omalt-tab)
 local plugins_dir = os.getenv("HOME") .. "/.config/omarchy/plugins"
