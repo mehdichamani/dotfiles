@@ -12,6 +12,7 @@ o.window("Windscribe", { float = true, center = true, size = { 1048, 734 }, work
 -- Floating Windows
 -- =============================================================================
 o.window("org.gnome.Nautilus", { float = true })
+o.window("org.gnome.Loupe", { tag = "+floating-window" })
 o.window("org.localsend.localsend_app", { float = true })
 o.window({ class = "^org\\.remmina\\.Remmina$", title = "^Remmina Remote Desktop Client$" }, { float = true })
 
